@@ -20,6 +20,11 @@ const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }
 const dt = (iso?: string) => (iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
 const dataCurto = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
 const hora = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—");
+// No endereçamento, a linha pode vir como "001.000 - LUKMA".
+// No resumo do grupo, exibimos apenas o nome legível: "Linha LUKMA".
+const nomeCurtoLinha = (linha: string) => linha.trim().replace(/^\d+(?:\.\d+)*\s*[-–—]\s*/, "").trim();
+const normalizarPesquisa = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
+const chaveSelecao = (tipo: TipoSelecao, valor: string) => JSON.stringify([tipo, valor.trim()]);
 
 function Metric({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "bad" }) {
   return (
@@ -53,7 +58,46 @@ export function CiclosContagem() {
   const [selecionando, setSelecionando] = useState(false);
   const [tipoSelecao, setTipoSelecao] = useState<TipoSelecao>("linha");
   const [buscaSelecao, setBuscaSelecao] = useState("");
-  const selecoes = useMemo(() => listarSelecoes(enderecoBase, tipoSelecao, buscaSelecao), [enderecoBase, tipoSelecao, buscaSelecao]);
+  // O estado do ciclo já é sincronizado no Supabase; não precisamos criar uma segunda marcação.
+  // Se uma seleção for recontada, mostramos o estado do ciclo mais recente.
+  const statusPorSelecao = useMemo(() => {
+    const status = new Map<string, { estado: Ciclo["status"]; criadoEm: string }>();
+    for (const ciclo of ciclos) {
+      if (!ciclo.selecao) continue;
+      const chave = chaveSelecao(ciclo.selecao.tipo, ciclo.selecao.valor);
+      const anterior = status.get(chave);
+      if (!anterior || ciclo.criadoEm >= anterior.criadoEm) {
+        status.set(chave, { estado: ciclo.status, criadoEm: ciclo.criadoEm });
+      }
+    }
+    return status;
+  }, [ciclos]);
+
+  // Um grupo pode conter produtos de mais de uma linha; exibimos todas sem inventar relações.
+  const linhasPorGrupo = useMemo(() => {
+    const mapa = new Map<string, Set<string>>();
+    for (const item of Object.values(enderecoBase.registros)) {
+      const grupo = item.grupo?.trim();
+      const linha = nomeCurtoLinha(item.linha ?? "");
+      if (!grupo || !linha) continue;
+      if (!mapa.has(grupo)) mapa.set(grupo, new Set());
+      mapa.get(grupo)!.add(linha);
+    }
+    const resultado = new Map<string, string[]>();
+    for (const [grupo, linhas] of mapa) {
+      resultado.set(grupo, [...linhas].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })));
+    }
+    return resultado;
+  }, [enderecoBase]);
+
+  const selecoes = useMemo(() => {
+    const lista = listarSelecoes(enderecoBase, tipoSelecao, tipoSelecao === "linha" ? buscaSelecao : "");
+    if (tipoSelecao !== "grupo" || !buscaSelecao.trim()) return lista;
+    const pesquisa = normalizarPesquisa(buscaSelecao);
+    return lista.filter((selecao) => normalizarPesquisa(
+      `${selecao.valor} ${(linhasPorGrupo.get(selecao.valor) ?? []).join(" ")}`,
+    ).includes(pesquisa));
+  }, [enderecoBase, tipoSelecao, buscaSelecao, linhasPorGrupo]);
   const [lote, setLote] = useState<number>(() =>
     typeof window === "undefined" ? 200 : Number(localStorage.getItem("monitor-abc-lote-parados")) || 200,
   );
@@ -269,15 +313,34 @@ export function CiclosContagem() {
             <Input autoFocus aria-label="Pesquisar linha ou grupo" placeholder="Nome ou código…" value={buscaSelecao} onChange={(e) => setBuscaSelecao(e.target.value)} className="h-10 bg-background pl-9" />
           </div>
           <div className="max-h-[45dvh] overflow-y-auto divide-y divide-border">
-            {selecoes.map((selecao) => (
-              <div key={selecao.valor} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="break-words text-base font-semibold">{selecao.valor}</p>
-                  <p className="text-sm text-muted-foreground">{nf(selecao.total)} itens</p>
+            {selecoes.map((selecao) => {
+              const estado = statusPorSelecao.get(chaveSelecao(selecao.tipo, selecao.valor))?.estado;
+              const linhas = selecao.tipo === "grupo" ? (linhasPorGrupo.get(selecao.valor) ?? []) : [];
+              const rotuloLinha = linhas.length === 1 ? `Linha ${linhas[0]}`
+                : linhas.length > 1 ? `Linhas ${linhas.join(", ")}` : "";
+              return (
+                <div key={`${selecao.tipo}:${selecao.valor}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-semibold">
+                      {selecao.valor}
+                      {rotuloLinha && <span className="ml-1 text-sm font-normal text-muted-foreground">({rotuloLinha})</span>}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-muted-foreground">{nf(selecao.total)} itens</span>
+                      {estado === "finalizado" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success" title="Ciclo finalizado" aria-label="Contagem finalizada">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Contado
+                        </span>
+                      )}
+                      {estado === "aberto" && (
+                        <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">Em contagem</span>
+                      )}
+                    </div>
+                  </div>
+                  <Button className="shrink-0" aria-label={`Criar ciclo ${selecao.valor}`} disabled={!ready || !podeCriar(ciclos, "padrao")} onClick={() => onSelecao(selecao)}><ClipboardList /> Criar ciclo</Button>
                 </div>
-                <Button className="shrink-0" aria-label={`Criar ciclo ${selecao.valor}`} disabled={!ready || !podeCriar(ciclos, "padrao")} onClick={() => onSelecao(selecao)}><ClipboardList /> Criar ciclo</Button>
-              </div>
-            ))}
+              );
+            })}
             {!selecoes.length && <p className="py-6 text-center text-muted-foreground">Nenhuma {tipoSelecao === "linha" ? "linha encontrada" : "grupo encontrado"}.</p>}
           </div>
         </DialogContent>
