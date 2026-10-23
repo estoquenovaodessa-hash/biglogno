@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Moon,
   Sun,
@@ -25,8 +25,10 @@ import {
   ClipboardCheck,
   LogOut,
   Truck,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
   SheetClose,
@@ -44,7 +46,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { SalesVerification } from "@/components/SalesVerification";
 import { useQueryClient } from "@tanstack/react-query";
 import { UploadPanel } from "@/components/UploadPanel";
-import { Estoque } from "@/components/Estoque";
 import { AnalisesOperacoes } from "@/components/AnalisesOperacoes";
 import { Roteiro } from "@/components/Roteiro";
 import { ZonaSegura } from "@/components/ZonaSegura";
@@ -58,8 +59,7 @@ import logo from "@/assets/bignotto-logo.png.asset.json";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
 
 export const Route = createFileRoute("/")({
-  // Painel privado: a renderização da interface ocorre no navegador.
-  // Evita gastar CPU no Worker com SSR da tela de logística.
+  // Painel privado: carregamento da interface no navegador (reduz CPU do Worker).
   ssr: false,
   head: () => ({
     meta: [
@@ -82,20 +82,24 @@ export const Route = createFileRoute("/")({
   component: App,
 });
 
+// Somente as páginas realmente navegáveis. "Estoque" é exclusivamente um grupo de menu.
 const TABS = [
   { key: "Importação", icon: FileInput },
   { key: "Análises e Operações", icon: ChartNoAxesCombined },
+  { key: "Roteiro de Apuração", icon: RouteIcon },
+  { key: "Zona Segura", icon: ShieldCheck },
+  { key: "Endereçamento", icon: LocateFixed },
+  { key: "Histórico", icon: CalendarClock },
   { key: "Contagem", icon: ScanLine },
   { key: "Conferência", icon: ClipboardCheck },
   { key: "Entregas", icon: Truck },
-  { key: "Roteiro de Apuração", icon: RouteIcon },
-  { key: "Zona Segura", icon: ShieldCheck },
-  { key: "Estoque", icon: Warehouse },
-  { key: "Endereçamento", icon: LocateFixed },
-  { key: "Histórico", icon: CalendarClock },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
+
+// Seis páginas sob Estoque e três opções principais, nesta ordem.
+const ESTOQUE_SUBTABS = TABS.slice(0, 6);
+const MENU_PRINCIPAL = TABS.slice(6);
 type ViewMode = "mobile" | "desktop";
 
 const VIEW_MODE_KEY = "monitor-abc-view-mode";
@@ -157,8 +161,6 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
         return <Roteiro />;
       case "Zona Segura":
         return <ZonaSegura />;
-      case "Estoque":
-        return <Estoque />;
       case "Endereçamento":
         return <Enderecamento />;
       case "Histórico":
@@ -172,46 +174,129 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     "Conferência",
     "Entregas",
     "Zona Segura",
-    "Estoque",
     "Histórico",
   ].includes(tab);
 
   const activeTab = TABS.find((item) => item.key === tab);
   const ActiveIcon = activeTab?.icon ?? PackageSearch;
 
-  const navigation = (closeOnSelect = false) => (
-    <nav className="brand-nav flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
-      {TABS.filter(({ key }) => canAccessTab(role, key)).map(({ key, icon: Icon }) => {
-        const isActive = tab === key;
-        const item = (
-          <Button
-            variant="ghost"
-            onClick={() => setTab(key)}
-            title={key}
-            aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "h-auto min-h-12 w-full gap-3 rounded-md px-3 py-3 text-sm font-semibold whitespace-normal",
-              aberto || closeOnSelect ? "justify-start" : "justify-center",
-              isActive
-                ? "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {(aberto || closeOnSelect) && <span className="text-left leading-tight">{key}</span>}
-          </Button>
-        );
+  const estoqueAtivo = ESTOQUE_SUBTABS.some(({ key }) => tab === key);
+  const [estoqueMenuAberto, setEstoqueMenuAberto] = useState(false);
+  const fecharEstoqueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-        return closeOnSelect ? (
-          <SheetClose asChild key={key}>
-            {item}
-          </SheetClose>
+  // Pequena tolerância permite mover o ponteiro entre o ícone e o menu flutuante.
+  const abrirEstoque = () => {
+    if (fecharEstoqueTimer.current) clearTimeout(fecharEstoqueTimer.current);
+    fecharEstoqueTimer.current = null;
+    setEstoqueMenuAberto(true);
+  };
+  const agendarFecharEstoque = () => {
+    if (fecharEstoqueTimer.current) clearTimeout(fecharEstoqueTimer.current);
+    fecharEstoqueTimer.current = setTimeout(() => setEstoqueMenuAberto(false), 170);
+  };
+
+  useEffect(() => () => {
+    if (fecharEstoqueTimer.current) clearTimeout(fecharEstoqueTimer.current);
+  }, []);
+
+  const selecionarPagina = (key: TabKey) => {
+    setTab(key);
+    setEstoqueMenuAberto(false);
+  };
+
+  const navigation = (closeOnSelect = false) => {
+    const mostrarRotulo = aberto || closeOnSelect;
+    const menuCompacto = !mostrarRotulo;
+    const opcoesEstoque = ESTOQUE_SUBTABS.filter(({ key }) => canAccessTab(role, key));
+    const idSubmenu = closeOnSelect ? "estoque-submenu-mobile" : "estoque-submenu-desktop";
+
+    const renderOption = ({ key, icon: Icon }: (typeof TABS)[number], filha = false) => {
+      const isActive = tab === key;
+      const item = (
+        <Button
+          variant="ghost"
+          onClick={() => selecionarPagina(key)}
+          title={key}
+          aria-current={isActive ? "page" : undefined}
+          className={cn(
+            "h-auto w-full gap-3 rounded-md text-sm font-semibold whitespace-normal",
+            filha ? "min-h-10 px-3 py-2.5" : "min-h-12 px-3 py-3",
+            mostrarRotulo || filha ? "justify-start" : "justify-center",
+            isActive
+              ? "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          )}
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          {(mostrarRotulo || filha) && <span className="text-left leading-tight">{key}</span>}
+        </Button>
+      );
+
+      return closeOnSelect ? <SheetClose key={key} asChild>{item}</SheetClose> : <div key={key}>{item}</div>;
+    };
+
+    const estoqueBotao = (
+      <Button
+        variant="ghost"
+        type="button"
+        title="Estoque — mostrar subopções"
+        aria-label={menuCompacto ? "Estoque — mostrar subopções" : undefined}
+        aria-expanded={estoqueMenuAberto}
+        aria-controls={idSubmenu}
+        onClick={menuCompacto ? undefined : () => setEstoqueMenuAberto((v) => !v)}
+        className={cn(
+          "h-auto min-h-12 w-full gap-3 rounded-md px-3 py-3 text-sm font-semibold whitespace-normal",
+          mostrarRotulo ? "justify-start" : "justify-center",
+          estoqueAtivo
+            ? "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+        )}
+      >
+        <Warehouse className="h-4 w-4 shrink-0" />
+        {mostrarRotulo && <>
+          <span className="flex-1 text-left leading-tight">Estoque</span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", estoqueMenuAberto && "rotate-180")} />
+        </>}
+      </Button>
+    );
+
+    return (
+      <nav aria-label="Navegação principal" className="brand-nav flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
+        {opcoesEstoque.length > 0 && (menuCompacto ? (
+          <Popover open={estoqueMenuAberto} onOpenChange={setEstoqueMenuAberto}>
+            <div onPointerEnter={(event) => { if (event.pointerType === "mouse") abrirEstoque(); }}
+               onPointerLeave={(event) => { if (event.pointerType === "mouse") agendarFecharEstoque(); }}>
+              <PopoverTrigger asChild>{estoqueBotao}</PopoverTrigger>
+            </div>
+            <PopoverContent
+              id={idSubmenu}
+              side="right"
+              align="start"
+              sideOffset={6}
+              className="w-64 space-y-1 border-sidebar-border bg-sidebar p-2 text-sidebar-foreground"
+              onPointerEnter={(event) => { if (event.pointerType === "mouse") abrirEstoque(); }}
+              onPointerLeave={(event) => { if (event.pointerType === "mouse") agendarFecharEstoque(); }}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              <p className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-sidebar-foreground/70">Estoque</p>
+              {opcoesEstoque.map((entry) => renderOption(entry, true))}
+            </PopoverContent>
+          </Popover>
         ) : (
-          <div key={key}>{item}</div>
-        );
-      })}
-    </nav>
-  );
+          <div onPointerEnter={(event) => { if (event.pointerType === "mouse") abrirEstoque(); }}
+               onPointerLeave={(event) => { if (event.pointerType === "mouse") agendarFecharEstoque(); }}>
+            {estoqueBotao}
+            {estoqueMenuAberto && (
+              <div id={idSubmenu} className="ml-5 mt-1 space-y-0.5 border-l-2 border-sidebar-border pl-2">
+                {opcoesEstoque.map((entry) => renderOption(entry, true))}
+              </div>
+            )}
+          </div>
+        ))}
+        {MENU_PRINCIPAL.filter(({ key }) => canAccessTab(role, key)).map((entry) => renderOption(entry))}
+      </nav>
+    );
+  };
 
   const content = ready && needsImport && items.length === 0 ? (
     <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground sm:p-10">
