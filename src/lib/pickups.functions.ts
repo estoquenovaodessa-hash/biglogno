@@ -1,0 +1,36 @@
+import { createServerFn } from '@tanstack/react-start';
+import { finishPickup, finishPickupSchema, manualPickupSchema, type Pickup } from './pickups';
+
+export const listPickups = createServerFn({ method: 'GET' }).handler(async () => {
+  const { requireAccess } = await import('./access.server'); const role = await requireAccess();
+  const { logisticsClient } = await import('./logistics.server'); const db = await logisticsClient();
+  const records: Pickup[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    let q = db.from('pickups').select('id,created_at,payload').order('created_at', { ascending: false }).order('id');
+    if (role === 'operador') q = q.eq('payload->>status', 'pendente');
+    const { data, error } = await q.range(offset, offset + 999);
+    if (error) throw new Error('Não foi possível carregar Retira.');
+    records.push(...(data ?? []).map(r => ({ ...(r.payload as unknown as Pickup), id: r.id, createdAt: r.created_at })));
+    if (!data || data.length < 1000) break;
+  }
+  const { data: last, error } = await db.from('pickups').select('payload').eq('payload->>status', 'finalizada').order('payload->>finishedAt', { ascending: false }).limit(1);
+  if (error) throw new Error('Não foi possível carregar o último operador.');
+  return { records, lastHandedBy: (last?.[0]?.payload as unknown as Pickup | undefined)?.handedBy ?? '' };
+});
+export const addManualPickup = createServerFn({ method: 'POST' }).inputValidator(manualPickupSchema).handler(async ({ data }) => {
+  const { operatorAccess, companyByCode, logisticsClient } = await import('./logistics.server'); await operatorAccess();
+  const db = await logisticsClient();
+  const company = data.source === 'NO' ? await companyByCode(data.companyCode) : null;
+  const payload = data.source === 'SBO' ? { source: 'SBO', company: data.collector, collector: data.collector, status: 'pendente' } : { source: 'NO', company: company?.name, companyCode: company?.code, document: data.document, value: data.value, status: 'pendente' };
+  const { error } = await db.from('pickups').upsert({ id: data.requestId, payload }, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw new Error('Não foi possível adicionar Retira.'); return { ok: true };
+});
+export const completePickup = createServerFn({ method: 'POST' }).inputValidator(finishPickupSchema).handler(async ({ data }) => {
+  const { operatorAccess, logisticsClient } = await import('./logistics.server'); await operatorAccess(); const db = await logisticsClient();
+  const { data: row, error } = await db.from('pickups').select('id,created_at,payload').eq('id', data.id).maybeSingle();
+  if (error || !row) throw new Error('Retira não encontrada.');
+  const p = finishPickup({ ...(row.payload as unknown as Pickup), id: row.id, createdAt: row.created_at }, data.handedBy, new Date());
+  const { id: _i, createdAt: _c, ...payload } = p;
+  const { error: saveError } = await db.rpc('commit_logistics_changes', { kind: 'pickups', expected: [{ id: row.id, payload: row.payload }], changes: [{ id: row.id, payload }] });
+  if (saveError) throw new Error('Pedido já atualizado. Atualize e tente novamente.'); return { ok: true };
+});
