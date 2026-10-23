@@ -164,9 +164,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       case "resolvidos-dia":
         setResolvidos((value as ResolvidoNoDia[]) ?? []);
         break;
-      case "conferencia":
-        setConf(padConferencia((value as Record<string, ConferenciaState>) ?? {}).mapa);
+      case "conferencia": {
+        // O banco e a fonte de verdade. Ao limpar conferencias no Supabase,
+        // descarte tambem o cache deste dispositivo para nao reimportar dados antigos.
+        const normalized = padConferencia((value as Record<string, ConferenciaState>) ?? {}).mapa;
+        setConf(normalized);
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem("monitor-abc-bignotto:conferencia", JSON.stringify(normalized));
+          } catch { /* Navegador sem espaco ou armazenamento desativado */ }
+        }
         break;
+      }
       case "barcodes-base":
         setBarcodesBase(
           (value as BarcodesBase) ?? {
@@ -243,7 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       for (const key of CLOUD_KEYS) {
         const cloudValue = cloud[key];
-        if (key in cloud && (hasData(cloudValue) || !hasData(localByKey[key]))) {
+        if (key in cloud && (key === "conferencia" || hasData(cloudValue) || !hasData(localByKey[key]))) {
           applyCloud(key, cloudValue);
           // Migração única: códigos da Zona Segura com menos de 5 dígitos
           // ganham zeros à esquerda e são gravados de volta na nuvem.
