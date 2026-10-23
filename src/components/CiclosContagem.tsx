@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Archive, ClipboardList, ArrowLeft, ShieldCheck, CheckCircle2, Search, Trash2, Layers, FolderOpen, RotateCcw } from "lucide-react";
+import { Lightbulb, ClipboardList, ArrowLeft, ShieldCheck, CheckCircle2, Search, Trash2, Layers, FolderOpen, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { coletarEContar, itensColeta } from "@/lib/coletar";
@@ -27,6 +27,35 @@ const fmtDelta = (n: number) => `${n >= 0 ? "+" : ""}${nf(n)} p.p.`;
 const nomeCurtoLinha = (linha: string) => linha.trim().replace(/^\d+(?:\.\d+)*\s*[-–—]\s*/, "").trim();
 const normalizarPesquisa = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
 const chaveSelecao = (tipo: TipoSelecao, valor: string) => JSON.stringify([tipo, valor.trim()]);
+
+// Uma contagem passa a ser elegível um mês-calendário após a primeira finalização.
+// O dia é limitado ao último dia do mês de destino (ex.: 31/01 -> 28/02 ou 29/02).
+function umMesApos(iso: string): number {
+  const data = new Date(iso);
+  if (!Number.isFinite(data.getTime())) return Number.POSITIVE_INFINITY;
+  const ano = data.getUTCFullYear();
+  const mesSeguinte = data.getUTCMonth() + 1;
+  const ultimoDiaMesSeguinte = new Date(Date.UTC(ano, mesSeguinte + 1, 0)).getUTCDate();
+  return Date.UTC(
+    ano, mesSeguinte, Math.min(data.getUTCDate(), ultimoDiaMesSeguinte),
+    data.getUTCHours(), data.getUTCMinutes(), data.getUTCSeconds(), data.getUTCMilliseconds(),
+  );
+}
+
+// Ciclos com reinventário concluído, não em andamento e com a primeira contagem
+// finalizada há pelo menos um mês. Ordenação: último reinventário mais antigo primeiro.
+function listarSugestoesReinventario(ciclos: Ciclo[], agora: number) {
+  return ciclos.flatMap((ciclo) => {
+    if (ciclo.status !== "finalizado" || reinventarioEmAberto(ciclo)) return [];
+    const ultimo = ultimoReinventarioFinalizado(ciclo);
+    if (!ultimo || !ultimo.finalizadoEm) return [];
+    const primeiraContagem = ciclo.finalizadoEm ?? ciclo.criadoEm;
+    if (umMesApos(primeiraContagem) > agora) return [];
+    const dataUltimo = Date.parse(ultimo.finalizadoEm);
+    if (!Number.isFinite(dataUltimo)) return [];
+    return [{ ciclo, ultimoEm: ultimo.finalizadoEm, dataUltimo }];
+  }).sort((a, b) => a.dataUltimo - b.dataUltimo || a.ciclo.titulo.localeCompare(b.ciclo.titulo, "pt-BR", { numeric: true }));
+}
 
 function Metric({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "bad" }) {
   return (
@@ -59,6 +88,7 @@ export function CiclosContagem() {
   const [arquivoReinventario, setArquivoReinventario] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [selecionando, setSelecionando] = useState(false);
+  const [mostrandoSugestoes, setMostrandoSugestoes] = useState(false);
   const [tipoSelecao, setTipoSelecao] = useState<TipoSelecao>("linha");
   const [buscaSelecao, setBuscaSelecao] = useState("");
 
@@ -100,14 +130,20 @@ export function CiclosContagem() {
     ).includes(pesquisa));
   }, [enderecoBase, tipoSelecao, buscaSelecao, linhasPorGrupo]);
 
-  const [lote, setLote] = useState<number>(() =>
-    typeof window === "undefined" ? 200 : Number(localStorage.getItem("monitor-abc-lote-parados")) || 200,
-  );
   const parados = useMemo(
     () => listarParados(enderecoBase, movimentos, zonaSegura, conferencia),
     [enderecoBase, movimentos, zonaSegura, conferencia],
   );
-  const nuncaContados = parados.filter((p) => !p.ultimaContagem).length;
+
+  const [dataReferenciaSugestoes, setDataReferenciaSugestoes] = useState(() => Date.now());
+  const sugestoesReinventario = useMemo(
+    () => listarSugestoesReinventario(ciclos, dataReferenciaSugestoes),
+    [ciclos, dataReferenciaSugestoes],
+  );
+  const abrirSugestoes = () => {
+    setDataReferenciaSugestoes(Date.now());
+    setMostrandoSugestoes(true);
+  };
 
   const criar = (tipo: TipoCiclo, itens: CicloItem[], selecao?: SelecaoContagem) => {
     const numero = proximoNumero(ciclos, tipo);
@@ -139,18 +175,6 @@ export function CiclosContagem() {
       saldo: i.qtdEstoque, contagem: null, diferenca: 0, custo: 0, vrDiferenca: 0,
     })));
     toast.success(`${c.titulo} criada com ${lista.length} itens (arquivos baixados).`);
-  };
-
-  const onParados = () => {
-    if (!podeCriar(ciclos, "padrao")) return toast.error("Finalize o Padrão aberto antes de criar outro.");
-    if (!parados.length) return toast.error("Nenhum item parado — importe a base de endereços e o relatório de vendas.");
-    const sel = selecionarLote(parados, lote);
-    exportarLoteParados(parados, lote);
-    const c = criar("padrao", sel.map((i) => ({
-      codigo: i.codigo, descricao: i.descricao, endereco: i.endereco,
-      saldo: 0, contagem: null, diferenca: 0, custo: 0, vrDiferenca: 0,
-    })));
-    toast.success(`${c.titulo} criado com ${sel.length} itens (arquivos baixados).`);
   };
 
   const onSelecao = (selecao: SelecaoContagem) => {
@@ -305,16 +329,9 @@ export function CiclosContagem() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-          <span>Parados: <strong className="text-foreground">{parados.length}</strong> · nunca contados: <strong className="text-foreground">{nuncaContados}</strong></span>
-          <label className="flex items-center gap-1">
-            Lote do dia
-            <input type="number" min={1} value={lote}
-              onChange={(e) => { const n = Math.max(1, Number(e.target.value) || 1); setLote(n); localStorage.setItem("monitor-abc-lote-parados", String(n)); }}
-              className="w-20 rounded border border-input bg-background px-2 py-1 text-foreground" />
-          </label>
-          <Button size="sm" variant="secondary" onClick={onParados} disabled={!ready || !podeCriar(ciclos, "padrao")}>
-            <Archive className="h-4 w-4" /> Contar Parados
+        <div className="flex items-center rounded-lg border border-border bg-card px-3 py-2">
+          <Button size="sm" variant="secondary" className="gap-2" onClick={abrirSugestoes} disabled={!ready}>
+            <Lightbulb className="h-4 w-4" /> Sugestão de Reinventário
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -336,7 +353,7 @@ export function CiclosContagem() {
           {!ready && <p className="text-sm text-muted-foreground">Carregando ciclos…</p>}
           {ready && !ciclos.length && (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Nenhum ciclo ainda. Clique em "Coletar e Contar" ou "Contar Parados" para criar o primeiro.
+              Nenhum ciclo ainda. Clique em "Contar por Linha ou Grupo" ou "Coletar e Contar" para criar o primeiro.
             </div>
           )}
           {ciclos.map((c) => {
@@ -390,6 +407,53 @@ export function CiclosContagem() {
           })}
         </div>
       )}
+
+      <Dialog open={mostrandoSugestoes} onOpenChange={setMostrandoSugestoes}>
+        <DialogContent className="max-h-[85dvh] max-w-2xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Sugestão de Reinventário</DialogTitle>
+            <DialogDescription>
+              Ciclos com pelo menos um reinventário concluído e primeira contagem finalizada há um mês ou mais.
+              Prioridade para o último reinventário mais antigo.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {sugestoesReinventario.length} {sugestoesReinventario.length === 1 ? "ciclo elegível" : "ciclos elegíveis"}
+          </p>
+          <div className="max-h-[50dvh] divide-y divide-border overflow-y-auto">
+            {sugestoesReinventario.map(({ ciclo, ultimoEm }, indice) => (
+              <div key={ciclo.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{indice + 1}º · {ciclo.titulo}</span>
+                    {indice === 0 && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">Prioridade máxima</span>}
+                  </div>
+                  {ciclo.selecao && <p className="text-sm text-primary">
+                    {ciclo.selecao.tipo === "grupo" ? "Grupo" : "Linha"}: {ciclo.selecao.valor}
+                  </p>}
+                  <p className="text-sm text-muted-foreground">
+                    Primeira contagem: {dt(ciclo.finalizadoEm ?? ciclo.criadoEm)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Último reinventário: {dt(ultimoEm)}</p>
+                  <p className="text-sm text-muted-foreground">{nf(ciclo.itens.length)} itens</p>
+                </div>
+                <Button size="sm" className="shrink-0" onClick={() => {
+                  setMostrandoSugestoes(false);
+                  onReinventariar(ciclo);
+                }}>
+                  <RotateCcw className="h-4 w-4" /> Reinventariar
+                </Button>
+              </div>
+            ))}
+            {!sugestoesReinventario.length && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Nenhuma sugestão no momento. São considerados somente ciclos já reinventariados,
+                com a primeira contagem concluída há pelo menos um mês e sem reinventário em andamento.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={selecionando} onOpenChange={setSelecionando}>
         <DialogContent className="max-h-[85dvh] max-w-2xl overflow-hidden">
