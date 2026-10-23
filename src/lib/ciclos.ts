@@ -36,6 +36,15 @@ export interface CicloItem {
   vrDiferenca: number;
 }
 
+export interface Reinventario {
+  id: string;
+  iniciadoEm: string;
+  status: "aberto" | "finalizado";
+  finalizadoEm?: string;
+  comDivergencia?: boolean;
+  itens: CicloItem[];
+}
+
 export interface Ciclo {
   id: string;
   tipo: TipoCiclo;
@@ -49,6 +58,7 @@ export interface Ciclo {
   enviadoZona: boolean;
   enviadoEm?: string;
   selecao?: SelecaoContagem;
+  reinventarios?: Reinventario[];
 }
 
 const KEY = "ciclos-contagem";
@@ -65,22 +75,80 @@ export const podeCriar = (ciclos: Ciclo[], tipo: TipoCiclo) =>
 export const excluirCiclo = (ciclos: Ciclo[], id: string) =>
   ciclos.filter((c) => c.id !== id);
 
-// Finaliza: sem PDF, todos corretos (contagem = saldo). Com PDF, aplica as diferenças.
-export function aplicarFinalizacao(c: Ciclo, linhas: LinhaDivergencia[] | null): Ciclo {
+const copiarItens = (itens: CicloItem[]) => itens.map((item) => ({ ...item }));
+
+const aplicarResultadoEmItens = (baseItens: CicloItem[], linhas: LinhaDivergencia[] | null): CicloItem[] => {
   const map = new Map((linhas ?? []).map((l) => [l.codigo, l]));
-  const itens: CicloItem[] = c.itens.map((i) => {
+  const itens: CicloItem[] = baseItens.map((i) => {
     const l = map.get(i.codigo);
     map.delete(i.codigo);
     return l
       ? { ...i, saldo: l.saldo, contagem: l.contagem, diferenca: l.diferenca, custo: l.custo, vrDiferenca: l.vrDiferenca }
       : { ...i, contagem: i.saldo, diferenca: 0, vrDiferenca: 0 };
   });
-  for (const l of map.values())
+  for (const l of map.values()) {
     itens.push({ codigo: l.codigo, descricao: l.descricao, endereco: "", saldo: l.saldo, contagem: l.contagem, diferenca: l.diferenca, custo: l.custo, vrDiferenca: l.vrDiferenca });
+  }
+  return itens;
+};
+
+// Finaliza: sem PDF, todos corretos (contagem = saldo). Com PDF, aplica as diferenças.
+export function aplicarFinalizacao(c: Ciclo, linhas: LinhaDivergencia[] | null): Ciclo {
+  const itens = aplicarResultadoEmItens(c.itens, linhas);
   return { ...c, itens, status: "finalizado", finalizadoEm: new Date().toISOString(), comDivergencia: !!linhas?.length };
 }
 
-export function metricasCiclo(c: Ciclo) {
+export function iniciarReinventario(c: Ciclo): Ciclo {
+  const atual = c.reinventarios ?? [];
+  return {
+    ...c,
+    reinventarios: [...atual, {
+      id: crypto.randomUUID(),
+      iniciadoEm: new Date().toISOString(),
+      status: "aberto",
+      itens: copiarItens(c.itens),
+    }],
+  };
+}
+
+export function reinventarioEmAberto(c: Ciclo): Reinventario | null {
+  const lista = c.reinventarios ?? [];
+  for (let i = lista.length - 1; i >= 0; i -= 1) {
+    if (lista[i].status === "aberto") return lista[i];
+  }
+  return null;
+}
+
+export function ultimoReinventarioFinalizado(c: Ciclo): Reinventario | null {
+  const lista = c.reinventarios ?? [];
+  for (let i = lista.length - 1; i >= 0; i -= 1) {
+    if (lista[i].status === "finalizado") return lista[i];
+  }
+  return null;
+}
+
+export function aplicarFinalizacaoReinventario(c: Ciclo, linhas: LinhaDivergencia[] | null): Ciclo {
+  const lista = [...(c.reinventarios ?? [])];
+  let idx = -1;
+  for (let i = lista.length - 1; i >= 0; i -= 1) {
+    if (lista[i].status === "aberto") {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return c;
+  const atual = lista[idx];
+  lista[idx] = {
+    ...atual,
+    itens: aplicarResultadoEmItens(c.itens, linhas),
+    status: "finalizado",
+    finalizadoEm: new Date().toISOString(),
+    comDivergencia: !!linhas?.length,
+  };
+  return { ...c, reinventarios: lista };
+}
+
+export function metricasCiclo(c: { itens: CicloItem[] }) {
   const total = c.itens.length;
   const div = c.itens.filter((i) => i.diferenca !== 0).length;
   const sobra = c.itens.reduce((s, i) => s + (i.diferenca > 0 ? i.diferenca : 0), 0);
@@ -95,6 +163,19 @@ export function metricasCiclo(c: Ciclo) {
     falta,
     saldoAbs: sobra - falta,
     valor,
+  };
+}
+
+export function comparativoReinventario(c: Ciclo) {
+  const ultimo = ultimoReinventarioFinalizado(c);
+  if (!ultimo) return null;
+  const base = metricasCiclo(c);
+  const reinv = metricasCiclo(ultimo);
+  return {
+    base: base.acuracidade,
+    reinventario: reinv.acuracidade,
+    variacao: reinv.acuracidade - base.acuracidade,
+    finalizadoEm: ultimo.finalizadoEm,
   };
 }
 
