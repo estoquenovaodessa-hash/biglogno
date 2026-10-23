@@ -223,59 +223,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const cloud = await cloudGetAll();
       if (!alive) return;
-      const localByKey: Record<string, unknown> = {
-        "endereco-base": localEnd,
-        "current-movimentos": localMov,
-        "current-meta": localMeta,
-        "import-history": localHist,
-        "zona-segura": localZona,
-        "resolvidos-dia": localRes,
-        conferencia: localConf,
-        "barcodes-base": localBar,
-        "contagem-atual": localCont,
-      };
-      // Considera "tem dados" apenas conteúdo real — nunca os objetos padrão
-      // vazios (que antes sobrescreviam a nuvem e apagavam a base de todos).
-      const hasData = (v: unknown): boolean => {
-        if (!v) return false;
-        if (Array.isArray(v)) return v.length > 0;
-        if (typeof v === "object") {
-          const o = v as Record<string, unknown>;
-          if ("registros" in o) {
-            const reg = o["registros"];
-            return !!reg && Object.keys(reg as object).length > 0;
-          }
-          return Object.keys(o).length > 0;
-        }
-        return true;
-      };
-
+      // O Supabase é a fonte de verdade. A abertura do sistema nunca grava
+      // automaticamente cópias antigas deste navegador no banco.
+      // Inclusive listas vazias do Supabase devem prevalecer sobre o cache.
       for (const key of CLOUD_KEYS) {
-        const cloudValue = cloud[key];
-        if (key in cloud && (key === "conferencia" || hasData(cloudValue) || !hasData(localByKey[key]))) {
-          applyCloud(key, cloudValue);
-          // Migração única: códigos da Zona Segura com menos de 5 dígitos
-          // ganham zeros à esquerda e são gravados de volta na nuvem.
-          if (key === "zona-segura" && Array.isArray(cloudValue)) {
-            const original = cloudValue as ZonaSeguraRecord[];
-            const corrigida = padZonaSegura(original);
-            if (corrigida.some((z, i) => z.codigo !== original[i]?.codigo)) {
-              storage.setZonaSegura(corrigida);
-              cloudSet("zona-segura", corrigida);
-            }
-          }
-          if (key === "conferencia" && cloudValue && typeof cloudValue === "object") {
-            const { mapa, mudou } = padConferencia(cloudValue as Record<string, ConferenciaState>);
-            if (mudou) {
-              setConf(mapa);
-              storage.setConferencia(mapa);
-              cloudSet("conferencia", mapa);
-            }
-          }
-        } else if (key in cloud && hasData(localByKey[key])) {
-          // Publica dados que estavam apenas no dispositivo (ex.: tablet) na nuvem.
-          cloudSet(key, localByKey[key]);
-        }
+        applyCloud(key, Object.prototype.hasOwnProperty.call(cloud, key) ? cloud[key] : null);
       }
       setReady(true);
 

@@ -58,6 +58,9 @@ import logo from "@/assets/bignotto-logo.png.asset.json";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
 
 export const Route = createFileRoute("/")({
+  // Painel privado: a renderização da interface ocorre no navegador.
+  // Evita gastar CPU no Worker com SSR da tela de logística.
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Gestão de Logística — Bignotto Ferramentas" },

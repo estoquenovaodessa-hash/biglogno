@@ -57,3 +57,15 @@ export const writeProtectedState = createServerFn({ method: "POST" })
     if (error) throw new Error("Não foi possível salvar os dados.");
     return { ok: true };
   });
+
+// Metadados leves: o navegador descobre quais valores mudaram sem transferir
+// os documentos JSON grandes a cada sincronização.
+export const readProtectedStateVersions = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireAccess } = await import("./access.server");
+  const role = await requireAccess();
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const keys = ["endereco-base", "import-history", "current-movimentos", "current-meta", "zona-segura", "resolvidos-dia", "conferencia", "barcodes-base", "contagem-atual", "ciclos-contagem"].filter((key) => canAccessState(role, key));
+  const { data, error } = await supabaseAdmin.from("app_state").select("key,updated_at").in("key", keys);
+  if (error) throw new Error("Não foi possível verificar atualizações dos dados.");
+  return data ?? [];
+});
