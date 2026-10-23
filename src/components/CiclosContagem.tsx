@@ -8,7 +8,7 @@ import {
   useCiclos, tituloCiclo, proximoNumero, podeCriar, aplicarFinalizacao, metricasCiclo, excluirCiclo,
   listarSelecoes, itensDaSelecao, type SelecaoContagem, type TipoSelecao,
   type Ciclo, type CicloItem, type TipoCiclo,
-  comparativoReinventario, iniciarReinventario, reinventarioEmAberto, aplicarFinalizacaoReinventario,
+  comparativoReinventario, iniciarReinventario, reinventarioEmAberto, aplicarFinalizacaoReinventario, ultimoReinventarioFinalizado,
 } from "@/lib/ciclos";
 import { lerPdfDivergencias } from "@/lib/pdfDivergencias";
 import { Button } from "@/components/ui/button";
@@ -241,13 +241,37 @@ export function CiclosContagem() {
         if (!linhas.length) return toast.error("Não encontrei itens no PDF. Confira se é o Relatório de Diferenças.");
       }
       const atual = ciclos.find((x) => x.id === reinventarioDialogo.id) ?? reinventarioDialogo;
+      // Evita processar duas vezes um reinventário já finalizado.
+      if (!reinventarioEmAberto(atual)) {
+        toast.error("Este reinventário já foi finalizado. Atualize a tela.");
+        setReinventarioDialogo(null);
+        return;
+      }
       const fin = aplicarFinalizacaoReinventario(atual, linhas);
-      substituirCiclo(fin);
-      const comp = comparativoReinventario(fin);
+      const ultimo = ultimoReinventarioFinalizado(fin);
+      if (!ultimo) throw new Error("Não foi possível identificar o reinventário finalizado.");
+
+      // Envia o resultado da ÚLTIMA contagem, nunca as divergências do primeiro ciclo.
+      // adicionarConferidos atualiza/insere por código na Zona Segura e mantém o
+      // motivo (Correto/Divergente) no índice de acuracidade da aplicação.
+      const envio = adicionarConferidos(ultimo.itens.map((item) => {
+        const classificacao = item.diferenca !== 0 ? "Divergente" : "Correto";
+        return {
+          codigo: item.codigo,
+          motivo: classificacao,
+          observacao: `${fin.titulo} · Reinventário · ${classificacao}`,
+        };
+      }));
+      const finEnviado: Ciclo = {
+        ...fin,
+        enviadoZona: true,
+        enviadoEm: new Date().toISOString(),
+      };
+      substituirCiclo(finEnviado);
+      const comp = comparativoReinventario(finEnviado);
       toast.success(
-        comp
-          ? `Reinventário finalizado: ${nf(comp.reinventario)}% (${fmtDelta(comp.variacao)} em relação à primeira contagem).`
-          : "Reinventário finalizado com sucesso.",
+        `Reinventário finalizado e enviado à Zona Segura: ${envio.adicionados} novos, ${envio.atualizados} atualizados.` +
+        (comp ? ` Acuracidade: ${nf(comp.reinventario)}% (${fmtDelta(comp.variacao)} em relação à primeira contagem).` : ""),
       );
       setReinventarioDialogo(null);
       setArquivoReinventario(null);
