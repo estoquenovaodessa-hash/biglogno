@@ -21,7 +21,7 @@ export function EmployeeTag() {
   const { employee, switchProfile } = useActiveEmployee();
   if (!employee) return null;
   return <button type="button" title="Trocar perfil de funcionário" onClick={() => { void switchProfile(); }}
-    className="inline-flex max-w-[220px] items-center gap-2 rounded-lg border border-[#3e679b] bg-[#102842] px-2 py-1 text-left text-[#eef6ff] hover:bg-[#1c3c61]">
+    className="inline-flex max-w-[165px] items-center gap-2 rounded-lg sm:max-w-[220px] border border-[#3e679b] bg-[#102842] px-2 py-1 text-left text-[#eef6ff] hover:bg-[#1c3c61]">
     <EmployeeAvatar employee={employee} />
     <span className="min-w-0"><span className="block truncate text-xs font-bold sm:text-sm">{employee.name}</span>
       <span className="block truncate text-[11px] text-[#b4cee8]">{employee.job}</span></span>
