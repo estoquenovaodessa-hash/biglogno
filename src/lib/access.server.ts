@@ -11,7 +11,7 @@ export async function accessSession() {
   const password = process.env["SESSION_SECRET"];
   if (!password) throw new Error("Acesso ainda não configurado.");
   setResponseHeader("cache-control", "no-store");
-  return useSession<{ role?: AccessRole; credentialVersion?: string }>({
+  return useSession<{ role?: AccessRole; credentialVersion?: string; employeeId?: string }>({
     password, name: "bignotto-access", maxAge: 60 * 60 * 8,
     cookie: ACCESS_COOKIE,
   });
