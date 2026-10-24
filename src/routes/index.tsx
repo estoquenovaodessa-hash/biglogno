@@ -14,6 +14,7 @@ import {
   Package,
   BarChart3,
   ChartColumnIncreasing,
+  UsersRound,
   Route as RouteIcon,
   ShieldCheck,
   History,
@@ -41,6 +42,8 @@ import {
 } from "@/components/ui/sheet";
 import { useStore, StoreProvider } from "@/lib/store";
 import { AccessGate } from "@/components/AccessGate";
+import { EmployeeGate, EmployeeTag } from "@/components/EmployeeGate";
+import { CadastroFuncionarios } from "@/components/CadastroFuncionarios";
 import { canAccessTab, type AccessRole } from "@/lib/access-policy";
 import { lockAccess } from "@/lib/access.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -96,11 +99,12 @@ const TABS = [
   { key: "Conferência", icon: ClipboardCheck },
   { key: "Entregas", icon: Truck },
   { key: "Apuração Geral", icon: ChartColumnIncreasing },
+  { key: "Cadastro de Funcionários", icon: UsersRound },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-// Seis páginas sob Estoque e quatro opções principais, nesta ordem.
+// Seis páginas sob Estoque e cinco opções principais, nesta ordem.
 const ESTOQUE_SUBTABS = TABS.slice(0, 6);
 const MENU_PRINCIPAL = TABS.slice(6);
 type ViewMode = "mobile" | "desktop";
@@ -108,7 +112,7 @@ type ViewMode = "mobile" | "desktop";
 const VIEW_MODE_KEY = "monitor-abc-view-mode";
 
 function App() {
-  return <AccessGate>{(role, onExit) => <StoreProvider key={role}><OperationalApp role={role} onExit={onExit} /></StoreProvider>}</AccessGate>;
+  return <AccessGate>{(role, onExit) => <EmployeeGate role={role} onExit={onExit}><StoreProvider key={role}><OperationalApp role={role} onExit={onExit} /></StoreProvider></EmployeeGate>}</AccessGate>;
 }
 
 function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void }) {
@@ -160,6 +164,8 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
         return <Entregas role={role} />;
       case "Apuração Geral":
         return role === "gestor" ? <ApuracaoGeral /> : null;
+      case "Cadastro de Funcionários":
+        return role === "gestor" ? <CadastroFuncionarios /> : null;
       case "Contagem":
         return <CiclosContagem />;
       case "Roteiro de Apuração":
@@ -179,6 +185,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     "Conferência",
     "Entregas",
     "Apuração Geral",
+    "Cadastro de Funcionários",
     "Zona Segura",
     "Histórico",
   ].includes(tab);
@@ -339,7 +346,7 @@ const brandHeader = (
     return <div className={cn("min-h-screen overflow-x-hidden bg-background", operatorScreen !== "Contagem" && viewMode === "mobile" && "mobile-view")}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-brand-gold bg-card px-4 py-3">
         <img src={logo.url} alt="Bignotto Ferramentas" className="h-14 w-40 object-contain" />
-        <div className="flex items-center gap-2"><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
+        <div className="flex items-center gap-2"><EmployeeTag /><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
       </header>
       <main className={operatorScreen === "Contagem" ? "logistics-content mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8" : "logistics-content mx-auto max-w-[1600px] px-4 py-6 sm:px-8"}>
         {!operatorScreen ? (
