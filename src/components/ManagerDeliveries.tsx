@@ -1,6 +1,10 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { readDeliveryAddresses, saveDeliveryAddresses } from "@/lib/delivery-addresses.functions";
+import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import {
-  CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText,
+  CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
   MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -108,6 +112,12 @@ function TimelineStep({ title, at, current = false, completed = false }: {
 export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, onRefresh }: {
   deliveries: Delivery[]; isLoading: boolean; isError: boolean; isFetching: boolean; onRefresh: () => void;
 }) {
+  const readAddresses = useServerFn(readDeliveryAddresses);
+  const saveAddresses = useServerFn(saveDeliveryAddresses);
+  const addressQuery = useQuery({ queryKey: ["delivery-addresses"], queryFn: () => readAddresses(), staleTime: 60000 });
+  const queryClient = useQueryClient();
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
   const [draft, setDraft] = useState<Filters>(initial);
   const [filters, setFilters] = useState<Filters>(initial);
   const [tab, setTab] = useState<ListTab>("pendentes");
@@ -130,6 +140,27 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       return a.position - b.position;
     });
   const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
+  const address = selected?.companyCode
+    ? addressQuery.data?.find(a => normalizeDeliveryClientCode(a.client_code) === normalizeDeliveryClientCode(selected.companyCode ?? ""))
+    : undefined;
+  const addressText = address ? [address.address, address.neighborhood, address.city, address.state].filter(Boolean).join(", ") : "";
+  const mapHref = addressText ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addressText) : null;
+  async function importAddressFile(file?: File) {
+    if (!file) return;
+    setImporting(true); setImportMessage("");
+    try {
+      if (file.size > 10 * 1024 * 1024) throw new Error("Arquivo acima de 10 MB.");
+      const bytes = await file.arrayBuffer();
+      let text = new TextDecoder("utf-8").decode(bytes);
+      if (text.includes("\uFFFD")) text = new TextDecoder("windows-1252").decode(bytes);
+      const rows = parseDeliveryAddressesCsv(text);
+      const result = await saveAddresses({ data: rows });
+      await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+      setImportMessage(`${result.imported} endereços importados. Total cadastrado: ${result.total}.`);
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : "Falha ao importar o CSV.");
+    } finally { setImporting(false); }
+  }
   const applied = Object.values(filters).some((v, i) => v !== Object.values(initial)[i]);
   const label = "block mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -141,10 +172,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={isFetching} onClick={onRefresh}><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Atualizar</Button>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">
+          <Upload className="h-4 w-4" /> {importing ? "Importando…" : "Importar endereços"}
+          <input aria-label="Importar CSV de endereços" type="file" accept=".csv,text/csv" className="sr-only" disabled={importing} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; void importAddressFile(file); }} />
+        </label>
         <Button variant="outline" size="sm" disabled={!visible.length} onClick={() => exportCsv(visible)}><Download className="h-4 w-4" /> Exportar CSV</Button>
       </div>
     </div>
 
+    {importMessage && <p role="status" className="rounded-md border border-border p-3 text-sm">{importMessage}</p>}
     {isError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <Summary icon={Package} label="Total de entregas" value={scoped.length} hint="Registros no filtro" />
@@ -221,7 +257,11 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
 
           <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
             <h4 className="flex items-center gap-2 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" /> Endereço e localização</h4>
-            <p className="mt-2 text-sm text-muted-foreground">Endereço ainda não vinculado ao cadastro desta entrega. A importação da CSV permitirá exibi-lo aqui.</p>
+            {address ? <>
+              <p className="mt-2 text-sm font-semibold">{address.address}</p>
+              <p className="text-sm text-muted-foreground">{[address.neighborhood, address.city, address.state].filter(Boolean).join(" · ")}</p>
+              {mapHref && <a href={mapHref} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary underline"><MapPin className="h-4 w-4" /> Abrir endereço no Google Maps</a>}
+            </> : <p className="mt-2 text-sm text-muted-foreground">{selected.companyCode ? "Endereço não encontrado na base importada para este código de cliente." : "Pedido sem código do cliente. Não é possível associar um endereço com segurança."}</p>}
             <p className="mt-2 text-xs text-muted-foreground">Sem rastreamento GPS ativo — nenhuma localização é simulada.</p>
           </div>
 
