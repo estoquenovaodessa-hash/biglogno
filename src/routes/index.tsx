@@ -317,6 +317,17 @@ const brandHeader = (
   </div>
 );
 
+  const pageHeading = (
+    <div className="mb-6 flex items-center gap-3 border-b border-border pb-5">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-primary">
+        <ActiveIcon className="h-6 w-6" strokeWidth={1.75} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gestão de Logística</p>
+        <h1 className="text-2xl font-bold leading-tight text-foreground">{tab}</h1>
+      </div>
+    </div>
+  );
 
   if (role === "operador") {
     return <div className={cn("min-h-screen overflow-x-hidden bg-background", viewMode === "mobile" && "mobile-view")}>
