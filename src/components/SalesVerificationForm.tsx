@@ -3,14 +3,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, ClipboardCheck, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient, type Verifier } from "@/lib/sales-verification";
+import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient } from "@/lib/sales-verification";
 import { registerSalesVerification } from "@/lib/sales-verification.functions";
+import { useActiveEmployee } from "./EmployeeGate";
 
-export function SalesVerificationForm({ clients, verifiers, prefix, lastClientCode, lastVerifierCode, onRegistered }: { clients: SalesClient[]; verifiers: Verifier[]; prefix: string; lastClientCode: string; lastVerifierCode: string; onRegistered: () => void }) {
+export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVerifierCode, onRegistered }: { clients: SalesClient[]; prefix: string; lastClientCode: string; lastVerifierCode: string; onRegistered: () => void }) {
+  const { employee } = useActiveEmployee();
   const [document, setDocument] = useState(prefix);
   const [items, setItems] = useState("");
   const [clientCode, setClientCode] = useState(lastClientCode);
-  const [verifierCode, setVerifierCode] = useState(lastVerifierCode);
+  const [verifierCode, setVerifierCode] = useState(lastVerifierCode === "102" ? "102" : "101");
   const [value, setValue] = useState("");
   const [correct, setCorrect] = useState<boolean | null>(null);
   const [errorReasons, setErrorReasons] = useState<ErrorReason[]>([]);
@@ -24,7 +26,7 @@ export function SalesVerificationForm({ clients, verifiers, prefix, lastClientCo
   const documentInput = useRef<HTMLInputElement>(null);
   const register = useServerFn(registerSalesVerification);
   const client = clients.find(c => canonicalCode(c.code) === canonicalCode(clientCode));
-  const verifier = verifiers.find(v => canonicalCode(v.code) === canonicalCode(verifierCode));
+  const verifier = { code: verifierCode, expedition: verifierCode === "102", name: employee?.name ?? "" };
   return <section className="mx-auto w-full max-w-md py-2">
     <div className="mb-3 flex items-center gap-3"><ClipboardCheck className="h-7 w-7 text-primary" /><h1 className="text-2xl font-bold">Conferência</h1></div>
     <form className="sales-entry-form space-y-3 rounded-lg border border-border border-t-4 border-t-primary bg-card p-3 text-lg shadow-brand sm:p-4" onKeyDown={e => {
@@ -44,7 +46,7 @@ export function SalesVerificationForm({ clients, verifiers, prefix, lastClientCo
       const numericValue = parseMoneyInput(value);
       const parsed = verificationSchema.safeParse({ requestId: requestId.current ?? crypto.randomUUID(), document, items: Number(items), clientCode, verifierCode, value: numericValue, correct, errorReasons: correct === false ? errorReasons : [], seller: verifier?.expedition ? "EXPEDIÇÃO" : seller, forDelivery: verifier?.expedition ? forDelivery : false, durationSeconds: Math.min(86400, Math.floor((Date.now() - started.current) / 1000)) });
       if (!parsed.success || !value.trim()) { setError(parsed.success ? "Informe o valor." : parsed.error.issues[0]?.message ?? "Confira os campos."); return; }
-      if (!client || !verifier) { setError(!client ? "Cliente não encontrado na base." : "Conferente não cadastrado."); return; }
+      if (!client || !employee) { setError(!client ? "Cliente não encontrado na base." : "Selecione o perfil do funcionário."); return; }
       requestId.current = parsed.data.requestId; setBusy(true);
       try {
         const result = await register({ data: parsed.data });
@@ -59,7 +61,7 @@ export function SalesVerificationForm({ clients, verifiers, prefix, lastClientCo
       </div>
       <Field label="Código do cliente" id="sales-client"><Input id="sales-client" inputMode="numeric" required maxLength={12} value={clientCode} onChange={e => { setClientCode(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${client ? "text-success" : "text-muted-foreground"}`}>{client?.name ?? (clientCode ? "Cliente não encontrado" : "—")}</p></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Conferente" id="sales-verifier"><Input id="sales-verifier" inputMode="numeric" required maxLength={12} value={verifierCode} onChange={e => { setVerifierCode(e.target.value.replace(/\D/g, "")); setSeller(""); setForDelivery(false); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${verifier ? "text-success" : "text-muted-foreground"}`}>{verifier?.name ?? (verifierCode ? "Não cadastrado" : "—")}</p></Field>
+        <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Setor *</legend><div className="grid grid-cols-2 gap-2">{[{code:"101",name:"Balcão"},{code:"102",name:"Expedição"}].map(v => <Button key={v.code} type="button" variant={verifierCode === v.code ? "default" : "outline"} className="h-11 gap-1 text-sm font-bold" aria-pressed={verifierCode === v.code} onClick={() => { setVerifierCode(v.code); setSeller(""); setForDelivery(false); requestId.current = null; }}>{v.code} · {v.name}</Button>)}</div><p className="mt-1 text-sm font-semibold text-success">Funcionário: {employee?.name ?? "Não selecionado"}</p></fieldset>
         <Field label="Valor (R$)" id="sales-value"><Input id="sales-value" inputMode="decimal" required maxLength={15} placeholder="0,00" value={value} onChange={e => { setValue(e.target.value.replace(/[^\d.,]/g, "")); requestId.current = null; }} onBlur={() => value.trim() && setValue(formatMoneyInput(value))} className="h-11 text-xl font-semibold md:text-xl" /></Field>
       </div>
       <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Situação *</legend><div className="grid grid-cols-2 gap-3">{[true, false].map(option => <Button key={String(option)} type="button" variant={correct === option ? "default" : "outline"} className="h-11 text-lg font-bold" aria-pressed={correct === option} onClick={() => { setCorrect(option); if (option) setErrorReasons([]); requestId.current = null; }}>{correct === option && <Check className="h-4 w-4" />}{option ? "Certo" : "Errado"}</Button>)}</div></fieldset>
@@ -68,8 +70,8 @@ export function SalesVerificationForm({ clients, verifiers, prefix, lastClientCo
       {verifier?.expedition && <Button type="button" variant={forDelivery ? "default" : "outline"} aria-pressed={forDelivery} className="h-11 w-full text-lg font-bold" onClick={() => { setForDelivery(v => !v); requestId.current = null; }}>{forDelivery ? <Check className="h-5 w-5" /> : <Truck className="h-5 w-5" />}Para entrega</Button>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {message && <p role="status" className="text-success">{message}</p>}
-      <Button type="submit" disabled={busy || !clients.length || !verifiers.length} className="h-12 w-full text-lg font-bold"><ClipboardCheck className="h-5 w-5" />{busy ? "Registrando…" : "Registrar"}</Button>
-      {(!clients.length || !verifiers.length) && <p className="text-sm text-muted-foreground">Aguardando cadastro de clientes e conferentes pelo gestor.</p>}
+      <Button type="submit" disabled={busy || !clients.length || !employee} className="h-12 w-full text-lg font-bold"><ClipboardCheck className="h-5 w-5" />{busy ? "Registrando…" : "Registrar"}</Button>
+      {!clients.length && <p className="text-sm text-muted-foreground">Aguardando importação dos clientes pelo gestor.</p>}
     </form>
   </section>;
 }
