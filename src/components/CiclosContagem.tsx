@@ -345,14 +345,14 @@ export function CiclosContagem() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex items-center rounded-lg border border-border bg-card px-3 py-2">
+    <div className="counting-root space-y-4">
+      <div className="counting-toolbar flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="counting-suggestion-action flex items-center rounded-lg border border-border bg-card px-3 py-2">
           <Button size="sm" variant="secondary" className="gap-2" onClick={abrirSugestoes} disabled={!ready}>
             <Lightbulb className="h-4 w-4" /> Sugestão de Reinventário
           </Button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="counting-main-actions flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setSelecionando(true)} disabled={!ready || !podeCriar(ciclos, "padrao")}>
             <Layers className="h-4 w-4" /> Contar por Linha ou Grupo
           </Button>
@@ -379,7 +379,7 @@ export function CiclosContagem() {
             const reinv = comparativoReinventario(c);
             const reinvAberto = !!reinventarioEmAberto(c);
             return (
-              <article key={c.id} className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 sm:p-5">
+              <article key={c.id} className="counting-cycle-card rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 sm:p-5">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <button
                     type="button"
@@ -415,7 +415,7 @@ export function CiclosContagem() {
                     )}
                     <span className="mt-1 block text-[11px] text-muted-foreground">Clique para consultar os detalhes do ciclo</span>
                   </button>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="counting-cycle-actions flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                       aria-label={`Excluir ciclo ${c.titulo}`} title="Excluir ciclo" onClick={() => setExcluindo(c)}>
                       <Trash2 className="h-4 w-4" />
@@ -439,7 +439,7 @@ export function CiclosContagem() {
                   </div>
                 </div>
 
-                <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+                <div className="counting-inventory-panels grid min-w-0 grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
                   <section aria-label={`Primeiro inventário de ${c.titulo}`}
                     className="min-w-0 overflow-hidden rounded-lg border border-primary/30 bg-background/30">
                     <div className="flex items-center gap-2 border-b border-primary/20 bg-primary/10 px-3.5 py-2.5">
@@ -671,15 +671,15 @@ function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExc
   const tone = (n: number) => (n > 0 ? "text-success" : n < 0 ? "text-destructive" : "text-muted-foreground");
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="counting-detail space-y-3">
+      <div className="counting-detail-toolbar flex flex-wrap items-center gap-2">
         <Button size="sm" variant="ghost" onClick={onVoltar}><ArrowLeft className="h-4 w-4" /> Ciclos</Button>
         <h2 className="text-lg font-bold">{c.titulo}</h2>
         <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", fin ? "bg-success/15 text-success" : "bg-warning/15 text-warning")}>
           {fin ? `Concluído ${dt(c.finalizadoEm)}` : "Em contagem"}
         </span>
         {reinvAberto && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">Reinventário em andamento</span>}
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div className="counting-detail-actions ml-auto flex flex-wrap gap-2">
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={onExcluir}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
           {!fin && <Button size="sm" variant="outline" onClick={onFinalizar}><CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo</Button>}
           {fin && <Button size="sm" onClick={onReinventariar}><RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}</Button>}
@@ -702,7 +702,7 @@ function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExc
         <Metric label="Diferença em valor" value={fin ? brl(m.valor) : "—"} tone={m.valor < 0 ? "bad" : m.valor > 0 ? "ok" : undefined} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="counting-search-controls flex flex-wrap gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou descrição…"
