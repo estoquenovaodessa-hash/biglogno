@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { readDeliveryAddresses, saveDeliveryAddresses } from "@/lib/delivery-addresses.functions";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
+import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
+import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
 import {
   CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
   MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound,
@@ -279,6 +281,16 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             </> : <p className="mt-2 text-sm text-muted-foreground">{selected.companyCode ? "Endereço não encontrado na base importada para este código de cliente." : "Pedido sem código do cliente. Não é possível associar um endereço com segurança."}</p>}
             <p className="mt-2 text-xs text-muted-foreground">Sem rastreamento GPS ativo — nenhuma localização é simulada.</p>
           </div>
+          <DeliveryRoutePanel
+            key={selected.id}
+            deliveries={deliveries}
+            selected={selected}
+            addresses={addressQuery.data ?? []}
+            onSaveAddress={async (address: DeliveryClientAddress) => {
+              await saveAddresses({ data: [address] });
+              await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+            }}
+          />
 
           <div className="mt-5 border-t border-border pt-4">
             <h4 className="mb-4 flex items-center gap-2 text-sm font-bold"><Clock3 className="h-4 w-4 text-primary" /> Linha do tempo</h4>
