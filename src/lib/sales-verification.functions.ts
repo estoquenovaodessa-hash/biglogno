@@ -51,23 +51,24 @@ export const saveSalesVerifiers = createServerFn({ method: "POST" }).inputValida
 });
 
 export const registerSalesVerification = createServerFn({ method: "POST" }).inputValidator(verificationSchema).handler(async ({ data }) => {
-  const { requireAccess } = await import("./access.server");
-  await requireAccess();
+  const { requireSelectedOperator } = await import("./employees.functions");
+  const operator = await requireSelectedOperator();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: state, error } = await supabaseAdmin.from("app_state").select("key,value").in("key", ["sales-clients", "sales-verifiers"]);
+  const { data: state, error } = await supabaseAdmin.from("app_state").select("key,value").eq("key", "sales-clients");
   if (error) throw new Error("Não foi possível validar os cadastros.");
   const values = Object.fromEntries((state ?? []).map(r => [r.key, r.value]));
   const client = (values["sales-clients"] as unknown as SalesClient[] | undefined)?.find(c => canonicalCode(c.code) === canonicalCode(data.clientCode));
-  const verifier = (values["sales-verifiers"] as unknown as Verifier[] | undefined)?.find(v => canonicalCode(v.code) === canonicalCode(data.verifierCode));
+  const code = canonicalCode(data.verifierCode);
   if (!client) throw new Error("Cliente não encontrado na base importada.");
-  if (!verifier) throw new Error("Conferente não cadastrado.");
-  if (verifier.expedition !== (data.seller === "EXPEDIÇÃO")) throw new Error("Vendedor incompatível com o conferente.");
+  if (code !== "101" && code !== "102") throw new Error("Selecione o setor Balcão (101) ou Expedição (102).");
+  const expedition = code === "102";
+  if (expedition !== (data.seller === "EXPEDIÇÃO")) throw new Error("Vendedor incompatível com o setor.");
   const { data: existing, error: dupError } = await supabaseAdmin.from("sales_verification_records").select("id").eq("payload->>document", data.document).neq("id", data.requestId).limit(1);
   if (dupError) throw new Error("Não foi possível validar o documento.");
   if (existing?.length) throw new Error(`Documento ${data.document} já foi registrado.`);
-  const payload = { ...data, clientName: client.name, verifierName: verifier.name };
-  if (data.forDelivery && !verifier.expedition) throw new Error("Somente a expedição pode marcar para entrega.");
-  const kind = verifier.expedition ? (data.forDelivery ? "deliveries" : "pickups") : "none";
+  const payload = { ...data, verifierCode: code, clientName: client.name, verifierName: operator.name, employeeId: operator.id, channel: expedition ? "expedicao" : "balcao" };
+  if (data.forDelivery && !expedition) throw new Error("Somente a expedição pode marcar para entrega.");
+  const kind = expedition ? (data.forDelivery ? "deliveries" : "pickups") : "none";
   const { error: insertError } = await supabaseAdmin.rpc("register_verification_logistics", {
     record_id: data.requestId, verification: payload,
     logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
