@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { finishPickup, finishPickupSchema, manualPickupSchema, type Pickup } from './pickups';
+import { logisticsCommitError } from './logistics-commit-error';
 
 export const listPickups = createServerFn({ method: 'GET' }).handler(async () => {
   const { requireAccess } = await import('./access.server'); const role = await requireAccess();
@@ -31,6 +32,12 @@ export const completePickup = createServerFn({ method: 'POST' }).inputValidator(
   if (error || !row) throw new Error('Retira não encontrada.');
   const p = finishPickup({ ...(row.payload as unknown as Pickup), id: row.id, createdAt: row.created_at }, data.handedBy, new Date());
   const { id: _i, createdAt: _c, ...payload } = p;
-  const { error: saveError } = await db.rpc('commit_logistics_changes', { kind: 'pickups', expected: [{ id: row.id, payload: row.payload }], changes: [{ id: row.id, payload }] });
-  if (saveError) throw new Error('Pedido já atualizado. Atualize e tente novamente.'); return { ok: true };
+  const { data: saved, error: saveError } = await db.rpc('commit_logistics_changes', {
+    kind: 'pickups',
+    expected: [{ id: row.id, payload: row.payload }],
+    changes: [{ id: row.id, payload }],
+  });
+  if (saveError) throw logisticsCommitError('confirmar a retirada', saveError);
+  if (saved !== true) throw new Error('A retirada não foi confirmada pelo Supabase. Atualize e tente novamente.');
+  return { ok: true };
 });
