@@ -15,6 +15,7 @@ import type { ItemOccurrence } from "@/lib/item-chat";
 import { cloudRefreshNow } from "@/lib/cloudState";
 
 type Filter = "all" | "open" | "closed";
+type TimelineEvent = { kind: "issue" | "resolution"; item: ItemOccurrence; at: string };
 
 function clock(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", {
@@ -57,7 +58,7 @@ function OccurrenceBubble({
   const completed = Boolean(item.resolvido_em);
   return <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
     {!mine && <ChatAvatar name={item.criado_por_nome} employee={sender} small />}
-    <article className={`w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] sm:px-4 ${mine
+    <article className={`w-fit min-w-0 max-w-[85%] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] sm:px-4 ${mine
       ? "rounded-br-sm border-[#80cdb4]/35 bg-[#d9f9df] text-[#183b32] dark:bg-[#194e44] dark:text-[#eafff3]"
       : "rounded-bl-sm border-[#426990]/65 bg-[#f7fbff] text-[#1a344e] dark:bg-[#19334d] dark:text-[#f1f8ff]"}`}>
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -94,7 +95,7 @@ function ResolutionBubble({ item, mine, employee }: { item: ItemOccurrence; mine
   const name = item.resolvido_por_nome || "Funcionário";
   return <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
     {!mine && <ChatAvatar name={name} employee={employee} small />}
-    <div className={`min-w-0 max-w-[calc(100%-2.5rem)] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] ${mine
+    <div className={`min-w-0 max-w-[85%] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] ${mine
       ? "rounded-br-sm border-emerald-500/30 bg-[#d9f9df] text-[#184935] dark:bg-[#194e44] dark:text-[#eafff3]"
       : "rounded-bl-sm border-emerald-500/30 bg-[#f3fbf6] text-[#194d39] dark:bg-[#183d38] dark:text-[#eafff3]"}`}>
       <p className="break-words text-sm leading-relaxed">✅ <strong>{name}</strong> resolveu esta ocorrência!</p>
@@ -131,7 +132,6 @@ export function ChatOcorrencias() {
   const [resolving, setResolving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
-  const messagesEnd = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const firstLoad = useRef(true);
@@ -139,17 +139,23 @@ export function ChatOcorrencias() {
   const profileMap = useMemo(() =>
     new Map((employees.data ?? []).map(person => [person.id, person])),
   [employees.data]);
-  const chronological = useMemo(() => (query.data ?? [])
+  const timeline = useMemo<TimelineEvent[]>(() => (query.data ?? [])
     .filter(x => filter === "all" || (filter === "closed" ? Boolean(x.resolvido_em) : !x.resolvido_em))
-    .slice().sort((a, b) => a.criado_em.localeCompare(b.criado_em) || a.id.localeCompare(b.id)),
+    .flatMap(item => [
+      { kind: "issue" as const, item, at: item.criado_em },
+      ...(item.resolvido_em ? [{ kind: "resolution" as const, item, at: item.resolvido_em }] : []),
+    ])
+    .sort((a, b) => a.at.localeCompare(b.at) || a.item.id.localeCompare(b.item.id)),
   [query.data, filter]);
   const countOpen = (query.data ?? []).filter(x => !x.resolvido_em).length;
   // Quando a resolução muda, surge uma segunda mensagem na conversa.
-  const feedVersion = chronological.map(x => x.id + ":" + (x.resolvido_em ?? "")).join("|");
+  const feedVersion = timeline.map(x => x.item.id + ":" + x.kind + ":" + x.at).join("|");
 
   useEffect(() => {
+    const view = feedRef.current;
+    if (!view) return;
     if (firstLoad.current || nearBottom.current) {
-      messagesEnd.current?.scrollIntoView({ behavior: firstLoad.current ? "instant" : "smooth", block: "end" });
+      view.scrollTo({ top: view.scrollHeight, behavior: firstLoad.current ? "auto" : "smooth" });
       firstLoad.current = false;
     }
   }, [feedVersion, filter]);
@@ -219,24 +225,24 @@ export function ChatOcorrencias() {
         Não foi possível consultar as ocorrências. Confira se o SQL do Chat foi instalado no Supabase.
         <Button type="button" size="sm" variant="outline" className="mt-3 border-red-200/50 bg-transparent text-white" onClick={() => { void query.refetch(); }}>Tentar novamente</Button>
       </div>}
-      {!query.isLoading && !query.isError && !chronological.length && <div className="mx-auto max-w-xs rounded-xl bg-[#234562]/90 p-4 text-center text-sm text-[#e7f5ff]">
+      {!query.isLoading && !query.isError && !timeline.length && <div className="mx-auto max-w-xs rounded-xl bg-[#234562]/90 p-4 text-center text-sm text-[#e7f5ff]">
         <MessageCircle className="mx-auto mb-2 h-8 w-8 text-[#9de0c4]" />
         Ainda não há mensagens nesta visualização. Compartilhe uma ocorrência para começar! 💬
       </div>}
-      {chronological.map(item => {
-        const day = calendarDay(item.criado_em);
+      {timeline.map(event => {
+        const { item } = event;
+        const day = calendarDay(event.at);
         const showDay = day !== previousDay;
         previousDay = day;
-        return <div key={item.id} className="space-y-2.5">
-          {showDay && <div className="flex justify-center py-1"><span className="rounded-lg bg-[#294864]/90 px-3 py-1 text-xs font-semibold text-[#d4e8f7] shadow-sm">{dayLabel(item.criado_em)}</span></div>}
-          <OccurrenceBubble item={item} mine={item.criado_por_id === employee?.id}
-            sender={profileMap.get(item.criado_por_id)} onResolve={solve} busy={busy || Boolean(resolving)} />
-          {item.resolvido_em && <ResolutionBubble item={item}
-            mine={item.resolvido_por_id === employee?.id}
-            employee={item.resolvido_por_id ? profileMap.get(item.resolvido_por_id) : undefined} />}
+        return <div key={item.id + "-" + event.kind} className="space-y-2.5">
+          {showDay && <div className="flex justify-center py-1"><span className="rounded-lg bg-[#294864]/90 px-3 py-1 text-xs font-semibold text-[#d4e8f7] shadow-sm">{dayLabel(event.at)}</span></div>}
+          {event.kind === "issue"
+            ? <OccurrenceBubble item={item} mine={item.criado_por_id === employee?.id}
+                sender={profileMap.get(item.criado_por_id)} onResolve={solve} busy={busy || Boolean(resolving)} />
+            : <ResolutionBubble item={item} mine={item.resolvido_por_id === employee?.id}
+                employee={item.resolvido_por_id ? profileMap.get(item.resolvido_por_id) : undefined} />}
         </div>;
       })}
-      <div ref={messagesEnd} aria-hidden="true" />
     </div>
 
     <div className="shrink-0 border-t border-[#365f83] bg-[#122d47] px-3 py-3 sm:px-4">
