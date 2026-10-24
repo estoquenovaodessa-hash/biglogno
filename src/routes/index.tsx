@@ -342,11 +342,52 @@ const brandHeader = (
         <div className="flex items-center gap-2"><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
       </header>
       <main className={operatorScreen === "Contagem" ? "logistics-content mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8" : "logistics-content mx-auto max-w-[1600px] px-4 py-6 sm:px-8"}>
-        {!operatorScreen ? <div className="mx-auto max-w-2xl py-10"><h1 className="mb-8 text-center text-2xl font-bold">Gestão de Logística</h1><div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-primary bg-card text-xl font-bold" onClick={() => setOperatorScreen("Contagem")}><ScanLine className="h-10 w-10 text-primary" />CONTAGEM</Button>
-          <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-brand-gold bg-card text-xl font-bold" onClick={() => setOperatorScreen("Conferência")}><ClipboardCheck className="h-10 w-10 text-primary" />CONFERENCIA</Button>
-          <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-primary bg-card text-xl font-bold" onClick={() => setOperatorScreen("Entregas")}><Truck className="h-10 w-10 text-primary" />ENTREGAS</Button>
-        </div></div> : <>
+        {!operatorScreen ? (
+          <section className="mx-auto w-full max-w-3xl py-6 sm:py-10" aria-label="Boas-vindas ao operador">
+            <div className="mb-7 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card to-card px-5 py-7 text-center shadow-sm sm:px-8 sm:py-9">
+              <span aria-hidden="true" className="mb-3 inline-block text-4xl sm:text-5xl">👋</span>
+              <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+                Boas-vindas, operador!
+              </h1>
+              <p className="mt-3 text-base font-medium text-muted-foreground sm:text-lg">
+                Pronto para mais uma missão? 🚀
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Escolha uma atividade abaixo para começar.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Escolha uma atividade">
+              <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-primary/35 border-t-4 border-t-primary bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => setOperatorScreen("Contagem")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary transition-colors group-hover:bg-primary/20">
+                  <ScanLine aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">Contagem</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">Organize e confira o estoque</span>
+              </Button>
+              <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-brand-gold/50 border-t-4 border-t-brand-gold bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-gold"
+                onClick={() => setOperatorScreen("Conferência")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gold/15 text-brand-gold transition-colors group-hover:bg-brand-gold/20">
+                  <ClipboardCheck aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">Conferência</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">Verifique os pedidos com atenção</span>
+              </Button>
+              <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-primary/35 border-t-4 border-t-primary bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => setOperatorScreen("Entregas")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary transition-colors group-hover:bg-primary/20">
+                  <Truck aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">Entregas</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">Acompanhe suas entregas</span>
+              </Button>
+            </div>
+            <p className="mt-6 text-center text-sm font-semibold text-muted-foreground">Cada tarefa faz a diferença. Vamos nessa! 💪</p>
+          </section>
+        ) : <>
           {operatorScreen === "Entregas" ? (
             <div className="mx-auto mb-5 grid w-full max-w-[560px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
               <Button variant="ghost" className="justify-self-start px-2 text-sm sm:px-3" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
