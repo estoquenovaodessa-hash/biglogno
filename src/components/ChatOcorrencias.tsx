@@ -1,48 +1,107 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Clock3, MapPin, MessageCircle, PackageSearch, RefreshCw, Send, ShieldAlert, UserRound } from "lucide-react";
+import {
+  AlertCircle, CheckCircle2, Clock3, MessageCircle, PackageSearch,
+  RefreshCw, Send, Users, MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActiveEmployee } from "./EmployeeGate";
 import { createItemOccurrence, listItemOccurrences, resolveItemOccurrence } from "@/lib/item-chat.functions";
+import { listEmployees } from "@/lib/employees.functions";
+import type { Employee } from "@/lib/employees";
 import type { ItemOccurrence } from "@/lib/item-chat";
 import { cloudRefreshNow } from "@/lib/cloudState";
 
-function dateTime(iso: string) {
-  return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+type Filter = "all" | "open" | "closed";
+
+function clock(iso: string) {
+  return new Date(iso).toLocaleTimeString("pt-BR", {
+    timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
+  });
 }
-function OccurrenceCard({ item, onResolve, busy }: { item: ItemOccurrence; onResolve: (id: string) => Promise<void>; busy: boolean }) {
-  const solved = Boolean(item.resolvido_em);
-  return <article className={`overflow-hidden rounded-xl border p-4 shadow-sm transition-colors sm:p-5 ${solved ? "border-emerald-500/35 bg-card" : "border-[#3d78b8]/65 bg-card"}`}>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
-        <MessageCircle className="h-4 w-4 text-primary" /> Ocorrência de estoque
-        <span className="font-mono">#{item.codigo}</span>
+function calendarDay(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric",
+  });
+}
+function dayLabel(iso: string) {
+  const day = calendarDay(iso);
+  const today = calendarDay(new Date().toISOString());
+  const yesterday = calendarDay(new Date(Date.now() - 86400000).toISOString());
+  return day === today ? "Hoje" : day === yesterday ? "Ontem" : day;
+}
+function initials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase() || "?";
+}
+function ChatAvatar({ name, employee, small = false }: { name: string; employee?: Employee; small?: boolean }) {
+  const size = small ? "h-8 w-8 text-[11px]" : "h-10 w-10 text-xs";
+  return <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-[#287a89] font-extrabold text-white ${size}`}
+    title={name} aria-label={name}>
+    {employee?.photo
+      ? <img src={employee.photo} alt={`Foto de ${name}`} className="h-full w-full object-cover" />
+      : initials(name)}
+  </span>;
+}
+
+function OccurrenceBubble({
+  item, mine, sender, onResolve, busy,
+}: {
+  item: ItemOccurrence;
+  mine: boolean;
+  sender?: Employee;
+  onResolve: (id: string) => Promise<void>;
+  busy: boolean;
+}) {
+  const completed = Boolean(item.resolvido_em);
+  return <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+    {!mine && <ChatAvatar name={item.criado_por_nome} employee={sender} small />}
+    <article className={`w-fit min-w-0 max-w-[calc(100%-2.5rem)] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] sm:px-4 ${mine
+      ? "rounded-br-sm border-[#80cdb4]/35 bg-[#d9f9df] text-[#183b32] dark:bg-[#194e44] dark:text-[#eafff3]"
+      : "rounded-bl-sm border-[#426990]/65 bg-[#f7fbff] text-[#1a344e] dark:bg-[#19334d] dark:text-[#f1f8ff]"}`}>
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className={`min-w-0 break-words text-xs font-extrabold ${mine ? "text-[#21765b] dark:text-[#90f6cb]" : "text-[#24719e] dark:text-[#8dceff]"}`}>
+          {item.criado_por_nome}
+        </span>
+        <span className="text-[10px] opacity-65">{clock(item.criado_em)}</span>
       </div>
-      <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${solved ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : "border-amber-500/40 bg-amber-500/10 text-amber-500"}`}>
-        {solved ? "✓ Resolvido" : "● Em aberto"}
-      </span>
-    </div>
-    <p className="text-base leading-relaxed text-foreground">
-      👋 Olá! <strong>{item.criado_por_nome}</strong> acaba de informar uma ocorrência no estoque.
-    </p>
-    <div className="my-3 rounded-lg border border-border bg-background/65 p-3">
-      <p className="flex flex-wrap items-center gap-2 text-sm font-extrabold"><PackageSearch className="h-4 w-4 text-primary" /> Código <span className="font-mono text-lg text-primary">{item.codigo}</span></p>
-      <p className="mt-2 break-words text-sm font-semibold">📦 {item.descricao}</p>
-      <p className="mt-1 flex flex-wrap items-start gap-1.5 break-words text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /> {item.endereco || "Endereço não cadastrado"}</p>
-      <p className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm font-bold text-amber-600 dark:text-amber-300">
-        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> Ocorrência: {item.motivo}
+      <p className="break-words text-sm leading-relaxed sm:text-[15px]">
+        👋 Olá! <strong>{item.criado_por_nome}</strong> acaba de informar uma ocorrência de estoque:
       </p>
+      <div className={`my-2.5 space-y-1.5 rounded-lg border p-3 text-sm leading-snug ${mine
+        ? "border-[#6eb495]/35 bg-white/45 dark:bg-black/10"
+        : "border-[#8fb2d6]/40 bg-[#e8f2fc]/70 dark:bg-black/10"}`}>
+        <p className="flex items-center gap-1.5 font-bold"><PackageSearch className="h-4 w-4 shrink-0" /> Código <span className="font-mono text-base">{item.codigo}</span></p>
+        <p className="break-words">📦 <strong>{item.descricao}</strong></p>
+        <p className="flex items-start gap-1.5 break-words"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /> {item.endereco || "Endereço não cadastrado"}</p>
+      </div>
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-400/10 px-2.5 py-2 text-sm font-semibold">
+        <span aria-hidden="true">🚨</span><span className="break-words">Ocorrência: {item.motivo}</span>
+      </div>
+      {completed
+        ? <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Ocorrência resolvida</p>
+        : <Button type="button" size="sm" disabled={busy} onClick={() => { void onResolve(item.id); }}
+            className="mt-3 h-10 w-full gap-2 rounded-lg bg-[#178b6b] font-bold text-white hover:bg-[#0e745a] disabled:opacity-65">
+            <CheckCircle2 className="h-4 w-4" /> {busy ? "Registrando…" : "Resolvido"}
+          </Button>}
+    </article>
+  </div>;
+}
+
+function ResolutionBubble({ item, mine, employee }: { item: ItemOccurrence; mine: boolean; employee?: Employee }) {
+  if (!item.resolvido_em) return null;
+  const name = item.resolvido_por_nome || "Funcionário";
+  return <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+    {!mine && <ChatAvatar name={name} employee={employee} small />}
+    <div className={`min-w-0 max-w-[calc(100%-2.5rem)] rounded-2xl border px-3.5 py-3 shadow-sm sm:max-w-[76%] ${mine
+      ? "rounded-br-sm border-emerald-500/30 bg-[#d9f9df] text-[#184935] dark:bg-[#194e44] dark:text-[#eafff3]"
+      : "rounded-bl-sm border-emerald-500/30 bg-[#f3fbf6] text-[#194d39] dark:bg-[#183d38] dark:text-[#eafff3]"}`}>
+      <p className="break-words text-sm leading-relaxed">✅ <strong>{name}</strong> resolveu esta ocorrência!</p>
+      <p className="mt-1 text-xs opacity-80">📋 Item {item.codigo} enviado à Zona Segura · Divergente · Chat</p>
+      <p className="mt-1 text-right text-[10px] opacity-65">{clock(item.resolvido_em)}</p>
     </div>
-    <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" /> Informado em {dateTime(item.criado_em)}</p>
-    {solved ? <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-      <p className="flex items-center gap-2 text-sm font-bold text-emerald-600 dark:text-emerald-300"><CheckCircle2 className="h-5 w-5" /> ✅ {item.resolvido_por_nome} resolveu esta ocorrência!</p>
-      <p className="mt-1 text-xs text-muted-foreground">✅ Registrado na Zona Segura · Divergente · Observação: Chat · {dateTime(item.resolvido_em!)}</p>
-    </div> : <Button type="button" className="mt-4 h-11 w-full gap-2 rounded-lg bg-emerald-600 font-bold text-white hover:bg-emerald-700" disabled={busy} onClick={() => { void onResolve(item.id); }}>
-      <CheckCircle2 className="h-5 w-5" /> {busy ? "Registrando…" : "Resolvido"}
-    </Button>}
-  </article>;
+  </div>;
 }
 
 export function ChatOcorrencias() {
@@ -51,29 +110,63 @@ export function ChatOcorrencias() {
   const list = useServerFn(listItemOccurrences);
   const send = useServerFn(createItemOccurrence);
   const resolve = useServerFn(resolveItemOccurrence);
+  const readEmployees = useServerFn(listEmployees);
+
   const query = useQuery({
     queryKey: ["item-chat-ocorrencias"],
     queryFn: () => list(),
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
   });
+  const employees = useQuery({
+    queryKey: ["chat-fotos-funcionarios"],
+    queryFn: () => readEmployees(),
+    staleTime: 5 * 60000,
+    refetchOnWindowFocus: false,
+  });
+
   const [command, setCommand] = useState("");
-  const [filter, setFilter] = useState<"open" | "all" | "closed">("open");
+  const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
-  const items = (query.data ?? []).filter(x => filter === "all" || (filter === "closed" ? !!x.resolvido_em : !x.resolvido_em));
-  const open = (query.data ?? []).filter(x => !x.resolvido_em).length;
+  const messagesEnd = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const firstLoad = useRef(true);
 
+  const profileMap = useMemo(() =>
+    new Map((employees.data ?? []).map(person => [person.id, person])),
+  [employees.data]);
+  const chronological = useMemo(() => (query.data ?? [])
+    .filter(x => filter === "all" || (filter === "closed" ? Boolean(x.resolvido_em) : !x.resolvido_em))
+    .slice().sort((a, b) => a.criado_em.localeCompare(b.criado_em) || a.id.localeCompare(b.id)),
+  [query.data, filter]);
+  const countOpen = (query.data ?? []).filter(x => !x.resolvido_em).length;
+  // Quando a resolução muda, surge uma segunda mensagem na conversa.
+  const feedVersion = chronological.map(x => x.id + ":" + (x.resolvido_em ?? "")).join("|");
+
+  useEffect(() => {
+    if (firstLoad.current || nearBottom.current) {
+      messagesEnd.current?.scrollIntoView({ behavior: firstLoad.current ? "instant" : "smooth", block: "end" });
+      firstLoad.current = false;
+    }
+  }, [feedVersion, filter]);
+  function trackScroll() {
+    const view = feedRef.current;
+    if (!view) return;
+    nearBottom.current = view.scrollHeight - view.scrollTop - view.clientHeight < 160;
+  }
   async function submit() {
-    if (!command.trim()) return;
+    if (!command.trim() || busy) return;
     setBusy(true); setError(""); setFeedback("");
     try {
       await send({ data: { command: command.trim() } });
       setCommand("");
+      nearBottom.current = true;
       await query.refetch();
-      setFeedback("Ocorrência registrada e compartilhada com a equipe.");
+      setFeedback("Ocorrência enviada para a equipe.");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível enviar."); }
     finally { setBusy(false); }
   }
@@ -81,51 +174,85 @@ export function ChatOcorrencias() {
     setResolving(id); setError(""); setFeedback("");
     try {
       await resolve({ data: { id } });
+      nearBottom.current = true;
       await query.refetch();
       await cloudRefreshNow().catch(() => {});
       await client.invalidateQueries({ queryKey: ["item-chat-ocorrencias"] });
-      setFeedback("Ocorrência resolvida e enviada à Zona Segura como Divergente.");
+      setFeedback("Ocorrência resolvida e enviada à Zona Segura.");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível resolver."); }
     finally { setResolving(null); }
   }
 
-  return <section className="mx-auto w-full max-w-3xl space-y-4">
-    <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/15 to-card p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="flex items-center gap-2 text-xl font-extrabold"><MessageCircle className="h-6 w-6 text-primary" /> Chat de Ocorrências 💬</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Compartilhe problemas de estoque e ajude a equipe a resolvê-los.</p></div>
-        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-300">{open} em aberto</span>
+  let previousDay = "";
+  return <section className="mx-auto flex h-[calc(100dvh-185px)] min-h-[370px] max-h-[920px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#37628d] bg-[#0b1b2e] shadow-[0_10px_35px_rgba(0,0,0,0.2)]" aria-label="Chat de ocorrências">
+    {/* Cabeçalho fixo da conversa, parecido com um chat de grupo. */}
+    <header className="flex shrink-0 items-center gap-3 border-b border-[#31577f] bg-[#13334f] px-3 py-3 text-white sm:px-4">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#237768] text-white"><Users className="h-6 w-6" /></span>
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-base font-extrabold sm:text-lg">Chat de Ocorrências</h2>
+        <p className="truncate text-xs text-[#b3d0e5]">Equipe de estoque · {countOpen} ocorrência(s) em aberto</p>
       </div>
-    </div>
+      <Button type="button" size="icon" variant="ghost" className="shrink-0 text-[#cfebff] hover:bg-white/10 hover:text-white"
+        aria-label="Atualizar conversa" title="Atualizar conversa" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>
+        <RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
+      </Button>
+    </header>
 
-    <form className="rounded-xl border border-border bg-card p-4 shadow-sm" onSubmit={e => { e.preventDefault(); void submit(); }}>
-      <p className="mb-3 flex items-center gap-2 text-sm font-semibold"><UserRound className="h-4 w-4 text-primary" /> {employee?.name || "Selecione seu perfil"}</p>
-      <label htmlFor="chat-command" className="mb-2 block text-sm font-semibold">Qual item apresenta ocorrência?</label>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input id="chat-command" aria-label="Código e motivo da ocorrência" placeholder="Ex.: 519 - furo" value={command}
-          maxLength={140} autoComplete="off" disabled={busy} onChange={e => setCommand(e.target.value)} className="h-12 flex-1 text-base" />
-        <Button type="submit" className="h-12 gap-2 px-5 font-bold" disabled={!employee || busy || !command.trim()}><Send className="h-4 w-4" /> {busy ? "Enviando…" : "Enviar ocorrência"}</Button>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">Digite código - motivo. Por exemplo: 519 - furo, 00519 - endereço errado ou 519 - estoque errado. O código será exibido com 5 dígitos.</p>
-    </form>
+    {/* Filtro opcional, mas a conversa completa é a visualização inicial. */}
+    <nav className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-[#294767] bg-[#102840] px-3 py-2" aria-label="Filtrar mensagens do chat">
+      {([{ key: "all", title: "Todas" },{ key: "open", title: "Em aberto" },{ key: "closed", title: "Resolvidas" }] as const).map(option => (
+        <button key={option.key} type="button" aria-pressed={filter === option.key} onClick={() => { nearBottom.current = true; setFilter(option.key); }}
+          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${filter === option.key ? "bg-[#237f72] text-white" : "border border-[#426080] text-[#c8def0] hover:bg-white/10"}`}>
+          {option.title}
+        </button>
+      ))}
+      <span className="ml-auto shrink-0 text-[11px] text-[#91b5d3]">Atualização automática</span>
+    </nav>
 
-    {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-    {feedback && <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-300">{feedback}</p>}
-    {query.isError && <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Não foi possível consultar as ocorrências. Verifique se a migração SQL do Chat foi instalada no Supabase. <Button variant="outline" className="ml-2" onClick={() => { void query.refetch(); }}>Tentar novamente</Button></div>}
-
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar ocorrências">
-        {([{ key:"open", label:"Em aberto" },{ key:"all", label:"Todas" },{ key:"closed", label:"Resolvidas" }] as const).map(v =>
-          <Button key={v.key} size="sm" variant={filter === v.key ? "default" : "outline"} onClick={() => setFilter(v.key)}>{v.label}</Button>)}
-      </div>
-      <Button size="sm" variant="ghost" disabled={query.isFetching} onClick={() => { void query.refetch(); }}><RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} /> Atualizar</Button>
-    </div>
-    <div className="space-y-3">
-      {items.map(item => <OccurrenceCard key={item.id} item={item} onResolve={solve} busy={!!resolving || busy} />)}
-      {!items.length && !query.isLoading && !query.isError && <div className="rounded-xl border border-dashed border-border bg-card px-5 py-12 text-center">
-        <CheckCircle2 className="mx-auto h-9 w-9 text-primary" /><p className="mt-3 text-sm font-semibold">Nenhuma ocorrência nesta visualização.</p>
+    {/* Somente as mensagens rolam; a caixa de envio permanece sempre acessível. */}
+    <div ref={feedRef} onScroll={trackScroll} role="log" aria-label="Mensagens da equipe"
+      className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
+      style={{ backgroundColor: "#10243a", backgroundImage: "radial-gradient(rgba(141,184,215,.09) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+      {query.isLoading && <p role="status" className="py-10 text-center text-sm text-[#c6d7e8]">Carregando conversa…</p>}
+      {query.isError && <div role="alert" className="mx-auto max-w-md rounded-xl border border-red-400/40 bg-[#422332] p-4 text-center text-sm text-red-100">
+        <AlertCircle className="mx-auto mb-2 h-6 w-6" />
+        Não foi possível consultar as ocorrências. Confira se o SQL do Chat foi instalado no Supabase.
+        <Button type="button" size="sm" variant="outline" className="mt-3 border-red-200/50 bg-transparent text-white" onClick={() => { void query.refetch(); }}>Tentar novamente</Button>
       </div>}
-      {query.isLoading && <p role="status" className="p-6 text-center text-sm text-muted-foreground">Carregando ocorrências…</p>}
+      {!query.isLoading && !query.isError && !chronological.length && <div className="mx-auto max-w-xs rounded-xl bg-[#234562]/90 p-4 text-center text-sm text-[#e7f5ff]">
+        <MessageCircle className="mx-auto mb-2 h-8 w-8 text-[#9de0c4]" />
+        Ainda não há mensagens nesta visualização. Compartilhe uma ocorrência para começar! 💬
+      </div>}
+      {chronological.map(item => {
+        const day = calendarDay(item.criado_em);
+        const showDay = day !== previousDay;
+        previousDay = day;
+        return <div key={item.id} className="space-y-2.5">
+          {showDay && <div className="flex justify-center py-1"><span className="rounded-lg bg-[#294864]/90 px-3 py-1 text-xs font-semibold text-[#d4e8f7] shadow-sm">{dayLabel(item.criado_em)}</span></div>}
+          <OccurrenceBubble item={item} mine={item.criado_por_id === employee?.id}
+            sender={profileMap.get(item.criado_por_id)} onResolve={solve} busy={busy || Boolean(resolving)} />
+          {item.resolvido_em && <ResolutionBubble item={item}
+            mine={item.resolvido_por_id === employee?.id}
+            employee={item.resolvido_por_id ? profileMap.get(item.resolvido_por_id) : undefined} />}
+        </div>;
+      })}
+      <div ref={messagesEnd} aria-hidden="true" />
+    </div>
+
+    <div className="shrink-0 border-t border-[#365f83] bg-[#122d47] px-3 py-3 sm:px-4">
+      {(error || feedback) && <p role={error ? "alert" : "status"} className={`mb-2 rounded-lg px-3 py-2 text-xs font-semibold ${error ? "bg-red-500/15 text-red-200" : "bg-emerald-500/15 text-emerald-200"}`}>{error || feedback}</p>}
+      <form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); void submit(); }}>
+        <label htmlFor="chat-command" className="sr-only">Código e motivo da ocorrência</label>
+        <Input id="chat-command" value={command} onChange={e => setCommand(e.target.value)}
+          placeholder="519 - furo" maxLength={140} autoComplete="off" disabled={busy}
+          className="h-12 min-w-0 flex-1 rounded-full border-[#486e8c] bg-[#f7fbff] px-4 text-base text-[#1a354b] placeholder:text-[#6b8294] focus-visible:ring-[#55bfa3] dark:bg-[#e9f4fa] dark:text-[#1a354b]" />
+        <Button type="submit" size="icon" aria-label={busy ? "Enviando" : "Enviar ocorrência"}
+          title="Enviar ocorrência" disabled={!employee || busy || !command.trim()}
+          className="h-12 w-12 shrink-0 rounded-full bg-[#208b79] text-white hover:bg-[#136f61]">
+          {busy ? <Clock3 className="h-5 w-5 animate-pulse" /> : <Send className="h-5 w-5" />}
+        </Button>
+      </form>
+      <p className="mt-1.5 pl-3 text-[11px] text-[#aac8dd]">Digite código - motivo. Ex.: 519 - furo</p>
     </div>
   </section>;
 }
