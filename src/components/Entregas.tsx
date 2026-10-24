@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { Monitor, Package, Plus, Smartphone, Truck, UserRound } from 'lucide-react';
+import { Package, Plus, Truck, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -23,11 +23,11 @@ export function Entregas({ role }: { role: AccessRole }) {
   const q = useQuery({ queryKey: ['deliveries'], queryFn: () => list(), refetchInterval: 10000 });
   const sales = useQuery({ queryKey: ['logistics-companies', role], queryFn: () => readSales(), enabled: role === 'operador' });
   const [driver, setDriver] = useState(''), [draftDriver, setDraftDriver] = useState(''), [identified, setIdentified] = useState(false), [identityOpen, setIdentityOpen] = useState(false);
-  const [mode, setMode] = useState<'mobile' | 'desktop'>('mobile'), [section, setSection] = useState('Entregas');
+  const [section, setSection] = useState('Entregas');
   const [arrived, setArrived] = useState<Delivery[] | null>(null), [receiver, setReceiver] = useState('');
   const [adding, setAdding] = useState(false), [document, setDocument] = useState(''), [code, setCode] = useState(''), [value, setValue] = useState(''), [onlyDelivery, setOnlyDelivery] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
-  useEffect(() => { if (role !== 'operador') return; const name = localStorage.getItem(DRIVER_KEY) ?? ''; setDriver(name); setDraftDriver(name); setIdentified(true); setIdentityOpen(!name); const saved = localStorage.getItem('bignotto-delivery-mode'); if (saved === 'desktop') setMode('desktop'); }, [role]);
+  useEffect(() => { if (role !== 'operador') return; const name = localStorage.getItem(DRIVER_KEY) ?? ''; setDriver(name); setDraftDriver(name); setIdentified(true); setIdentityOpen(!name); }, [role]);
   async function run(fn: () => Promise<unknown>) { setBusy(true); setError(''); try { await fn(); await q.refetch(); return true; } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível concluir.'); return false; } finally { setBusy(false); } }
   const action = (a: DeliveryAction) => run(() => act({ data: a }));
   const all = q.data ?? [], open = all.filter(d => d.status !== 'finalizada'), groups = deliveryGroups(open);
@@ -35,7 +35,7 @@ export function Entregas({ role }: { role: AccessRole }) {
   const clients = sales.data?.clients ?? [];
   function move(i: number, direction: -1 | 1) { const next = [...groups]; const j = i + direction; if (j < 0 || j >= next.length) return; [next[i], next[j]] = [next[j], next[i]]; void run(() => reorder({ data: { ids: next.flatMap(g => g.map(d => d.id)) } })); }
   const controlsDisabled = busy || !driver || q.isError;
-  const queue = <div className={mode === 'desktop' ? 'grid gap-4 lg:grid-cols-2' : 'grid grid-cols-1 gap-4'}>
+  const queue = <div className="grid grid-cols-1 gap-4">
     {groups.map((group, index) => {
       const order = group[0];
       if (!order) return null;
@@ -62,34 +62,16 @@ export function Entregas({ role }: { role: AccessRole }) {
       <p className="mt-3 text-sm font-semibold text-[#c4d8f4]">Nenhuma entrega pendente.</p>
     </div>}
   </div>;
-  return <section className={`mx-auto min-w-0 space-y-5 ${role === 'operador' ? (mode === 'mobile' ? 'w-full max-w-[560px]' : 'w-full max-w-[1180px]') : ''}`}>
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+  return <section className={`mx-auto min-w-0 space-y-5 ${role === 'operador' ? 'w-full max-w-[560px]' : ''}`}>
+    {role === 'gestor' && <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
       <div className="flex items-center gap-3">
-        <span className={role === 'operador' ? 'flex h-11 w-11 items-center justify-center rounded-xl border border-[#325a8c] bg-[#15365d] text-[#6aafff]' : 'text-primary'}>
-          <Truck className="h-6 w-6" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-extrabold">Entregas</h1>
-          {role === 'operador' && <p className="text-xs font-medium text-muted-foreground">Gerencie suas entregas do dia</p>}
-        </div>
+        <span className="text-primary"><Truck className="h-6 w-6" /></span>
+        <h1 className="text-2xl font-extrabold">Entregas</h1>
       </div>
-      {role === 'gestor' ? (
-        <div className="flex gap-2">{['Entregas', 'Retira'].map(s =>
-          <Button key={s} variant={section === s ? 'default' : 'outline'} onClick={() => setSection(s)}>{s}</Button>
-        )}</div>
-      ) : (
-        <div className="flex gap-1 rounded-xl border border-[#385777] bg-[#0b1727] p-1" aria-label="Modo de visualização">
-          {(['mobile','desktop'] as const).map(m =>
-            <Button key={m} size="sm" variant="ghost" aria-pressed={mode === m}
-              className={`h-10 gap-1.5 rounded-lg px-3 text-xs font-bold ${mode === m ? 'bg-[#74a8f4] text-[#06162b] hover:bg-[#93bfff] hover:text-[#06162b]' : 'text-[#b0c5e3] hover:bg-[#203757] hover:text-white'}`}
-              onClick={() => { setMode(m); localStorage.setItem('bignotto-delivery-mode', m); }}>
-              {m === 'mobile' ? <Smartphone className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
-              {m === 'mobile' ? 'Celular' : 'PC'}
-            </Button>
-          )}
-        </div>
-      )}
-    </header>
+      <div className="flex gap-2">{['Entregas', 'Retira'].map(s =>
+        <Button key={s} variant={section === s ? 'default' : 'outline'} onClick={() => setSection(s)}>{s}</Button>
+      )}</div>
+    </header>}
     {role === 'gestor' && section === 'Retira' ? <Retira role={role} /> : <>
     {role === 'operador' && <>
       <div className="flex items-center gap-3 rounded-xl border border-[#315886] bg-gradient-to-r from-[#1a395e] to-[#152945] p-4 shadow-[0_5px_18px_rgba(8,40,96,0.18)]">
