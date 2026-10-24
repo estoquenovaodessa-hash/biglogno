@@ -115,3 +115,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.resolve_item_chat_occurrence(uuid,uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resolve_item_chat_occurrence(uuid,uuid,text) TO service_role;
+
+-- Atualiza o catálogo de funções do PostgREST (Supabase API).
+NOTIFY pgrst, 'reload schema';
