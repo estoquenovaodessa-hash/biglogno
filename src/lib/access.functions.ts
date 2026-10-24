@@ -26,7 +26,7 @@ export const unlockAccess = createServerFn({ method: "POST" })
     const operatorMatch = passwordMatches(data.password, operador);
     const role = managerMatch ? "gestor" as const : operatorMatch ? "operador" as const : null;
     if (!role) return { role: null, error: "Senha incorreta." };
-    await session.update({ role, credentialVersion: createHash("sha256").update(role === "gestor" ? gestor : operador).digest("hex") });
+    await session.update({ role, credentialVersion: createHash("sha256").update(role === "gestor" ? gestor : operador).digest("hex"), employeeId: undefined });
     return { role, error: null };
   });
 
