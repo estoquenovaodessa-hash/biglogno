@@ -340,7 +340,20 @@ const brandHeader = (
           <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-primary bg-card text-xl font-bold" onClick={() => setOperatorScreen("Contagem")}><ScanLine className="h-10 w-10 text-primary" />CONTAGEM</Button>
           <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-brand-gold bg-card text-xl font-bold" onClick={() => setOperatorScreen("Conferência")}><ClipboardCheck className="h-10 w-10 text-primary" />CONFERENCIA</Button>
           <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-primary bg-card text-xl font-bold" onClick={() => setOperatorScreen("Entregas")}><Truck className="h-10 w-10 text-primary" />ENTREGAS</Button>
-        </div></div> : <><Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>{operatorScreen === "Contagem" ? <><h1 className="mb-6 text-2xl font-bold">Contagem</h1><CiclosContagem /></> : operatorScreen === "Entregas" ? <Entregas role={role} /> : <SalesVerification role={role} />}</>}
+        </div></div> : <>
+          {operatorScreen === "Entregas" ? (
+            <div className="mx-auto mb-5 grid w-full max-w-[560px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+              <Button variant="ghost" className="justify-self-start px-2 text-sm sm:px-3" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
+              <h1 className="flex items-center justify-center gap-2 text-center text-xl font-extrabold text-foreground sm:text-2xl">
+                <Truck className="h-6 w-6 shrink-0 text-[#6faaff]" /> Entregas
+              </h1>
+              <span aria-hidden="true" />
+            </div>
+          ) : (
+            <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
+          )}
+          {operatorScreen === "Contagem" ? <><h1 className="mb-6 text-2xl font-bold">Contagem</h1><CiclosContagem /></> : operatorScreen === "Entregas" ? <Entregas role={role} /> : <SalesVerification role={role} />}
+        </>}
       </main>
     </div>;
   }
