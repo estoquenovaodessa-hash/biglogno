@@ -72,7 +72,30 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
     record_id: data.requestId, verification: payload,
     logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
   });
-  if (insertError) throw new Error("Não foi possível registrar. Confira se o documento já foi registrado e tente novamente.");
+  if (insertError) {
+    // Não mostrar informações internas do banco ao operador, mas registrar
+    // detalhes técnicos nos logs da Cloudflare para diagnóstico.
+    console.error("[Conferência] Erro na gravação atômica", {
+      code: insertError.code,
+      message: insertError.message,
+      details: insertError.details,
+      hint: insertError.hint,
+    });
+    const code = insertError.code || "desconhecido";
+    if (code === "PGRST202" || code === "42883") {
+      throw new Error("A rotina de gravação não está disponível no Supabase. Solicite ao gestor a correção do banco.");
+    }
+    if (code === "42P01") {
+      throw new Error("Falta uma tabela necessária no Supabase. Solicite ao gestor a correção do banco.");
+    }
+    if (code === "42501") {
+      throw new Error("A rotina do banco está sem permissão para registrar. Solicite ao gestor a correção do banco.");
+    }
+    if (code === "23505" || /documento.*já foi registrado/i.test(insertError.message || "")) {
+      throw new Error(`Documento ${data.document} já foi registrado. Atualize o painel antes de tentar novamente.`);
+    }
+    throw new Error(`Não foi possível registrar a conferência (erro ${code}). Informe esse código ao gestor.`);
+  }
   return { prefix: documentPrefix(data.document) };
 });
 
