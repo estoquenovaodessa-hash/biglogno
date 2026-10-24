@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Camera, Pencil, Plus, Save, Search, Users, X } from "lucide-react";
+import { Camera, Pencil, Plus, Save, Search, Trash2, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { employeeSchema, type Employee } from "@/lib/employees";
-import { listEmployees, saveEmployees } from "@/lib/employees.functions";
+import { deleteEmployee, listEmployees, saveEmployees } from "@/lib/employees.functions";
 import { EmployeeAvatar } from "./EmployeeGate";
 
 async function reducePhoto(file: File): Promise<string> {
@@ -34,7 +34,7 @@ const empty: FormState = { name: "", job: "", role: "OPERADOR", photo: null };
 
 export function CadastroFuncionarios() {
   const queryClient = useQueryClient();
-  const read = useServerFn(listEmployees), write = useServerFn(saveEmployees);
+  const read = useServerFn(listEmployees), write = useServerFn(saveEmployees), remove = useServerFn(deleteEmployee);
   const query = useQuery({ queryKey: ["employees-available", "gestor"], queryFn: () => read(), staleTime: 15000 });
   const [editing, setEditing] = useState<Employee | null>(null);
   const [open, setOpen] = useState(false);
@@ -88,6 +88,16 @@ export function CadastroFuncionarios() {
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar."); }
     finally { setBusy(false); }
   }
+  async function destroy(employee: Employee) {
+    if (!window.confirm(`Excluir definitivamente o cadastro de ${employee.name}? Os registros anteriores de operações serão preservados.`)) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await remove({ data: { id: employee.id } });
+      await query.refetch();
+      setMessage("Funcionário excluído. Histórico de operações preservado.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível excluir."); }
+    finally { setBusy(false); }
+  }
   const employees = (query.data ?? []).filter(e =>
     (e.name + " " + e.job + " " + e.role).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
 
@@ -117,7 +127,7 @@ export function CadastroFuncionarios() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
           <span className={employee.active ? "text-sm font-semibold text-success" : "text-sm text-muted-foreground"}>{employee.active ? "Ativo" : "Inativo"}</span>
           <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => edit(employee)}><Pencil className="h-4 w-4" /> Editar</Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => { void toggleActive(employee); }}>{employee.active ? "Desativar" : "Reativar"}</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => { void toggleActive(employee); }}>{employee.active ? "Desativar" : "Reativar"}</Button><Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={busy} onClick={() => { void destroy(employee); }}><Trash2 className="h-4 w-4" /> Excluir</Button>
           </div>
         </div>
       </article>)}
