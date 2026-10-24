@@ -33,7 +33,13 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   const employee = await requireSelectedOperator();
   const { db, rows, list } = await loadAll();
   const action = data.action === 'start' ? { ...data, driver: employee.name } : data;
-  const next = applyDeliveryGroupAction(list, action, new Date());
+  const next = applyDeliveryGroupAction(list, action, new Date()).map(d =>
+    data.action === 'start' && d.status === 'em_rota' && d.startedAt && list.find(old => old.id === d.id)?.status === 'nao_iniciada'
+      ? { ...d, driverEmployeeId: employee.id }
+      : data.action === 'cancel' && d.status === 'nao_iniciada' && list.find(old => old.id === d.id)?.status !== 'nao_iniciada'
+        ? { ...d, driverEmployeeId: undefined }
+        : d
+  );
   const changes = next.filter((d, i) => d !== list[i]).map(d => ({ id: d.id, payload: payloadOf(d), position: d.position }));
   const { data: saved, error } = await db.rpc('commit_logistics_changes', { kind: 'deliveries', expected: rows.map(r => ({ id: r.id, payload: r.payload })) as never, changes });
   if (error) throw logisticsCommitError('atualizar as entregas', error);
