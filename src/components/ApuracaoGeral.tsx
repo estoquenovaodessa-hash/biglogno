@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, CalendarDays,
-  CheckCircle2, ClipboardCheck, Download, Image as ImageIcon,
+  CheckCircle2, ClipboardCheck, Download,
   Layers, PackageCheck, RefreshCw, RotateCcw, Target, Truck, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,6 @@ export function ApuracaoGeral() {
   const [generatedWeek, setGeneratedWeek] = useState(lastClosedWeek);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loading = !cyclesReady || !sales.data || !deliveries.data || !pickups.data;
   const failed = sales.isError || deliveries.isError || pickups.isError;
 
@@ -72,12 +71,6 @@ export function ApuracaoGeral() {
     if (loading || failed) return null;
     return buildGeneralReport(ciclos, sales.data!.records, deliveries.data!, pickups.data!.records, generatedWeek);
   }, [ciclos, loading, failed, sales.data, deliveries.data, pickups.data, generatedWeek]);
-
-  useEffect(() => {
-    if (!report || !canvasRef.current) return;
-    try { renderGeneralReportJPEG(canvasRef.current, report); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível montar a prévia do JPEG."); }
-  }, [report]);
 
   async function generate() {
     setBusy(true);
@@ -96,9 +89,11 @@ export function ApuracaoGeral() {
       setMessage("Clique em Gerar apuração para atualizar o JPEG com a semana escolhida.");
       return;
     }
-    const canvas = canvasRef.current;
-    if (!canvas) { setMessage("Prévia ainda não disponível."); return; }
-    try { renderGeneralReportJPEG(canvas, report); saveGeneralReportJPEG(canvas, report); }
+    try {
+      const canvas = document.createElement("canvas");
+      renderGeneralReportJPEG(canvas, report);
+      saveGeneralReportJPEG(canvas, report);
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível baixar o JPEG."); }
   }
   const currentMonday = mondayOf(salesDay(new Date()));
@@ -116,7 +111,7 @@ export function ApuracaoGeral() {
         <Button variant="outline" className="h-10" disabled={busy} onClick={() => setWeek(nextWeek(week, -1))} aria-label="Semana anterior">←</Button>
         <Button variant="outline" className="h-10" disabled={busy || week >= currentMonday} onClick={() => setWeek(nextWeek(week, 1))} aria-label="Próxima semana">→</Button>
         <Button className="h-10 bg-[#ffbb23] font-bold text-[#07172a] hover:bg-[#ffd269]" disabled={busy || loading || failed} onClick={() => { void generate(); }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />Gerar apuração</Button>
-        <Button variant="outline" className="h-10" disabled={busy || !report || week !== generatedWeek} onClick={download}><Download className="h-4 w-4" />Baixar JPEG</Button>
+        <Button variant="outline" className="h-10" disabled={busy || !report || week !== generatedWeek} onClick={download}><Download className="h-4 w-4" />Gerar JPEG</Button>
       </div>
     </div>
 
@@ -124,8 +119,7 @@ export function ApuracaoGeral() {
     {failed && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Não foi possível carregar uma das fontes de dados. Tente gerar novamente.</p>}
     {loading && !failed && <p role="status" className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Carregando histórico para comparar as semanas…</p>}
 
-    {report && <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.45fr)]">
-      <div className="min-w-0 space-y-4">
+    {report && <div className="min-w-0 space-y-4">
         <div className="rounded-xl border border-[#295482] bg-[#0c243d] px-5 py-4 text-white">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><p className="flex items-center gap-2 text-sm font-bold text-[#83bcff]"><CalendarDays className="h-4 w-4" />{displayDay(report.weekStart)} a {displayDay(report.weekEnd)}</p>
@@ -162,15 +156,6 @@ export function ApuracaoGeral() {
           </p>)}</div>
         </div>
         <p className="text-xs text-muted-foreground">Critérios: ciclos e reinventários na data de finalização; acuracidade ponderada por quantidade de itens; conferências na data de registro; entregas e retiradas na data de conclusão. Excluídos ou sem data não são recuperáveis no histórico. Os números são calculados dos registros atualmente disponíveis.</p>
-      </div>
-
-      <aside className="min-w-0 self-start rounded-xl border border-[#295482] bg-[#091b31] p-4">
-        <div className="mb-3"><h3 className="flex items-center gap-2 text-base font-bold text-white"><ImageIcon className="h-5 w-5 text-[#ffbd2c]" />Prévia do JPEG</h3>
-        <p className="mt-1 text-xs text-[#b2cbe5]">Arte vertical 1080 × 1920 pronta para o WhatsApp.</p></div>
-        <canvas ref={canvasRef} width={1080} height={1920} role="img" aria-label="Prévia do relatório executivo semanal com os dados calculados"
-          className="block h-auto w-full rounded-lg border border-[#37618e] bg-[#061529]" />
-        <Button className="mt-3 w-full bg-[#ffbd28] font-extrabold text-[#07182a] hover:bg-[#ffd267]" disabled={week !== generatedWeek} onClick={download}><Download className="h-4 w-4" />Baixar JPEG para diretoria</Button>
-      </aside>
-    </div>}
+    </div>
   </section>;
 }
