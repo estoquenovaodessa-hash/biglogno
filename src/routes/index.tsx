@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/sheet";
 import { useStore, StoreProvider } from "@/lib/store";
 import { AccessGate } from "@/components/AccessGate";
-import { EmployeeGate, EmployeeTag } from "@/components/EmployeeGate";
+import { EmployeeGate, EmployeeTag, useActiveEmployee } from "@/components/EmployeeGate";
 import { CadastroFuncionarios } from "@/components/CadastroFuncionarios";
 import { canAccessTab, type AccessRole } from "@/lib/access-policy";
 import { lockAccess } from "@/lib/access.functions";
@@ -133,6 +133,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     } finally { setExiting(false); }
   };
   const { theme, toggleTheme, items, ready } = useStore();
+  const { employee } = useActiveEmployee();
   const [tab, setTab] = useState<TabKey>(role === "gestor" ? "Importação" : "Contagem");
   const [aberto, setAberto] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("desktop");
@@ -354,7 +355,7 @@ const brandHeader = (
             <div className="mb-7 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card to-card px-5 py-7 text-center shadow-sm sm:px-8 sm:py-9">
               <span aria-hidden="true" className="mb-3 inline-block text-4xl sm:text-5xl">👋</span>
               <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-                Boas-vindas, operador!
+                Boas-vindas, {employee?.name.split(/\\s+/)[0] ?? "operador"}!
               </h1>
               <p className="mt-3 text-base font-medium text-muted-foreground sm:text-lg">
                 Pronto para mais uma missão? 🚀
