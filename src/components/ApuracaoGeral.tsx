@@ -16,6 +16,7 @@ import {
   lastClosedWeek, mondayOf, nextWeek, type GeneralIndicator, type GeneralReport,
 } from "@/lib/general-report";
 import { renderGeneralReportJPEG, saveGeneralReportJPEG } from "@/lib/general-report-image";
+import { salesDay } from "@/lib/sales-weekly";
 
 const keys = [
   { key: "accuracy", icon: Target, label: "Acuracidade geral", style: "text-blue-400" },
@@ -91,13 +92,16 @@ export function ApuracaoGeral() {
     } finally { setBusy(false); }
   }
   function download() {
-    if (!report) return;
+    if (!report || week !== generatedWeek) {
+      setMessage("Clique em Gerar apuração para atualizar o JPEG com a semana escolhida.");
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas) { setMessage("Prévia ainda não disponível."); return; }
     try { renderGeneralReportJPEG(canvas, report); saveGeneralReportJPEG(canvas, report); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível baixar o JPEG."); }
   }
-  const currentMonday = mondayOf(new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }));
+  const currentMonday = mondayOf(salesDay(new Date()));
   const summaryTone = report && report.improved > report.declined ? "text-emerald-400" : report && report.declined > report.improved ? "text-rose-400" : "text-[#7bb7ff]";
 
   return <section className="space-y-4">
@@ -106,13 +110,13 @@ export function ApuracaoGeral() {
         <p className="mt-1 text-sm text-muted-foreground">Comparativo semanal dos resultados de Contagem, Conferência, Entregas e Retira.</p></div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-44"><span className="mb-1 block text-xs font-semibold text-muted-foreground">Semana de referência</span>
-          <input aria-label="Escolha uma data da semana" type="date" max={new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })} value={week}
+          <input aria-label="Escolha uma data da semana" type="date" max={salesDay(new Date())} value={week}
             onChange={e => { if (e.target.value) setWeek(mondayOf(e.target.value)); }}
             className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm" /></label>
         <Button variant="outline" className="h-10" disabled={busy} onClick={() => setWeek(nextWeek(week, -1))} aria-label="Semana anterior">←</Button>
         <Button variant="outline" className="h-10" disabled={busy || week >= currentMonday} onClick={() => setWeek(nextWeek(week, 1))} aria-label="Próxima semana">→</Button>
         <Button className="h-10 bg-[#ffbb23] font-bold text-[#07172a] hover:bg-[#ffd269]" disabled={busy || loading || failed} onClick={() => { void generate(); }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />Gerar apuração</Button>
-        <Button variant="outline" className="h-10" disabled={busy || !report} onClick={download}><Download className="h-4 w-4" />Baixar JPEG</Button>
+        <Button variant="outline" className="h-10" disabled={busy || !report || week !== generatedWeek} onClick={download}><Download className="h-4 w-4" />Baixar JPEG</Button>
       </div>
     </div>
 
@@ -165,7 +169,7 @@ export function ApuracaoGeral() {
         <p className="mt-1 text-xs text-[#b2cbe5]">Arte vertical 1080 × 1920 pronta para o WhatsApp.</p></div>
         <canvas ref={canvasRef} width={1080} height={1920} role="img" aria-label="Prévia do relatório executivo semanal com os dados calculados"
           className="block h-auto w-full rounded-lg border border-[#37618e] bg-[#061529]" />
-        <Button className="mt-3 w-full bg-[#ffbd28] font-extrabold text-[#07182a] hover:bg-[#ffd267]" onClick={download}><Download className="h-4 w-4" />Baixar JPEG para diretoria</Button>
+        <Button className="mt-3 w-full bg-[#ffbd28] font-extrabold text-[#07182a] hover:bg-[#ffd267]" disabled={week !== generatedWeek} onClick={download}><Download className="h-4 w-4" />Baixar JPEG para diretoria</Button>
       </aside>
     </div>}
   </section>;
