@@ -29,9 +29,11 @@ export const addManualDelivery = createServerFn({ method: 'POST' }).inputValidat
   if (error) throw new Error('Não foi possível adicionar a entrega.'); return { ok: true };
 });
 export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(deliveryActionSchema).handler(async ({ data }) => {
-  const { operatorAccess } = await import('./logistics.server'); await operatorAccess();
+  const { requireSelectedOperator } = await import('./employees.functions');
+  const employee = await requireSelectedOperator();
   const { db, rows, list } = await loadAll();
-  const next = applyDeliveryGroupAction(list, data, new Date());
+  const action = data.action === 'start' ? { ...data, driver: employee.name } : data;
+  const next = applyDeliveryGroupAction(list, action, new Date());
   const changes = next.filter((d, i) => d !== list[i]).map(d => ({ id: d.id, payload: payloadOf(d), position: d.position }));
   const { data: saved, error } = await db.rpc('commit_logistics_changes', { kind: 'deliveries', expected: rows.map(r => ({ id: r.id, payload: r.payload })) as never, changes });
   if (error) throw logisticsCommitError('atualizar as entregas', error);
