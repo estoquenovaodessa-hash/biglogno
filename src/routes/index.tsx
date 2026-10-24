@@ -344,8 +344,8 @@ const brandHeader = (
 
   if (role === "operador") {
     return <div className={cn("min-h-screen overflow-x-hidden bg-background", operatorScreen !== "Contagem" && viewMode === "mobile" && "mobile-view")}>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-brand-gold bg-card px-4 py-3">
-        <img src={logo.url} alt="Bignotto Ferramentas" className="h-14 w-40 object-contain" />
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-brand-gold bg-card px-2 py-3 sm:gap-3 sm:px-4">
+        <img src={logo.url} alt="Bignotto Ferramentas" className="h-12 w-12 object-contain sm:h-14 sm:w-40" />
         <div className="flex items-center gap-2"><EmployeeTag /><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
       </header>
       <main className={operatorScreen === "Contagem" ? "logistics-content mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8" : "logistics-content mx-auto max-w-[1600px] px-4 py-6 sm:px-8"}>
