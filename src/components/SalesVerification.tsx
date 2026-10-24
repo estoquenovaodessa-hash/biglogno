@@ -35,21 +35,13 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const [clientFilter, setClientFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [recordSearch, setRecordSearch] = useState("");
-  const [editing, setEditing] = useState<Verifier | null>(null), [dialog, setDialog] = useState(false), [code, setCode] = useState(""), [name, setName] = useState(""), [expedition, setExpedition] = useState(false);
   const [pendingClients, setPendingClients] = useState<ReturnType<typeof parseClients> | null>(null);
-  const [deleteVerifier, setDeleteVerifier] = useState<Verifier | null>(null);
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null), [pendingDelete, setPendingDelete] = useState<VerificationRecord | null>(null), [recordLimit, setRecordLimit] = useState(200);
   const [analyzing, setAnalyzing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const data = query.data;
-  async function changeVerifiers(list: Verifier[]) {
-    setBusy(true); setError("");
-    try { await saveVerifiers({ data: list }); await query.refetch(); setDialog(false); setDeleteVerifier(null); setNotice("Cadastro atualizado."); }
-    catch (err) { setError(err instanceof Error ? err.message : "Não foi possível salvar."); }
-    finally { setBusy(false); }
-  }
   if (!data) return <div className="py-8">{query.isError ? <><p role="alert" className="text-destructive">Não foi possível carregar a conferência.</p><Button variant="outline" onClick={() => query.refetch()}>Tentar novamente</Button></> : <p role="status">Carregando conferência…</p>}</div>;
-  if (role === "operador") return <div className="mx-auto grid max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><SalesVerificationForm clients={data.clients} verifiers={data.verifiers} prefix={data.prefix} lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode} onRegistered={() => { void query.refetch(); void queryClient.invalidateQueries({ queryKey: ['pickups'] }); void queryClient.invalidateQueries({ queryKey: ['deliveries'] }); }} /><Retira role={role} clients={data.clients} /></div>;
+  if (role === "operador") return <div className="mx-auto grid max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><SalesVerificationForm clients={data.clients} prefix={data.prefix} lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode} onRegistered={() => { void query.refetch(); void queryClient.invalidateQueries({ queryKey: ['pickups'] }); void queryClient.invalidateQueries({ queryKey: ['deliveries'] }); }} /><Retira role={role} clients={data.clients} /></div>;
   // O período escolhido é a base dos relatórios e da quantidade total de vendas.
   const periodRecords = data.records.filter(r => period === "all" || (period === "today" ? salesDay(r.createdAt) === salesDay(new Date()) : salesDay(r.createdAt).startsWith(period)));
   const periodKey = period === "today" ? localDay(new Date()) : period;
@@ -58,7 +50,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const salesInputValid = sales !== "" && Number.isSafeInteger(salesCount) && salesCount >= 0 && salesCount <= 100000000;
   const selectedRecords = periodRecords.filter(r =>
     (sellerFilter === "all" || r.seller === sellerFilter) &&
-    (verifierFilter === "all" || canonicalCode(r.verifierCode) === verifierFilter) &&
+    (verifierFilter === "all" || `${canonicalCode(r.verifierCode)}|${r.verifierName}` === verifierFilter) &&
     (clientFilter === "all" || canonicalCode(r.clientCode) === clientFilter) &&
     (statusFilter === "all" || r.correct === (statusFilter === "correct"))
   );
@@ -67,9 +59,9 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const periodMetrics = salesMetrics(periodRecords);
   const clients = data.clients.filter(c => `${c.code} ${c.name}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   const availableSellers = [...new Set(periodRecords.map(r => r.seller))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const availableVerifiers = [...new Map(periodRecords.map(r => [canonicalCode(r.verifierCode), { code: canonicalCode(r.verifierCode), name: r.verifierName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const availableVerifiers = [...new Map(periodRecords.map(r => [`${canonicalCode(r.verifierCode)}|${r.verifierName}`, { code: canonicalCode(r.verifierCode), name: r.verifierName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const availableClients = [...new Map(periodRecords.map(r => [canonicalCode(r.clientCode), { code: canonicalCode(r.clientCode), name: r.clientName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const groupedVerifiers = [...new Set(records.map(r => r.verifierCode))].map(c => { const list = records.filter(r => r.verifierCode === c); return { code: c, name: list[0]?.verifierName ?? c, hasTime: list.some(r => r.durationSeconds !== null), ...salesMetrics(list) }; }).sort((a, b) => b.count - a.count);
+  const groupedVerifiers = [...new Set(records.map(r => `${r.verifierCode}|${r.verifierName}`))].map(key => { const list = records.filter(r => `${r.verifierCode}|${r.verifierName}` === key); return { code: list[0]?.verifierCode ?? "", name: list[0]?.verifierName ?? "—", hasTime: list.some(r => r.durationSeconds !== null), ...salesMetrics(list) }; }).sort((a, b) => b.count - a.count);
   const groupedSellers = [...new Set(records.map(r => r.seller))].map(s => ({ name: s, ...salesMetrics(records.filter(r => r.seller === s)) })).sort((a, b) => b.count - a.count);
   const searchedRecords = records.filter(r => {
     const q = recordSearch.toLocaleLowerCase("pt-BR").trim();
@@ -79,7 +71,6 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   function resetFilters() {
     setSellerFilter("all"); setVerifierFilter("all"); setClientFilter("all"); setStatusFilter("all"); setRecordSearch(""); setRecordLimit(200);
   }
-  function openVerifier(v?: Verifier) { setEditing(v ?? null); setCode(v?.code ?? ""); setName(v?.name ?? ""); setExpedition(v?.expedition ?? false); setError(""); setDialog(true); }
   const periodLabel = period === "all" ? "Todo o período" : period === "today" ? "Hoje" : new Date(`${period}-02T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
   function exportReport() { createSalesReport(periodRecords, periodLabel, savedSalesCount).save("bignotto-relatorio-conferencia.pdf"); }
@@ -107,17 +98,16 @@ export function SalesVerification({ role }: { role: AccessRole }) {
             <Button size="sm" variant="outline" onClick={exportReport}><FileDown className="h-4 w-4" /> PDF</Button>
           </>}
           <Button size="sm" variant="outline" disabled={query.isFetching} onClick={() => query.refetch()}><RefreshCw className={query.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Atualizar</Button>
-          <Button size="sm" onClick={() => openVerifier()}><Plus className="h-4 w-4" /> Novo conferente</Button>
         </div>
       </div>
       <nav className="mt-5 flex flex-wrap gap-1 border-t border-border pt-3" aria-label="Áreas da conferência">
-        {["Painel", "Conferentes", "Clientes"].map(t => <Button key={t} size="sm" variant={tab === t ? "secondary" : "ghost"} aria-current={tab === t ? "page" : undefined} className="rounded-lg font-semibold" onClick={() => { setTab(t); setSearch(""); }}>
+        {["Painel", "Clientes"].map(t => <Button key={t} size="sm" variant={tab === t ? "secondary" : "ghost"} aria-current={tab === t ? "page" : undefined} className="rounded-lg font-semibold" onClick={() => { setTab(t); setSearch(""); }}>
           {t}
         </Button>)}
       </nav>
     </header>
 
-    {error && !dialog && <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</div>}
+    {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</div>}
     {notice && <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success" role="status">{notice}</div>}
 
     {tab === "Painel" && <>
@@ -141,7 +131,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
           </label>
           <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Conferente
             <select aria-label="Filtrar conferente" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={verifierFilter} onChange={e => { setVerifierFilter(e.target.value); setRecordLimit(200); }}>
-              <option value="all">Todos</option>{availableVerifiers.map(v => <option key={v.code} value={v.code}>{v.name}</option>)}
+              <option value="all">Todos</option>{availableVerifiers.map(v => <option key={`${v.code}|${v.name}`} value={`${v.code}|${v.name}`}>{v.name} · {v.code === "101" ? "Balcão" : v.code === "102" ? "Expedição" : v.code}</option>)}
             </select>
           </label>
           <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Cliente
@@ -213,13 +203,11 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
         setError(""); try { if (file.size > 30 * 1024 * 1024) throw new Error("Arquivo acima de 30 MB."); const bytes = await file.arrayBuffer(); let text = new TextDecoder("utf-8").decode(bytes); if (text.includes("\uFFFD")) text = new TextDecoder("windows-1252").decode(bytes); setPendingClients(parseClients(text)); } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível ler o CSV."); }
       }} /></div><DataTable headers={["Código", "Nome do cliente"]} rows={clients.slice(0, 500).map(c => [c.code, c.name])} />{clients.length > 500 && <p className="mt-3 text-sm text-muted-foreground">Exibindo 500 de {number(clients.length)} clientes. Refine a busca.</p>}</section>}
-    {tab === "Conferentes" && <section><h2 className="mb-4 flex items-center gap-2"><UserRoundCheck className="h-5 w-5 text-primary" />Conferentes cadastrados</h2><DataTable headers={["Código", "Nome", "Área", "Ações"]} rows={data.verifiers.map(v => [v.code, v.name, v.expedition ? "Expedição" : "Balcão", <div className="flex gap-2" key={v.code}><Button variant="outline" size="icon" aria-label={`Editar ${v.name}`} title="Editar conferente" onClick={() => openVerifier(v)}><Pencil className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="text-destructive" aria-label={`Excluir ${v.name}`} title="Excluir conferente" onClick={() => setDeleteVerifier(v)}><Trash2 className="h-4 w-4" /></Button></div>])} /></section>}
     {analyzing && <SalesWeeklyAnalysis records={data.records} onClose={() => setAnalyzing(false)} />}
     {selectedSeller && <SalesSellerDetail key={`${periodKey}:${selectedSeller}`} seller={selectedSeller} period={periodKey} periodLabel={periodLabel} records={records} savedCount={data.sellerCounts[sellerCountKey(periodKey, selectedSeller)] ?? 0} onClose={() => setSelectedSeller(null)} onSaved={() => query.refetch()} onDelete={r => { setError(""); setPendingDelete(r); }} />}
     <Dialog open={Boolean(pendingDelete)} onOpenChange={open => { if (!open && !busy) { setPendingDelete(null); setError(""); } }}><DialogContent><DialogHeader><DialogTitle>Excluir registro de conferência?</DialogTitle></DialogHeader><p>Documento <strong>{pendingDelete?.document}</strong> · {pendingDelete?.seller}. A exclusão é definitiva e atualizará os indicadores e relatórios. <strong>O pedido vinculado em Retira ou Entregas também será apagado, mesmo se já estiver finalizado.</strong> Pedidos cadastrados manualmente não serão afetados.</p>{error && <p role="alert" className="text-destructive">{error}</p>}<DialogFooter><Button variant="outline" disabled={busy} onClick={() => { setPendingDelete(null); setError(""); }}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={async () => { if (!pendingDelete) return; setBusy(true); setError(""); try { const result = await deleteRecord({ data: { id: pendingDelete.id } }); setPendingDelete(null); setNotice(result.pickupsDeleted + result.deliveriesDeleted > 0 ? "Conferência excluída e pedido vinculado em Retira/Entregas removido." : "Conferência excluída. Não havia pedido vinculado em Retira/Entregas."); await Promise.allSettled([query.refetch(), queryClient.invalidateQueries({ queryKey: ["pickups"] }), queryClient.invalidateQueries({ queryKey: ["deliveries"] })]); } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível excluir."); } finally { setBusy(false); } }}><Trash2 />Excluir registro</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={dialog} onOpenChange={setDialog}><DialogContent><DialogHeader><DialogTitle>{editing ? "Editar conferente" : "Novo conferente"}</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={e => { e.preventDefault(); const parsed = verifierSchema.safeParse({ code, name, expedition }); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Confira o cadastro."); return; } const list = data.verifiers.filter(v => v.code !== editing?.code); if (list.some(v => canonicalCode(v.code) === canonicalCode(code))) { setError("Código já cadastrado."); return; } void changeVerifiers([...list, parsed.data]); }}><label className="block space-y-2"><span>Código</span><Input aria-label="Código do conferente" required inputMode="numeric" maxLength={12} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ""))} /></label><label className="block space-y-2"><span>Nome</span><Input aria-label="Nome do conferente" required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></label><label className="flex items-center gap-2"><input type="checkbox" checked={expedition} onChange={e => setExpedition(e.target.checked)} />Conferente da expedição</label>{error && <p role="alert" className="text-destructive">{error}</p>}<DialogFooter><Button variant="outline" type="button" onClick={() => setDialog(false)}>Cancelar</Button><Button type="submit" disabled={busy}><Save />Salvar</Button></DialogFooter></form></DialogContent></Dialog>
     <Dialog open={Boolean(pendingClients)} onOpenChange={open => { if (!open) setPendingClients(null); }}><DialogContent><DialogHeader><DialogTitle>Importar base de clientes</DialogTitle></DialogHeader><p>{number(pendingClients?.length ?? 0)} clientes encontrados. A nova importação substituirá a base atual; os registros de conferência serão preservados.</p><DialogFooter><Button variant="outline" onClick={() => setPendingClients(null)}>Cancelar</Button><Button disabled={busy} onClick={async () => { if (!pendingClients) return; setBusy(true); try { const result = await importClients({ data: pendingClients }); await query.refetch(); setPendingClients(null); setNotice(`${number(result.count)} clientes importados.`); } catch { setError("Não foi possível importar os clientes."); setPendingClients(null); } finally { setBusy(false); } }}><Upload />Confirmar importação</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={Boolean(deleteVerifier)} onOpenChange={open => { if (!open) setDeleteVerifier(null); }}><DialogContent><DialogHeader><DialogTitle>Excluir conferente?</DialogTitle></DialogHeader><p>Os registros anteriores de {deleteVerifier?.name} serão preservados.</p><DialogFooter><Button variant="outline" onClick={() => setDeleteVerifier(null)}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={() => { void changeVerifiers(data.verifiers.filter(v => v.code !== deleteVerifier?.code)); }}>Excluir</Button></DialogFooter></DialogContent></Dialog>
+
   </div>;
 }
 
