@@ -112,6 +112,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_verification_logistics: {
+        Args: { record_id: string }
+        Returns: Json
+      }
       allow_access_attempt: { Args: { fingerprint: string }; Returns: boolean }
       commit_logistics_changes: {
         Args: { changes: Json; expected: Json; kind: string }

@@ -115,9 +115,26 @@ export const deleteSalesVerification = createServerFn({ method: "POST" }).inputV
   const { requireAccess } = await import("./access.server");
   if (!canManageSales(await requireAccess())) throw new Error("Somente o gestor pode excluir conferências.");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.from("sales_verification_records").delete().eq("id", data.id);
-  if (error) throw new Error("Não foi possível excluir a conferência.");
-  return { ok: true };
+  // Exclui a conferência e sua retirada/entrega de forma atômica no Supabase.
+  // Nunca apagar em duas requisições separadas: isso deixaria registros órfãos em caso de falha.
+  const { data: outcome, error } = await supabaseAdmin.rpc("delete_verification_logistics", {
+    record_id: data.id,
+  });
+  if (error) {
+    console.error("[Conferência] Falha na exclusão vinculada", {
+      code: error.code, message: error.message, details: error.details,
+    });
+    if (error.code === "PGRST202" || error.code === "42883") {
+      throw new Error("A rotina de exclusão vinculada ainda não foi instalada no Supabase. Execute o SQL da atualização.");
+    }
+    throw new Error("Não foi possível excluir a conferência e o pedido vinculado. Nenhuma exclusão foi confirmada.");
+  }
+  const result = outcome as { pickupsDeleted?: number; deliveriesDeleted?: number } | null;
+  return {
+    ok: true,
+    pickupsDeleted: result?.pickupsDeleted ?? 0,
+    deliveriesDeleted: result?.deliveriesDeleted ?? 0,
+  };
 });
 
 export const saveSellerSalesCount = createServerFn({ method: "POST" }).inputValidator(sellerSalesSchema).handler(async ({ data }) => {
