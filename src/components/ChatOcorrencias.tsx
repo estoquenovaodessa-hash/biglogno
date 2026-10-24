@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Clock3, MapPin, MessageCircle, PackageSearch, RefreshCw, Send, ShieldAlert, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useActiveEmployee, EmployeeAvatar } from "./EmployeeGate";
+import { useActiveEmployee } from "./EmployeeGate";
 import { createItemOccurrence, listItemOccurrences, resolveItemOccurrence } from "@/lib/item-chat.functions";
 import type { ItemOccurrence } from "@/lib/item-chat";
 import { cloudRefreshNow } from "@/lib/cloudState";
