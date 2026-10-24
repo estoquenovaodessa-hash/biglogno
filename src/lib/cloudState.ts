@@ -121,6 +121,14 @@ async function refresh(): Promise<void> {
   }
 }
 
+// Atualiza imediatamente a Zona Segura e os indicadores após uma resolução no Chat.
+export async function cloudRefreshNow(): Promise<void> {
+  const updated = await changes();
+  for (const [key, value] of updated) {
+    for (const listener of listeners) listener(key, value);
+  }
+}
+
 export function subscribeCloud(onChange: (key: string, value: unknown) => void): () => void {
   listeners.add(onChange);
   if (listeners.size === 1 && refreshTimer === null) {
