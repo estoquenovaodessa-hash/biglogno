@@ -74,7 +74,7 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
           <span className="min-w-0 flex-1"><span className="block truncate text-lg font-bold">{employee.name}</span><span className="block truncate text-sm text-[#abc9eb]">{employee.job}</span></span>
           <ShieldCheck className="h-5 w-5 shrink-0 text-[#84b9ff]" />
         </button>)}
-        {!list.data?.length && <p className="rounded-xl border border-dashed border-[#345983] p-5 text-center text-sm text-[#adc6e3]">Nenhum operador cadastrado. Solicite ao gestor o cadastro na aba Funcionários.</p>}
+        {!list.data?.length && <p className="rounded-xl border border-dashed border-[#345983] p-5 text-center text-sm text-[#adc6e3]">Nenhum perfil ativo cadastrado. Solicite ao gestor um cadastro na aba Cadastro de Funcionários.</p>}
       </div>
       <Button variant="outline" className="mt-5 w-full border-[#355982] bg-transparent text-[#b7d7f7]" disabled={busy}
         onClick={async () => { try { await lock(); client.clear(); onExit(); } catch { setError("Não foi possível sair."); } }}>
