@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { ArrowDown, ArrowUp, CheckCircle2, MapPin, Monitor, Pause, Play, Plus, Smartphone, Truck, Unlink, UserRound, X } from 'lucide-react';
+import { Monitor, Package, Plus, Smartphone, Truck, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { AccessRole } from '@/lib/access-policy';
-import { activeDeliveryCount, deliveryGroups, fmtBrasilia, fmtDuration, isLocked, statusLabel, travelMs, waitMs, type Delivery, type DeliveryAction } from '@/lib/deliveries';
+import { activeDeliveryCount, deliveryGroups, fmtBrasilia, fmtDuration, travelMs, waitMs, type Delivery, type DeliveryAction } from '@/lib/deliveries';
 import { addManualDelivery, listDeliveries, reorderDeliveries, updateDelivery } from '@/lib/deliveries.functions';
 import { readSalesVerification } from '@/lib/sales-verification.functions';
 import { canonicalCode, parseMoneyInput } from '@/lib/sales-verification';
 import { LogisticsOrderFields } from './LogisticsOrderFields';
 import { Retira } from './Retira';
 import { ManagerDeliveries } from './ManagerDeliveries';
+import { OperatorDeliveryCard } from './OperatorDeliveryCard';
 const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const DRIVER_KEY = 'bignotto-delivery-driver';
 
@@ -34,26 +35,91 @@ export function Entregas({ role }: { role: AccessRole }) {
   const clients = sales.data?.clients ?? [];
   function move(i: number, direction: -1 | 1) { const next = [...groups]; const j = i + direction; if (j < 0 || j >= next.length) return; [next[i], next[j]] = [next[j], next[i]]; void run(() => reorder({ data: { ids: next.flatMap(g => g.map(d => d.id)) } })); }
   const controlsDisabled = busy || !driver || q.isError;
-  const queue = <div className={`gap-4 ${role === 'operador' && mode === 'desktop' ? 'grid lg:grid-cols-2' : 'grid grid-cols-1'}`}>{groups.map((g, i) => { const d = g[0]; if (!d) return null; return <Card key={d.id} className={`gap-4 border-l-4 p-4 ${d.status === 'em_rota' || d.status === 'no_destino' ? 'border-l-primary' : d.status === 'pausada' ? 'border-l-brand-gold' : 'border-l-border'}`}>
-    <div className="flex items-start gap-3"><h2 className="min-w-0 flex-1 break-words text-3xl font-bold leading-tight">{d.company}</h2>{role === 'operador' && <div className="flex shrink-0 flex-col"><Button size="icon" variant="ghost" aria-label={`Subir ${d.company}`} disabled={controlsDisabled || i === 0} onClick={() => move(i,-1)}><ArrowUp /></Button><Button size="icon" variant="ghost" aria-label={`Descer ${d.company}`} disabled={controlsDisabled || i === groups.length-1} onClick={() => move(i,1)}><ArrowDown /></Button></div>}</div>
-    <p className="text-3xl font-bold tabular-nums">{g.every(row => row.onlyDelivery) ? 'SOMENTE ENTREGA' : money(g.reduce((s,row) => s + row.value,0))}</p>
-    <div className="space-y-2">{g.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2"><p className="text-lg font-semibold">{row.onlyDelivery ? 'SOMENTE ENTREGA' : `Nº documento: ${row.document}`}</p>{role === 'operador' && row.status === 'nao_iniciada' && (g.length > 1 || row.separate) && <Button variant="ghost" size="sm" disabled={controlsDisabled} onClick={() => action({ action: row.separate ? 'unify' : 'separate', id: row.id })}><Unlink className="h-4 w-4" />{row.separate ? 'Unificar' : 'Desunificar'}</Button>}</div>)}</div>
-    <div className="flex flex-wrap items-center gap-2"><span className="rounded bg-accent px-3 py-1 text-lg font-bold text-primary">{statusLabel(d, all)}</span>{g.length > 1 && <span className="text-base font-bold text-muted-foreground">{g.length} pedidos unificados</span>}</div>
-    {d.driver && <p className="text-lg font-semibold">Entregador: {d.driver}<span className="block text-base font-normal text-muted-foreground">Início: {fmtBrasilia(d.startedAt)}</span></p>}
-    {role === 'operador' && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {d.status === 'nao_iniciada' && <Button className="h-12 text-lg font-bold" disabled={controlsDisabled || isLocked(d,all)} onClick={() => action({ action: 'start', id:d.id, driver })}><Play />Iniciar</Button>}
-      {d.status === 'em_rota' && <><Button className="h-12 text-lg font-bold" disabled={controlsDisabled} onClick={async () => { if (await action({ action:'arrive', id:d.id })) { setReceiver(''); setArrived(g); } }}><MapPin />Cheguei</Button><Button variant="outline" className="h-12 text-lg" disabled={controlsDisabled} onClick={() => action({ action:'pause', id:d.id })}><Pause />Pausar</Button></>}
-      {d.status === 'pausada' && <Button className="h-12 text-lg" disabled={controlsDisabled || isLocked(d,all)} onClick={() => action({ action:'resume', id:d.id })}><Play />Retomar</Button>}
-      {(d.status === 'em_rota' || d.status === 'pausada') && <Button variant="ghost" className="h-12 text-base text-destructive" disabled={controlsDisabled} onClick={() => action({ action:'cancel', id:d.id })}><X />Cancelar início</Button>}
-      {d.status === 'no_destino' && <Button className="h-12 text-lg font-bold" disabled={controlsDisabled} onClick={() => { setReceiver(''); setArrived(g); }}><CheckCircle2 />Assinar notinhas</Button>}
+  const queue = <div className={mode === 'desktop' ? 'grid gap-4 lg:grid-cols-2' : 'grid grid-cols-1 gap-4'}>
+    {groups.map((group, index) => {
+      const order = group[0];
+      if (!order) return null;
+      return <OperatorDeliveryCard key={order.id}
+        orders={group}
+        all={all}
+        index={index}
+        totalGroups={groups.length}
+        controlsDisabled={controlsDisabled}
+        driver={driver}
+        onMove={direction => move(index, direction)}
+        onAction={action}
+        onArrive={async () => {
+          if (await action({ action: 'arrive', id: order.id })) {
+            setReceiver('');
+            setArrived(group);
+          }
+        }}
+        onSign={() => { setReceiver(''); setArrived(group); }}
+      />;
+    })}
+    {!groups.length && <div className="rounded-xl border border-dashed border-[#315887] bg-[#102039] px-5 py-10 text-center">
+      <Truck className="mx-auto h-10 w-10 text-[#6daaff]" />
+      <p className="mt-3 text-sm font-semibold text-[#c4d8f4]">Nenhuma entrega pendente.</p>
     </div>}
-  </Card>; })}{!groups.length && <p className="py-6 text-muted-foreground">Nenhuma entrega pendente.</p>}</div>;
-  return <section className={`mx-auto min-w-0 space-y-5 ${role === 'operador' && mode === 'mobile' ? 'max-w-lg' : ''}`}>
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4"><h1 className="flex items-center gap-2 text-2xl font-bold"><Truck className="text-primary" />Entregas</h1>{role === 'gestor' ? <div className="flex gap-2">{['Entregas','Retira'].map(s => <Button key={s} variant={section === s ? 'default' : 'outline'} onClick={() => setSection(s)}>{s}</Button>)}</div> : <div className="flex gap-1" aria-label="Modo de visualização">{(['mobile','desktop'] as const).map(m => <Button key={m} variant={mode === m ? 'default' : 'outline'} aria-pressed={mode === m} onClick={() => { setMode(m); localStorage.setItem('bignotto-delivery-mode',m); }}>{m === 'mobile' ? <Smartphone /> : <Monitor />}{m === 'mobile' ? 'Celular' : 'PC'}</Button>)}</div>}</header>
+  </div>;
+  return <section className={`mx-auto min-w-0 space-y-5 ${role === 'operador' ? (mode === 'mobile' ? 'w-full max-w-[560px]' : 'w-full max-w-[1180px]') : ''}`}>
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex items-center gap-3">
+        <span className={role === 'operador' ? 'flex h-11 w-11 items-center justify-center rounded-xl border border-[#325a8c] bg-[#15365d] text-[#6aafff]' : 'text-primary'}>
+          <Truck className="h-6 w-6" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-extrabold">Entregas</h1>
+          {role === 'operador' && <p className="text-xs font-medium text-muted-foreground">Gerencie suas entregas do dia</p>}
+        </div>
+      </div>
+      {role === 'gestor' ? (
+        <div className="flex gap-2">{['Entregas', 'Retira'].map(s =>
+          <Button key={s} variant={section === s ? 'default' : 'outline'} onClick={() => setSection(s)}>{s}</Button>
+        )}</div>
+      ) : (
+        <div className="flex gap-1 rounded-xl border border-[#385777] bg-[#0b1727] p-1" aria-label="Modo de visualização">
+          {(['mobile','desktop'] as const).map(m =>
+            <Button key={m} size="sm" variant="ghost" aria-pressed={mode === m}
+              className={`h-10 gap-1.5 rounded-lg px-3 text-xs font-bold ${mode === m ? 'bg-[#74a8f4] text-[#06162b] hover:bg-[#93bfff] hover:text-[#06162b]' : 'text-[#b0c5e3] hover:bg-[#203757] hover:text-white'}`}
+              onClick={() => { setMode(m); localStorage.setItem('bignotto-delivery-mode', m); }}>
+              {m === 'mobile' ? <Smartphone className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
+              {m === 'mobile' ? 'Celular' : 'PC'}
+            </Button>
+          )}
+        </div>
+      )}
+    </header>
     {role === 'gestor' && section === 'Retira' ? <Retira role={role} /> : <>
-    {role === 'operador' && <><div className="flex flex-wrap items-center justify-between gap-2 bg-accent p-3"><p className="text-lg font-bold text-primary">Entregador: {driver || '—'}</p><Button variant="ghost" size="icon" aria-label="Alterar entregador" title="Alterar entregador" onClick={() => { setDraftDriver(driver); setIdentityOpen(true); }}><UserRound /></Button></div><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-lg font-semibold">Em andamento: {activeDeliveryCount(all)}/2</p><Button disabled={!driver || !sales.data || sales.isError} onClick={() => { setDocument(''); setCode(''); setValue(''); setOnlyDelivery(false); setError(''); setAdding(true); }}><Plus />Adicionar entrega</Button></div>{sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>}</>}
+    {role === 'operador' && <>
+      <div className="flex items-center gap-3 rounded-xl border border-[#315886] bg-gradient-to-r from-[#1a395e] to-[#152945] p-4 shadow-[0_5px_18px_rgba(8,40,96,0.18)]">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#2a5689] text-[#afd1ff]">
+          <UserRound className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-[#b3c9e5]">Entregador</p>
+          <p className="break-words text-lg font-extrabold text-[#f1f7ff]">{driver || '—'}</p>
+        </div>
+        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-lg text-[#a6ccff] hover:bg-[#2b4a70] hover:text-white"
+          aria-label="Alterar entregador" title="Alterar entregador" onClick={() => { setDraftDriver(driver); setIdentityOpen(true); }}>
+          <UserRound className="h-5 w-5" />
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-foreground">
+          <Package className="h-5 w-5 text-[#ffb300]" /> Em andamento:
+          <span className="text-lg font-extrabold tabular-nums text-[#ffc135]">{activeDeliveryCount(all)}/2</span>
+        </p>
+        <Button className="h-11 gap-2 rounded-lg border border-[#aacfff]/50 bg-[#75aaff] px-4 font-extrabold text-[#07182b] shadow-[0_3px_12px_rgba(50,119,231,0.15)] hover:bg-[#93bfff]"
+          disabled={!driver || !sales.data || sales.isError}
+          onClick={() => { setDocument(''); setCode(''); setValue(''); setOnlyDelivery(false); setError(''); setAdding(true); }}>
+          <Plus className="h-5 w-5" /> Adicionar entrega
+        </Button>
+      </div>
+      {sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>}
+    </>}
     {error && !arrived && !adding && <p role="alert" className="text-destructive">{error}</p>}
-    {role === 'gestor' ? <ManagerDeliveries deliveries={all} isLoading={!q.data && !q.isError} isError={q.isError} isFetching={q.isFetching} onRefresh={() => { void q.refetch(); }} /> : !q.data ? <p role={q.isError ? 'alert' : 'status'}>{q.isError ? 'Não foi possível carregar as entregas.' : 'Carregando entregas…'}</p> : role === 'operador' ? <div className={mode === 'desktop' ? 'grid gap-4 lg:grid-cols-2' : ''}>{queue}</div> : <div className="grid gap-6 xl:grid-cols-2"><div><h2 className="mb-4 text-xl font-bold">Pendentes ({open.length})</h2>{queue}</div><div><h2 className="mb-4 text-xl font-bold text-success">Finalizadas ({done.length})</h2><div className="space-y-3">{done.map(d => <Card key={d.id} className="gap-2 p-4"><h3 className="break-words text-2xl font-bold">{d.company}</h3><p className="text-2xl font-bold">{d.onlyDelivery ? 'SOMENTE ENTREGA' : money(d.value)}</p>{d.document && <p className="text-lg">Nº documento: {d.document}</p>}<p className="text-lg">Entregador: <strong>{d.driver}</strong></p><div className="grid grid-cols-2 gap-3 bg-muted p-3"><p>Trajeto<strong className="block text-xl">{fmtDuration(travelMs(d))}</strong></p><p>Espera<strong className="block text-xl">{fmtDuration(waitMs(d))}</strong></p></div><p className="text-base text-muted-foreground">Recebedor: {d.receiver}<br />{fmtBrasilia(d.finishedAt)}</p></Card>)}{!done.length && <p className="py-6 text-muted-foreground">Nenhuma entrega finalizada.</p>}</div></div></div>}
+    {role === 'gestor' ? <ManagerDeliveries deliveries={all} isLoading={!q.data && !q.isError} isError={q.isError} isFetching={q.isFetching} onRefresh={() => { void q.refetch(); }} /> : !q.data ? <p role={q.isError ? 'alert' : 'status'}>{q.isError ? 'Não foi possível carregar as entregas.' : 'Carregando entregas…'}</p> : role === 'operador' ? queue : <div className="grid gap-6 xl:grid-cols-2"><div><h2 className="mb-4 text-xl font-bold">Pendentes ({open.length})</h2>{queue}</div><div><h2 className="mb-4 text-xl font-bold text-success">Finalizadas ({done.length})</h2><div className="space-y-3">{done.map(d => <Card key={d.id} className="gap-2 p-4"><h3 className="break-words text-2xl font-bold">{d.company}</h3><p className="text-2xl font-bold">{d.onlyDelivery ? 'SOMENTE ENTREGA' : money(d.value)}</p>{d.document && <p className="text-lg">Nº documento: {d.document}</p>}<p className="text-lg">Entregador: <strong>{d.driver}</strong></p><div className="grid grid-cols-2 gap-3 bg-muted p-3"><p>Trajeto<strong className="block text-xl">{fmtDuration(travelMs(d))}</strong></p><p>Espera<strong className="block text-xl">{fmtDuration(waitMs(d))}</strong></p></div><p className="text-base text-muted-foreground">Recebedor: {d.receiver}<br />{fmtBrasilia(d.finishedAt)}</p></Card>)}{!done.length && <p className="py-6 text-muted-foreground">Nenhuma entrega finalizada.</p>}</div></div></div>}
     </>}
     {role === 'operador' && <>
       <Dialog open={identified && identityOpen} onOpenChange={o => { if (driver) setIdentityOpen(o); }}><DialogContent onEscapeKeyDown={e => { if (!driver) e.preventDefault(); }} onInteractOutside={e => { if (!driver) e.preventDefault(); }}><DialogHeader><DialogTitle>Identificar entregador</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={e => { e.preventDefault(); const name = draftDriver.trim(); if (!name) return; localStorage.setItem(DRIVER_KEY,name); setDriver(name); setIdentityOpen(false); }}><label className="block space-y-2 font-semibold">Nome do entregador<Input aria-label="Nome do entregador" autoFocus required maxLength={100} value={draftDriver} onChange={e => setDraftDriver(e.target.value)} className="h-12 text-xl font-bold md:text-xl" /></label><Button type="submit" className="h-12 w-full text-lg" disabled={!draftDriver.trim()}>Entrar em Entregas</Button></form></DialogContent></Dialog>
