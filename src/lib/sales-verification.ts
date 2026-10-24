@@ -23,7 +23,7 @@ export const verificationSchema = z.object({
   if (record.correct && reasons) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["errorReasons"], message: "Uma conferência certa não pode ter motivo de erro." });
 });
 export type VerificationInput = z.infer<typeof verificationSchema>;
-export type VerificationRecord = Omit<VerificationInput, "seller" | "durationSeconds"> & { seller: VerificationInput["seller"] | "NÃO INFORMADO"; durationSeconds: number | null; id: string; createdAt: string; clientName: string; verifierName: string; channel?: "balcao" | "expedicao"; observation?: string; source?: "csv" };
+export type VerificationRecord = Omit<VerificationInput, "seller" | "durationSeconds"> & { seller: VerificationInput["seller"] | "NÃO INFORMADO"; durationSeconds: number | null; id: string; createdAt: string; clientName: string; verifierName: string; employeeId?: string; channel?: "balcao" | "expedicao"; observation?: string; source?: "csv" };
 export function verificationChannel(record: Pick<VerificationRecord, "seller" | "channel">) { return record.channel ?? (record.seller === "EXPEDIÇÃO" ? "expedicao" : "balcao"); }
 export function canonicalCode(code: string) { return code.replace(/^0+(?=\d)/, ""); }
 /** "27" → 27; "360" → 360; "27,5" → 27.5; "1.234,56" → 1234.56. Sem vírgula = reais inteiros. */
