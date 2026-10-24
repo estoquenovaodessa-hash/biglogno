@@ -250,7 +250,7 @@ export function ChatOcorrencias() {
       <form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); void submit(); }}>
         <label htmlFor="chat-command" className="sr-only">Código e motivo da ocorrência</label>
         <Input id="chat-command" value={command} onChange={e => setCommand(e.target.value)}
-          placeholder="519 - furo" maxLength={140} autoComplete="off" disabled={busy}
+          placeholder="Ex.: 519-furo ou 00519 - furo" maxLength={140} autoComplete="off" disabled={busy}
           className="h-12 min-w-0 flex-1 rounded-full border-[#486e8c] bg-[#f7fbff] px-4 text-base text-[#1a354b] placeholder:text-[#6b8294] focus-visible:ring-[#55bfa3] dark:bg-[#e9f4fa] dark:text-[#1a354b]" />
         <Button type="submit" size="icon" aria-label={busy ? "Enviando" : "Enviar ocorrência"}
           title="Enviar ocorrência" disabled={!employee || busy || !command.trim()}
@@ -258,7 +258,7 @@ export function ChatOcorrencias() {
           {busy ? <Clock3 className="h-5 w-5 animate-pulse" /> : <Send className="h-5 w-5" />}
         </Button>
       </form>
-      <p className="mt-1.5 pl-3 text-[11px] text-[#aac8dd]">Digite código - motivo. Ex.: 519 - furo</p>
+      <p className="mt-1.5 pl-3 text-[11px] text-[#aac8dd]">Pode digitar de várias formas: 519-furo, 00519 - furo, 519 furo, 519: furo ou 519/furo.</p>
     </div>
   </section>;
 }
