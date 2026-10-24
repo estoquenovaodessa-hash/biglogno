@@ -11,6 +11,7 @@ export interface Delivery {
   source: "conferencia" | "manual";
   status: DeliveryStatus;
   driver?: string;
+  driverEmployeeId?: string;
   startedAt?: string;
   pausedAt?: string;
   pausedMs?: number;
