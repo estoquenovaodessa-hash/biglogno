@@ -14,7 +14,7 @@ export const listEmployees = createServerFn({ method: "GET" }).handler(async () 
   const role = await requireAccess();
   const list = await fetchEmployees();
   // Operadores somente veem perfis elegíveis à escolha; gestores veem todos.
-  return role === "gestor" ? list : list.filter(e => e.active && e.role === "OPERADOR");
+  return role === "gestor" ? list : list.filter(e => e.active);
 });
 
 export const saveEmployees = createServerFn({ method: "POST" }).inputValidator(employeeListSchema)
@@ -38,7 +38,7 @@ export const currentEmployee = createServerFn({ method: "GET" }).handler(async (
   if (!id) return null;
   const list = await fetchEmployees();
   const employee = list.find(e => e.id === id && e.active);
-  return employee && employee.role.toLowerCase() === role ? employee : null;
+  return employee && (role === "operador" || employee.role === "GESTOR") ? employee : null;
 });
 
 export const selectEmployee = createServerFn({ method: "POST" })
@@ -47,7 +47,7 @@ export const selectEmployee = createServerFn({ method: "POST" })
     const { requireAccess, accessSession } = await import("./access.server");
     const role = await requireAccess();
     const list = await fetchEmployees();
-    const selected = list.find(e => e.id === data.id && e.active && e.role.toLowerCase() === role);
+    const selected = list.find(e => e.id === data.id && e.active && (role === "operador" || e.role === "GESTOR"));
     if (!selected) throw new Error("Perfil indisponível para este tipo de acesso.");
     const session = await accessSession();
     await session.update({ ...session.data, employeeId: selected.id });
@@ -69,7 +69,23 @@ export async function requireSelectedOperator(): Promise<Employee> {
   const session = await accessSession();
   const id = session.data.employeeId;
   if (!id) throw new Error("Selecione seu perfil de funcionário antes de operar.");
-  const employee = (await fetchEmployees()).find(e => e.id === id && e.active && e.role === "OPERADOR");
+  const employee = (await fetchEmployees()).find(e => e.id === id && e.active && (e.role === "OPERADOR" || e.role === "GESTOR"));
   if (!employee) throw new Error("Perfil de funcionário indisponível. Selecione novamente.");
   return employee;
 }
+
+// Exclusão exclusiva do gestor: preserva nomes já gravados nas ocorrências, entregas e conferências.
+export const deleteEmployee = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data }) => {
+    const { requireAccess } = await import("./access.server");
+    if (await requireAccess() !== "gestor") throw new Error("Somente o gestor pode excluir funcionários.");
+    const current = await fetchEmployees();
+    if (!current.some(e => e.id === data.id)) throw new Error("Funcionário não encontrado.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("app_state").upsert({
+      key: "employees", value: current.filter(e => e.id !== data.id), updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+    if (error) throw new Error("Não foi possível excluir o funcionário.");
+    return { ok: true };
+  });
