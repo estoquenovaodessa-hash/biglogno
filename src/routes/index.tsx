@@ -13,6 +13,7 @@ import {
   Upload,
   Package,
   BarChart3,
+  ChartColumnIncreasing,
   Route as RouteIcon,
   ShieldCheck,
   History,
@@ -54,6 +55,7 @@ import { Historico } from "@/components/Historico";
 import { Enderecamento } from "@/components/Enderecamento";
 import { Entregas } from "@/components/Entregas";
 import { CiclosContagem } from "@/components/CiclosContagem";
+import { ApuracaoGeral } from "@/components/ApuracaoGeral";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/bignotto-logo.png.asset.json";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
@@ -93,11 +95,12 @@ const TABS = [
   { key: "Contagem", icon: ScanLine },
   { key: "Conferência", icon: ClipboardCheck },
   { key: "Entregas", icon: Truck },
+  { key: "Apuração Geral", icon: ChartColumnIncreasing },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
 
-// Seis páginas sob Estoque e três opções principais, nesta ordem.
+// Seis páginas sob Estoque e quatro opções principais, nesta ordem.
 const ESTOQUE_SUBTABS = TABS.slice(0, 6);
 const MENU_PRINCIPAL = TABS.slice(6);
 type ViewMode = "mobile" | "desktop";
@@ -155,6 +158,8 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
         return <SalesVerification role={role} />;
       case "Entregas":
         return <Entregas role={role} />;
+      case "Apuração Geral":
+        return role === "gestor" ? <ApuracaoGeral /> : null;
       case "Contagem":
         return <CiclosContagem />;
       case "Roteiro de Apuração":
@@ -173,6 +178,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     "Contagem",
     "Conferência",
     "Entregas",
+    "Apuração Geral",
     "Zona Segura",
     "Histórico",
   ].includes(tab);
