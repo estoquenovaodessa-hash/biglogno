@@ -156,6 +156,6 @@ export function ApuracaoGeral() {
           </p>)}</div>
         </div>
         <p className="text-xs text-muted-foreground">Critérios: ciclos e reinventários na data de finalização; acuracidade ponderada por quantidade de itens; conferências na data de registro; entregas e retiradas na data de conclusão. Excluídos ou sem data não são recuperáveis no histórico. Os números são calculados dos registros atualmente disponíveis.</p>
-    </div>
+    </div>}
   </section>;
 }
