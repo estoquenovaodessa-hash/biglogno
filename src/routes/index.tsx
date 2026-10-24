@@ -25,6 +25,7 @@ import {
   Monitor,
   Smartphone,
   ClipboardCheck,
+  MessageCircle,
   LogOut,
   Truck,
   ChevronDown,
@@ -59,6 +60,7 @@ import { Enderecamento } from "@/components/Enderecamento";
 import { Entregas } from "@/components/Entregas";
 import { CiclosContagem } from "@/components/CiclosContagem";
 import { ApuracaoGeral } from "@/components/ApuracaoGeral";
+import { ChatOcorrencias } from "@/components/ChatOcorrencias";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/bignotto-logo.png.asset.json";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
@@ -118,7 +120,7 @@ function App() {
 function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void }) {
   const queryClient = useQueryClient();
   const lock = useServerFn(lockAccess);
-  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | null>(null);
+  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Chat" | null>(null);
   const [exiting, setExiting] = useState(false);
   const handleExit = async () => {
     setExiting(true);
@@ -364,7 +366,7 @@ const brandHeader = (
                 Escolha uma atividade abaixo para começar.
               </p>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" aria-label="Escolha uma atividade">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label="Escolha uma atividade">
               <Button variant="outline"
                 className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-primary/35 border-t-4 border-t-primary bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() => setOperatorScreen("Contagem")}>
@@ -392,6 +394,15 @@ const brandHeader = (
                 <span className="text-lg font-extrabold text-foreground">Entregas</span>
                 <span className="text-xs font-medium leading-snug text-muted-foreground">Acompanhe suas entregas</span>
               </Button>
+              <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-emerald-500/35 border-t-4 border-t-emerald-500 bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-500/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-500"
+                onClick={() => setOperatorScreen("Chat")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500 transition-colors group-hover:bg-emerald-500/20">
+                  <MessageCircle aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">Chat 💬</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">Comunique ocorrências e ajude a resolver</span>
+              </Button>
             </div>
             <p className="mt-6 text-center text-sm font-semibold text-muted-foreground">Cada tarefa faz a diferença. Vamos nessa! 💪</p>
           </section>
@@ -407,7 +418,7 @@ const brandHeader = (
           ) : (
             <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
           )}
-          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : <SalesVerification role={role} />}
+          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
         </>}
       </main>
     </div>;
