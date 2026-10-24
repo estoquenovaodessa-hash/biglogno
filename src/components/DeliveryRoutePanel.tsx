@@ -87,7 +87,16 @@ export function DeliveryRoutePanel({
   const [saveError, setSaveError] = useState("");
   const stops = getRouteStops(deliveries, selected, addresses);
   const ready = stops.length >= 2 && stops.every(s => !!s.address);
-  const routeUrl = ready ? googleDirectionsUrl(stops) : null;
+  // No celular o Google Maps pode aceitar só três paradas intermediárias.
+  // Dividimos viagens longas em trechos com sobreposição do ponto de conexão.
+  const routeSegments: { url: string; first: string; last: string }[] = [];
+  if (ready) {
+    for (let i = 0; i < stops.length - 1; i += 4) {
+      const group = stops.slice(i, i + 5);
+      const url = googleDirectionsUrl(group);
+      if (url) routeSegments.push({ url, first: group[0].company, last: group[group.length - 1].company });
+    }
+  }
   const missing = stops.filter(s => !s.address);
   const first = stops[0], last = stops[stops.length - 1];
 
@@ -162,11 +171,14 @@ export function DeliveryRoutePanel({
     {stops.length >= 2 && missing.length > 0 && <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
       Cadastre os endereços ausentes ({missing.map(s => s.company).join(", ")}) para desenhar a rota completa, sem omitir paradas.
     </p>}
-    {routeUrl && <div className="mt-4 space-y-3">
+    {routeSegments.length > 0 && <div className="mt-4 space-y-3">
       <p className="text-sm font-semibold">{first.company} → {last.company}</p>
-      <a className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:opacity-90" href={routeUrl} target="_blank" rel="noopener noreferrer">
-        <MapPin className="h-4 w-4" /> Ver rota completa no Google Maps <ExternalLink className="h-3.5 w-3.5" />
-      </a>
+      <div className="flex flex-wrap gap-2">
+        {routeSegments.map((segment, i) => <a key={i} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
+          href={segment.url} target="_blank" rel="noopener noreferrer">
+          <MapPin className="h-4 w-4" /> {routeSegments.length === 1 ? "Ver rota completa" : `Ver trecho ${i + 1} de ${routeSegments.length}`} no Google Maps <ExternalLink className="h-3.5 w-3.5" />
+        </a>)}
+      </div>
       <p className="text-xs text-muted-foreground">O Google Maps calcula um percurso possível pelas vias atuais, na sequência das paradas registradas. Não corresponde necessariamente ao caminho efetivamente percorrido.</p>
       {previewUrl && <div className="overflow-hidden rounded-lg border border-border">
         <iframe title="Prévia estimada entre primeira e última parada" src={previewUrl} className="h-[290px] w-full" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" />
