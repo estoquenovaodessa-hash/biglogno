@@ -330,12 +330,12 @@ const brandHeader = (
   );
 
   if (role === "operador") {
-    return <div className={cn("min-h-screen overflow-x-hidden bg-background", viewMode === "mobile" && "mobile-view")}>
+    return <div className={cn("min-h-screen overflow-x-hidden bg-background", operatorScreen !== "Contagem" && viewMode === "mobile" && "mobile-view")}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-brand-gold bg-card px-4 py-3">
         <img src={logo.url} alt="Bignotto Ferramentas" className="h-14 w-40 object-contain" />
         <div className="flex items-center gap-2"><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
       </header>
-      <main className="logistics-content mx-auto max-w-[1600px] px-4 py-6 sm:px-8">
+      <main className={operatorScreen === "Contagem" ? "logistics-content mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8" : "logistics-content mx-auto max-w-[1600px] px-4 py-6 sm:px-8"}>
         {!operatorScreen ? <div className="mx-auto max-w-2xl py-10"><h1 className="mb-8 text-center text-2xl font-bold">Gestão de Logística</h1><div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-primary bg-card text-xl font-bold" onClick={() => setOperatorScreen("Contagem")}><ScanLine className="h-10 w-10 text-primary" />CONTAGEM</Button>
           <Button variant="outline" className="h-40 flex-col gap-4 border-t-4 border-t-brand-gold bg-card text-xl font-bold" onClick={() => setOperatorScreen("Conferência")}><ClipboardCheck className="h-10 w-10 text-primary" />CONFERENCIA</Button>
@@ -352,7 +352,7 @@ const brandHeader = (
           ) : (
             <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
           )}
-          {operatorScreen === "Contagem" ? <><h1 className="mb-6 text-2xl font-bold">Contagem</h1><CiclosContagem /></> : operatorScreen === "Entregas" ? <Entregas role={role} /> : <SalesVerification role={role} />}
+          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : <SalesVerification role={role} />}
         </>}
       </main>
     </div>;
