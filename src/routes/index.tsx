@@ -46,6 +46,7 @@ import {
 import { useStore, StoreProvider } from "@/lib/store";
 import { AccessGate } from "@/components/AccessGate";
 import { EmployeeGate, EmployeeTag, useActiveEmployee } from "@/components/EmployeeGate";
+import { FriendlyPingBridge } from "@/components/FriendlyPingBridge";
 import { CadastroFuncionarios } from "@/components/CadastroFuncionarios";
 import { canAccessTab, type AccessRole } from "@/lib/access-policy";
 import { lockAccess } from "@/lib/access.functions";
@@ -351,6 +352,7 @@ const brandHeader = (
     // O Chat é um mensageiro em tela cheia: nenhum cabeçalho ou menu do painel.
     if (operatorScreen === "Chat") {
       return <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-[#10243a]">
+        <FriendlyPingBridge role={role} currentArea={operatorScreen} />
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#355b81] bg-[#13334f] px-3 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 text-white sm:px-5">
           <Button variant="ghost" className="h-11 gap-2 rounded-xl px-3 text-sm font-bold text-white hover:bg-white/10 hover:text-white"
             onClick={() => setOperatorScreen(null)}>
@@ -367,6 +369,7 @@ const brandHeader = (
       </div>;
     }
     return <div className={cn("min-h-screen overflow-x-hidden bg-background", operatorScreen !== "Contagem" && viewMode === "mobile" && "mobile-view")}>
+      <FriendlyPingBridge role={role} currentArea={operatorScreen} />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-brand-gold bg-card px-2 py-3 sm:gap-3 sm:px-4">
         <img src={logo.url} alt="Bignotto Ferramentas" className="h-12 w-12 object-contain sm:h-14 sm:w-40" />
         <div className="flex items-center gap-2"><EmployeeTag /><Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="outline" disabled={exiting} onClick={handleExit}><LogOut className="h-4 w-4" />Sair</Button></div>
@@ -447,6 +450,7 @@ const brandHeader = (
   if (viewMode === "mobile") {
     return (
       <div className="mobile-view min-h-screen overflow-x-hidden bg-background">
+        {role === "gestor" && <FriendlyPingBridge role={role} currentArea={tab} />}
         {role === "gestor" && <FuroEstoqueNotifier />}
         <header className="sticky top-0 z-40 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b-4 border-brand-gold bg-card px-3 py-2">
           <Sheet>
@@ -483,6 +487,7 @@ const brandHeader = (
 
   return (
     <div className="flex min-h-screen bg-background">
+      {role === "gestor" && <FriendlyPingBridge role={role} currentArea={tab} />}
       {role === "gestor" && <FuroEstoqueNotifier />}
       <aside className={cn("sticky top-0 z-20 flex h-screen shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-all duration-300", aberto ? "w-64" : "w-[76px]")}>
         {aberto ? brandHeader : <div className="flex h-28 items-center justify-center border-b border-sidebar-border"><img src={symbol.url} alt="Bignotto" className="h-12 w-12" /></div>}
