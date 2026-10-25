@@ -264,7 +264,7 @@ export function ChatOcorrencias() {
           <p><strong className="text-amber-300">Não:</strong> encerra somente a ocorrência do Chat, sem registrar o item na Zona Segura.</p>
         </div>
         {resolutionError && <p role="alert" className="rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-sm text-red-100">{resolutionError}</p>}
-        <DialogFooter className="mt-1 flex-col-reverse gap-2 sm:flex-col-reverse sm:space-x-0">
+        <DialogFooter className="mt-1 flex-col gap-2 sm:flex-col sm:space-x-0">
           <Button type="button" disabled={Boolean(resolving)} className="h-12 w-full gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-700"
             onClick={() => { void solve(true); }}>
             <CheckCircle2 className="h-4 w-4" /> Sim, enviar à Zona Segura
