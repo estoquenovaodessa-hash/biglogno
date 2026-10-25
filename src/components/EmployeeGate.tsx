@@ -73,7 +73,7 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
     <section className="w-full max-w-xl rounded-2xl border border-[#294f7e] bg-[#101f32] p-5 shadow-xl sm:p-8">
       <div className="flex items-center gap-3"><span className="rounded-xl bg-[#193f72] p-3 text-[#80b5fc]"><Users className="h-7 w-7" /></span><div>
         <p className="text-xs font-bold uppercase tracking-wide text-[#8bbaf0]">Bem-vindo ao BigLogno 👋</p>
-        <h1 className="text-2xl font-extrabold">Quem vai operar hoje?</h1>
+        <h1 className="text-2xl font-extrabold">{role === "gestor" ? "Qual gestor está acessando?" : "Quem vai operar hoje?"}</h1>
       </div></div>
       <p className="mt-3 text-sm text-[#b3cbe7]">{role === "gestor"
         ? "Selecione seu perfil de gestor para identificar quem está acompanhando a operação."
