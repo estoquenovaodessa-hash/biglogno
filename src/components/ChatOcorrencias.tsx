@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useActiveEmployee } from "./EmployeeGate";
 import { createItemOccurrence, listItemOccurrences, resolveItemOccurrence } from "@/lib/item-chat.functions";
 import { listEmployees } from "@/lib/employees.functions";
@@ -51,7 +52,7 @@ function OccurrenceBubble({
   item: ItemOccurrence;
   mine: boolean;
   sender?: Employee;
-  onResolve: (id: string) => Promise<void>;
+  onResolve: (item: ItemOccurrence) => void;
   busy: boolean;
 }) {
   const completed = Boolean(item.resolvido_em);
@@ -81,7 +82,7 @@ function OccurrenceBubble({
       </div>
       {completed
         ? <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Ocorrência resolvida</p>
-        : <Button type="button" size="sm" disabled={busy} onClick={() => { void onResolve(item.id); }}
+        : <Button type="button" size="sm" disabled={busy} onClick={() => onResolve(item)}
             className="mt-3 h-10 w-full gap-2 rounded-lg bg-[#178b6b] font-bold text-white hover:bg-[#0e745a] disabled:opacity-65">
             <CheckCircle2 className="h-4 w-4" /> {busy ? "Registrando…" : "Resolvido"}
           </Button>}
@@ -98,7 +99,9 @@ function ResolutionBubble({ item, mine, employee }: { item: ItemOccurrence; mine
       ? "rounded-br-sm border-emerald-500/30 bg-[#d9f9df] text-[#184935] dark:bg-[#194e44] dark:text-[#eafff3]"
       : "rounded-bl-sm border-emerald-500/30 bg-[#f3fbf6] text-[#194d39] dark:bg-[#183d38] dark:text-[#eafff3]"}`}>
       <p className="break-words text-sm leading-relaxed">✅ <strong>{name}</strong> resolveu esta ocorrência!</p>
-      <p className="mt-1 text-xs opacity-80">📋 Item {item.codigo} enviado à Zona Segura · Divergente · Chat</p>
+      <p className="mt-1 text-xs opacity-80">{item.enviado_zona_segura === false
+        ? `📌 Item ${item.codigo} resolvido apenas no Chat · Sem envio à Zona Segura`
+        : `📋 Item ${item.codigo} enviado à Zona Segura · Divergente · Chat`}</p>
       <p className="mt-1 text-right text-[10px] opacity-65">{clock(item.resolvido_em)}</p>
     </div>
   </div>;
@@ -128,6 +131,8 @@ export function ChatOcorrencias() {
   const [command, setCommand] = useState("");
   const [busy, setBusy] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [pendingResolution, setPendingResolution] = useState<ItemOccurrence | null>(null);
+  const [resolutionError, setResolutionError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const feedRef = useRef<HTMLDivElement>(null);
@@ -172,17 +177,23 @@ export function ChatOcorrencias() {
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível enviar."); }
     finally { setBusy(false); }
   }
-  async function solve(id: string) {
-    setResolving(id); setError(""); setFeedback("");
+  async function solve(enviarZonaSegura: boolean) {
+    const selected = pendingResolution;
+    if (!selected || resolving) return;
+    setResolving(selected.id); setResolutionError(""); setError(""); setFeedback("");
     try {
-      await resolve({ data: { id } });
+      await resolve({ data: { id: selected.id, enviarZonaSegura } });
+      setPendingResolution(null);
       nearBottom.current = true;
       await query.refetch();
-      await cloudRefreshNow().catch(() => {});
+      if (enviarZonaSegura) await cloudRefreshNow().catch(() => {});
       await client.invalidateQueries({ queryKey: ["item-chat-ocorrencias"] });
-      setFeedback("Ocorrência resolvida e enviada à Zona Segura.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível resolver."); }
-    finally { setResolving(null); }
+      setFeedback(enviarZonaSegura
+        ? "✅ Ocorrência resolvida e enviada à Zona Segura como Divergente."
+        : "✅ Ocorrência resolvida no Chat, sem envio à Zona Segura.");
+    } catch (e) {
+      setResolutionError(e instanceof Error ? e.message : "Não foi possível resolver a ocorrência.");
+    } finally { setResolving(null); }
   }
 
   let previousDay = "";
@@ -210,7 +221,7 @@ export function ChatOcorrencias() {
           {showDay && <div className="flex justify-center py-1"><span className="rounded-lg bg-[#294864]/90 px-3 py-1 text-xs font-semibold text-[#d4e8f7] shadow-sm">{dayLabel(event.at)}</span></div>}
           {event.kind === "issue"
             ? <OccurrenceBubble item={item} mine={item.criado_por_id === employee?.id}
-                sender={profileMap.get(item.criado_por_id)} onResolve={solve} busy={busy || Boolean(resolving)} />
+                sender={profileMap.get(item.criado_por_id)} onResolve={item => { setResolutionError(""); setPendingResolution(item); }} busy={busy || Boolean(resolving)} />
             : <ResolutionBubble item={item} mine={item.resolvido_por_id === employee?.id}
                 employee={item.resolvido_por_id ? profileMap.get(item.resolvido_por_id) : undefined} />}
         </div>;
@@ -232,5 +243,42 @@ export function ChatOcorrencias() {
       </form>
       <p className="mt-1.5 pl-3 text-[11px] text-[#aac8dd]">Pode digitar de várias formas: 519-furo, 00519 - furo, 519 furo, 519: furo ou 519/furo.</p>
     </div>
+
+    <Dialog open={Boolean(pendingResolution)} onOpenChange={open => {
+      if (!open && !resolving) { setPendingResolution(null); setResolutionError(""); }
+    }}>
+      <DialogContent className="w-[calc(100%-24px)] max-w-md rounded-2xl border border-[#416a8b] bg-[#102840] p-5 text-white sm:p-6">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg font-extrabold text-white">
+            <CheckCircle2 className="h-6 w-6 text-emerald-400" /> Resolver ocorrência?
+          </DialogTitle>
+          <DialogDescription className="pt-2 text-left text-sm leading-relaxed text-[#d1e3f2]">
+            O item <strong className="text-white">{pendingResolution?.codigo}</strong> precisa ser enviado à <strong className="text-white">Zona Segura</strong>?
+          </DialogDescription>
+        </DialogHeader>
+        <p className="rounded-lg border border-[#42678b] bg-[#193650] px-3 py-2 text-sm text-[#eaf4ff]">
+          📦 {pendingResolution?.descricao} <span className="block text-xs text-[#bbd2e7]">🚨 {pendingResolution?.motivo}</span>
+        </p>
+        <div className="space-y-2 text-xs leading-relaxed text-[#bdd3e7]">
+          <p><strong className="text-emerald-300">Sim:</strong> registra o item na Zona Segura como Divergente, observação Chat.</p>
+          <p><strong className="text-amber-300">Não:</strong> encerra somente a ocorrência do Chat, sem registrar o item na Zona Segura.</p>
+        </div>
+        {resolutionError && <p role="alert" className="rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2 text-sm text-red-100">{resolutionError}</p>}
+        <DialogFooter className="mt-1 flex-col-reverse gap-2 sm:flex-col-reverse sm:space-x-0">
+          <Button type="button" disabled={Boolean(resolving)} className="h-12 w-full gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+            onClick={() => { void solve(true); }}>
+            <CheckCircle2 className="h-4 w-4" /> Sim, enviar à Zona Segura
+          </Button>
+          <Button type="button" disabled={Boolean(resolving)} className="h-12 w-full gap-2 bg-[#356388] font-bold text-white hover:bg-[#42799f]"
+            onClick={() => { void solve(false); }}>
+            Não, resolver apenas no Chat
+          </Button>
+          <Button type="button" variant="ghost" disabled={Boolean(resolving)} className="h-10 w-full text-[#d7e8f7] hover:bg-white/10 hover:text-white"
+            onClick={() => { setPendingResolution(null); setResolutionError(""); }}>
+            Cancelar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </section>;
 }
