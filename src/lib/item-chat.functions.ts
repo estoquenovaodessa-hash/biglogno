@@ -62,8 +62,13 @@ export const createItemOccurrence = createServerFn({ method: "POST" })
   });
 
 export const resolveItemOccurrence = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string().uuid(), enviarZonaSegura: z.boolean() }))
+  // Versões antigas do navegador enviam somente o id. Aceitamos o formato
+  // para exibir um erro legível; NUNCA assumimos Sim ou Não automaticamente.
+  .inputValidator(z.object({ id: z.string().uuid(), enviarZonaSegura: z.boolean().optional() }))
   .handler(async ({ data }) => {
+    if (data.enviarZonaSegura === undefined) {
+      throw new Error("O Chat deste aparelho está desatualizado. Volte ao início e atualize a página no navegador. Depois, ao tocar em Resolvido, escolha Sim ou Não. Nenhuma ocorrência foi encerrada.");
+    }
     const { requireSelectedOperator } = await import("./employees.functions");
     const employee = await requireSelectedOperator();
     const db = await chatDb();
