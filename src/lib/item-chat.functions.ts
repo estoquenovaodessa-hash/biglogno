@@ -14,7 +14,7 @@ function handleChatError(error: { message: string; code?: string } | null) {
     throw new Error("O Chat precisa da migração SQL. Solicite ao gestor a execução no Supabase.");
   }
   if (error.code === "PGRST202" || error.code === "42883") {
-    throw new Error("A rotina de resolução do Chat ainda não foi instalada no Supabase.");
+    throw new Error("A atualização SQL da resolução Sim/Não ainda não foi instalada no Supabase.");
   }
   console.error("[Chat de ocorrências]", error.code, error.message);
   throw new Error("Não foi possível atualizar o Chat. Tente novamente.");
@@ -25,7 +25,7 @@ export const listItemOccurrences = createServerFn({ method: "GET" }).handler(asy
   await requireAccess();
   const db = await chatDb();
   const { data, error } = await db.from("item_chat_occurrences")
-    .select("id,codigo,descricao,endereco,motivo,criado_por_id,criado_por_nome,criado_em,resolvido_por_id,resolvido_por_nome,resolvido_em")
+    .select("id,codigo,descricao,endereco,motivo,criado_por_id,criado_por_nome,criado_em,resolvido_por_id,resolvido_por_nome,resolvido_em,enviado_zona_segura")
     .order("criado_em", { ascending: false }).limit(300);
   handleChatError(error);
   return (data ?? []) as ItemOccurrence[];
@@ -59,13 +59,14 @@ export const createItemOccurrence = createServerFn({ method: "POST" })
   });
 
 export const resolveItemOccurrence = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ id: z.string().uuid() }))
+  .inputValidator(z.object({ id: z.string().uuid(), enviarZonaSegura: z.boolean() }))
   .handler(async ({ data }) => {
     const { requireSelectedOperator } = await import("./employees.functions");
     const employee = await requireSelectedOperator();
     const db = await chatDb();
-    const { data: resolved, error } = await db.rpc("resolve_item_chat_occurrence", {
+    const { data: resolved, error } = await db.rpc("resolve_item_chat_occurrence_v2", {
       occurrence_id: data.id, resolver_id: employee.id, resolver_name: employee.name,
+      send_to_safe_zone: data.enviarZonaSegura,
     });
     handleChatError(error);
     if (resolved !== true) throw new Error("Esta ocorrência já foi resolvida. Atualize o Chat.");
