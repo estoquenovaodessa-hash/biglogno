@@ -94,6 +94,7 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
 
   useEffect(() => {
     if (!identityId) { ready.current = false; registeredArea.current = null; return; }
+    if (area === "Fora") registeredArea.current = null;
     let cancelled = false;
     let inFlight = false;
     ready.current = false;
@@ -104,8 +105,9 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
         await heartbeat({ data: { clientId, area } });
         if (cancelled) return;
         ready.current = true;
-        if (role === "gestor" && area !== "Fora" && registeredArea.current !== area) {
-          registeredArea.current = area;
+        const visitKey = identityId + ":" + area;
+        if (role === "gestor" && area !== "Fora" && registeredArea.current !== visitKey) {
+          registeredArea.current = visitKey;
           try { await announce({ data: { clientId, area } }); }
           catch (e) { console.warn("[BigLogno] Aviso ao operador:", e); }
         }
@@ -120,7 +122,6 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
     return () => {
       cancelled = true;
       ready.current = false;
-      if (role === "gestor") registeredArea.current = null;
       window.clearInterval(interval);
     };
   }, [role, identityId, clientId, area, heartbeat, announce]);
