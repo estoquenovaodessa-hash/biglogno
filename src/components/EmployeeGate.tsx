@@ -34,8 +34,8 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
   const select = useServerFn(selectEmployee);
   const clear = useServerFn(clearSelectedEmployee);
   const lock = useServerFn(lockAccess);
-  const active = useQuery({ queryKey: ["active-employee", role], queryFn: () => fetchActive(), enabled: role === "operador", refetchOnWindowFocus: false });
-  const list = useQuery({ queryKey: ["employees-available", role], queryFn: () => fetchList(), enabled: role === "operador", refetchOnWindowFocus: false });
+  const active = useQuery({ queryKey: ["active-employee", role], queryFn: () => fetchActive(), enabled: true, refetchOnWindowFocus: false });
+  const list = useQuery({ queryKey: ["employees-available", role], queryFn: () => fetchList(), enabled: true, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const switchProfile = async () => {
@@ -47,10 +47,9 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível trocar de perfil."); }
     finally { setBusy(false); }
   };
-  if (role === "gestor") return <Context.Provider value={{ employee: null, switchProfile }}>{children}</Context.Provider>;
   if (active.isLoading || list.isLoading) return <p role="status" className="p-10 text-center">Carregando perfis dos funcionários…</p>;
   if (active.isError || list.isError) return <div className="mx-auto mt-16 max-w-md space-y-3 p-5 text-center"><p role="alert">Não foi possível carregar os perfis.</p><Button onClick={() => { void active.refetch(); void list.refetch(); }}>Tentar novamente</Button></div>;
-  if (active.data && list.data?.some(e => e.id === active.data!.id)) return <Context.Provider value={{ employee: active.data, switchProfile }}>{children}</Context.Provider>;
+  if (active.data && list.data?.some(e => e.id === active.data!.id && e.active && (role === "operador" || e.role === "GESTOR"))) return <Context.Provider value={{ employee: active.data, switchProfile }}>{children}</Context.Provider>;
   async function choose(employee: Employee) {
     setBusy(true); setError("");
     try {
@@ -65,16 +64,22 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
         <p className="text-xs font-bold uppercase tracking-wide text-[#8bbaf0]">Bem-vindo ao BigLogno 👋</p>
         <h1 className="text-2xl font-extrabold">Quem vai operar hoje?</h1>
       </div></div>
-      <p className="mt-3 text-sm text-[#b3cbe7]">Escolha seu perfil antes de acessar Contagem, Conferência ou Entregas.</p>
+      <p className="mt-3 text-sm text-[#b3cbe7]">{role === "gestor"
+        ? "Selecione seu perfil de gestor para identificar quem está acompanhando a operação."
+        : "Escolha seu perfil antes de acessar Contagem, Conferência ou Entregas."}</p>
       {error && <p role="alert" className="mt-3 rounded-lg border border-red-400/50 p-3 text-sm text-red-300">{error}</p>}
       <div className="mt-5 max-h-[58vh] space-y-2 overflow-y-auto">
-        {(list.data ?? []).map(employee => <button key={employee.id} disabled={busy} onClick={() => { void choose(employee); }}
+        {(list.data ?? []).filter(employee => employee.active && (role === "operador" || employee.role === "GESTOR")).map(employee => <button key={employee.id} disabled={busy} onClick={() => { void choose(employee); }}
           className="flex w-full items-center gap-4 rounded-xl border border-[#345983] bg-[#162a43] p-3 text-left transition-colors hover:border-[#77b5ff] hover:bg-[#21456c] disabled:opacity-60">
           <EmployeeAvatar employee={employee} size="lg" />
           <span className="min-w-0 flex-1"><span className="block truncate text-lg font-bold">{employee.name}</span><span className="block truncate text-sm text-[#abc9eb]">{employee.job}</span></span>
           <ShieldCheck className="h-5 w-5 shrink-0 text-[#84b9ff]" />
         </button>)}
-        {!list.data?.length && <p className="rounded-xl border border-dashed border-[#345983] p-5 text-center text-sm text-[#adc6e3]">Nenhum perfil ativo cadastrado. Solicite ao gestor um cadastro na aba Cadastro de Funcionários.</p>}
+        {!list.data?.some(employee => employee.active && (role === "operador" || employee.role === "GESTOR")) &&
+          <p className="rounded-xl border border-dashed border-[#345983] p-5 text-center text-sm text-[#adc6e3]">
+            {role === "gestor" ? "Nenhum funcionário GESTOR cadastrado. Cadastre ou ative um perfil de gestor para identificar o acesso."
+              : "Nenhum perfil ativo cadastrado. Solicite ao gestor um cadastro na aba Cadastro de Funcionários."}
+          </p>}
       </div>
       <Button variant="outline" className="mt-5 w-full border-[#355982] bg-transparent text-[#b7d7f7]" disabled={busy}
         onClick={async () => { try { await lock(); client.clear(); onExit(); } catch { setError("Não foi possível sair."); } }}>
