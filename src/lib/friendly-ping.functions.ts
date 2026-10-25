@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Employee } from "./employees";
 
 const areaSchema = z.enum(["Contagem", "Conferência", "Entregas", "Fora"]);
-const operationAreaSchema = areaSchema.exclude(["Fora"]);
+const operationAreaSchema = z.enum(["Contagem", "Conferência", "Entregas"]);
 const clientSchema = z.string().uuid();
 
 export type FriendlyEvent = {
