@@ -205,7 +205,7 @@ export function ChatOcorrencias() {
       {query.isLoading && <p role="status" className="py-10 text-center text-sm text-[#c6d7e8]">Carregando conversa…</p>}
       {query.isError && <div role="alert" className="mx-auto max-w-md rounded-xl border border-red-400/40 bg-[#422332] p-4 text-center text-sm text-red-100">
         <AlertCircle className="mx-auto mb-2 h-6 w-6" />
-        Não foi possível consultar as ocorrências. Confira se o SQL do Chat foi instalado no Supabase.
+        Não foi possível consultar as ocorrências. Confira se o SQL do Chat e a atualização Sim/Não foram executados no Supabase.
         <Button type="button" size="sm" variant="outline" className="mt-3 border-red-200/50 bg-transparent text-white" onClick={() => { void query.refetch(); }}>Tentar novamente</Button>
       </div>}
       {!query.isLoading && !query.isError && !timeline.length && <div className="mx-auto max-w-xs rounded-xl bg-[#234562]/90 p-4 text-center text-sm text-[#e7f5ff]">
