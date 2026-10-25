@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertCircle, CheckCircle2, Clock3, MessageCircle, PackageSearch,
-  RefreshCw, Send, Users, MapPin,
+  Send, MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import type { Employee } from "@/lib/employees";
 import type { ItemOccurrence } from "@/lib/item-chat";
 import { cloudRefreshNow } from "@/lib/cloudState";
 
-type Filter = "all" | "open" | "closed";
 type TimelineEvent = { kind: "issue" | "resolution"; item: ItemOccurrence; at: string };
 
 function clock(iso: string) {
@@ -127,7 +126,6 @@ export function ChatOcorrencias() {
   });
 
   const [command, setCommand] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -140,14 +138,12 @@ export function ChatOcorrencias() {
     new Map((employees.data ?? []).map(person => [person.id, person])),
   [employees.data]);
   const timeline = useMemo<TimelineEvent[]>(() => (query.data ?? [])
-    .filter(x => filter === "all" || (filter === "closed" ? Boolean(x.resolvido_em) : !x.resolvido_em))
     .flatMap(item => [
       { kind: "issue" as const, item, at: item.criado_em },
       ...(item.resolvido_em ? [{ kind: "resolution" as const, item, at: item.resolvido_em }] : []),
     ])
     .sort((a, b) => a.at.localeCompare(b.at) || a.item.id.localeCompare(b.item.id)),
-  [query.data, filter]);
-  const countOpen = (query.data ?? []).filter(x => !x.resolvido_em).length;
+  [query.data]);
   // Quando a resolução muda, surge uma segunda mensagem na conversa.
   const feedVersion = timeline.map(x => x.item.id + ":" + x.kind + ":" + x.at).join("|");
 
@@ -158,7 +154,7 @@ export function ChatOcorrencias() {
       view.scrollTo({ top: view.scrollHeight, behavior: firstLoad.current ? "auto" : "smooth" });
       firstLoad.current = false;
     }
-  }, [feedVersion, filter]);
+  }, [feedVersion]);
   function trackScroll() {
     const view = feedRef.current;
     if (!view) return;
@@ -190,31 +186,7 @@ export function ChatOcorrencias() {
   }
 
   let previousDay = "";
-  return <section className="mx-auto flex h-[calc(100dvh-185px)] min-h-[370px] max-h-[920px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#37628d] bg-[#0b1b2e] shadow-[0_10px_35px_rgba(0,0,0,0.2)]" aria-label="Chat de ocorrências">
-    {/* Cabeçalho fixo da conversa, parecido com um chat de grupo. */}
-    <header className="flex shrink-0 items-center gap-3 border-b border-[#31577f] bg-[#13334f] px-3 py-3 text-white sm:px-4">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#237768] text-white"><Users className="h-6 w-6" /></span>
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-extrabold sm:text-lg">Chat de Ocorrências</h2>
-        <p className="truncate text-xs text-[#b3d0e5]">Equipe de estoque · {countOpen} ocorrência(s) em aberto</p>
-      </div>
-      <Button type="button" size="icon" variant="ghost" className="shrink-0 text-[#cfebff] hover:bg-white/10 hover:text-white"
-        aria-label="Atualizar conversa" title="Atualizar conversa" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>
-        <RefreshCw className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
-      </Button>
-    </header>
-
-    {/* Filtro opcional, mas a conversa completa é a visualização inicial. */}
-    <nav className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-[#294767] bg-[#102840] px-3 py-2" aria-label="Filtrar mensagens do chat">
-      {([{ key: "all", title: "Todas" },{ key: "open", title: "Em aberto" },{ key: "closed", title: "Resolvidas" }] as const).map(option => (
-        <button key={option.key} type="button" aria-pressed={filter === option.key} onClick={() => { nearBottom.current = true; setFilter(option.key); }}
-          className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${filter === option.key ? "bg-[#237f72] text-white" : "border border-[#426080] text-[#c8def0] hover:bg-white/10"}`}>
-          {option.title}
-        </button>
-      ))}
-      <span className="ml-auto shrink-0 text-[11px] text-[#91b5d3]">Atualização automática</span>
-    </nav>
-
+  return <section className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0b1b2e]" aria-label="Chat de ocorrências">
     {/* Somente as mensagens rolam; a caixa de envio permanece sempre acessível. */}
     <div ref={feedRef} onScroll={trackScroll} role="log" aria-label="Mensagens da equipe"
       className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5"
@@ -245,7 +217,7 @@ export function ChatOcorrencias() {
       })}
     </div>
 
-    <div className="shrink-0 border-t border-[#365f83] bg-[#122d47] px-3 py-3 sm:px-4">
+    <div className="shrink-0 border-t border-[#365f83] bg-[#122d47] px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-4">
       {(error || feedback) && <p role={error ? "alert" : "status"} className={`mb-2 rounded-lg px-3 py-2 text-xs font-semibold ${error ? "bg-red-500/15 text-red-200" : "bg-emerald-500/15 text-emerald-200"}`}>{error || feedback}</p>}
       <form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); void submit(); }}>
         <label htmlFor="chat-command" className="sr-only">Código e motivo da ocorrência</label>
