@@ -20,25 +20,32 @@ function toArea(value: string | null): Area {
   return value === "Contagem" || value === "Conferência" || value === "Entregas" ? value : "Fora";
 }
 
-function FloatingMessage({ title, body, action, onClose, kind }: {
-  title: string; body: string; action?: () => void; onClose: () => void; kind: "peek" | "ping";
+function FloatingMessage({ title, body, onPing, sending, onClose, kind }: {
+  title: string;
+  body: string;
+  onPing?: () => void;
+  sending?: boolean;
+  onClose: () => void;
+  kind: "peek" | "ping";
 }) {
-  return <div className="w-[min(92vw,395px)] rounded-2xl border border-[#6ba9c6] bg-[#113351] p-4 text-white shadow-2xl shadow-black/40" role="status">
-    <div className="flex items-start gap-3">
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${kind === "peek" ? "bg-[#674191]" : "bg-[#188a7a]"}`}>
-        {kind === "peek" ? <Ghost className="h-6 w-6" /> : <Hand className="h-6 w-6" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <strong className="block text-base font-extrabold">{title}</strong>
-        <p className="mt-1 text-sm leading-relaxed text-[#e5f5ff]">{body}</p>
-      </div>
-      <button type="button" onClick={onClose} aria-label="Fechar aviso" className="rounded-full p-1 hover:bg-white/15"><X className="h-4 w-4" /></button>
-    </div>
-    {action && <Button type="button" onClick={action}
-      className="mt-3 h-10 w-full gap-2 rounded-xl bg-[#ffbf41] font-extrabold text-[#173149] hover:bg-[#ffd36c]">
-      <Hand className="h-4 w-4" /> Mandar ping 👉😂
+  return <div
+    className="pointer-events-auto relative w-full max-w-[520px] max-h-[calc(100dvh-40px)] overflow-y-auto rounded-3xl border-2 border-[#79b7d7] bg-[#113351] px-5 py-7 text-center text-white shadow-[0_24px_80px_rgba(0,0,0,0.6)] sm:px-8 sm:py-9"
+    role="status" aria-live="polite"
+  >
+    <button type="button" onClick={onClose} aria-label="Fechar aviso"
+      className="absolute right-3 top-3 rounded-full p-2 text-[#c9e7fa] hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white">
+      <X className="h-5 w-5" />
+    </button>
+    <span className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full shadow-lg ${kind === "peek" ? "bg-[#674191]" : "bg-[#188a7a]"}`}>
+      {kind === "peek" ? <Ghost className="h-11 w-11" /> : <Hand className="h-11 w-11" />}
+    </span>
+    <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{title}</h2>
+    <p className="mx-auto mt-3 max-w-md break-words text-base font-medium leading-relaxed text-[#e5f5ff] sm:text-lg">{body}</p>
+    {onPing && <Button type="button" onClick={onPing} disabled={sending}
+      className="mt-6 h-12 w-full gap-2 rounded-xl bg-[#ffbf41] text-base font-extrabold text-[#173149] hover:bg-[#ffd36c]">
+      <Hand className="h-5 w-5" /> {sending ? "Enviando ping…" : "Mandar ping 👉😂"}
     </Button>}
-    <p className="mt-2 text-right text-[11px] text-[#acd1ed]">Este aviso desaparece em 10 segundos.</p>
+    <p className="mt-4 text-center text-xs text-[#acd1ed]">Este aviso desaparece após 10 segundos.</p>
   </div>;
 }
 
@@ -59,6 +66,36 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
   const registeredArea = useRef<string | null>(null);
   const displayedError = useRef(new Set<string>());
   const emptyNotice = useRef(new Set<string>());
+  // Mensagens centrais são independentes do posicionamento do Toaster global.
+  // Uma fila evita que os pings de vários operadores se sobreponham.
+  const [pendingNotices, setPendingNotices] = useState<FriendlyEvent[]>([]);
+  const [sendingPingFor, setSendingPingFor] = useState<string | null>(null);
+  const notice = pendingNotices[0] ?? null;
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => {
+      setPendingNotices(current => current.filter(event => event.id !== notice.id));
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [notice?.id]);
+
+  const dismissNotice = (id: string) =>
+    setPendingNotices(current => current.filter(event => event.id !== id));
+
+  const respondToNotice = async (event: FriendlyEvent) => {
+    if (sendingPingFor) return;
+    setSendingPingFor(event.id);
+    try {
+      await sendPing({ data: { clientId, sourceEventId: event.id } });
+      dismissNotice(event.id);
+      toast.success("Ping enviado ao gestor! 👉😂");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar o ping.");
+    } finally {
+      setSendingPingFor(null);
+    }
+  };
 
 
   useEffect(() => {
@@ -130,24 +167,11 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
         for (const event of events) {
           if (seen.current.has(event.id) || event.created_at < firstSeenAt.current) continue;
           seen.current.add(event.id);
-          if (event.kind === "peek" && role === "operador" && area === event.area) {
-            const toastId = event.id;
-            toast.custom(() => <FloatingMessage
-              kind="peek" title="Opa, visita surpresa! 👻"
-              body={`Sorria! O gestor ${event.actor_name} está espiando seu resultado! 👀😱😂`}
-              onClose={() => toast.dismiss(toastId)}
-              action={() => {
-                void sendPing({ data: { clientId, sourceEventId: event.id } })
-                  .then(() => { toast.dismiss(toastId); toast.success("Ping enviado ao gestor! 👉😂"); })
-                  .catch(e => toast.error(e instanceof Error ? e.message : "Não foi possível enviar o ping."));
-              }}
-            />, { id: toastId, duration: 10000 });
-          } else if (event.kind === "ping" && role === "gestor") {
-            toast.custom(() => <FloatingMessage
-              kind="ping" title="Recebeu um cutucão! 😂"
-              body={`O(a) operador(a) ${event.actor_name} está te cutucando! 👉😂`}
-              onClose={() => toast.dismiss(event.id)}
-            />, { id: event.id, duration: 10000 });
+          if (
+            (event.kind === "peek" && role === "operador" && area === event.area) ||
+            (event.kind === "ping" && role === "gestor")
+          ) {
+            setPendingNotices(current => [...current, event]);
           }
         }
         if (seen.current.size > 300) {
@@ -162,5 +186,22 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [role, area, identityId, clientId, readEvents, sendPing]);
 
-  return null;
+  return <>
+    {notice && <div
+      className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-[#061526]/55 px-4 py-6"
+      aria-label="Aviso divertido entre gestor e operador"
+    >
+      <FloatingMessage
+        key={notice.id}
+        kind={notice.kind}
+        title={notice.kind === "peek" ? "Opa, visita surpresa! 👻" : "Recebeu um cutucão! 😂"}
+        body={notice.kind === "peek"
+          ? `Sorria! O gestor ${notice.actor_name} está espiando seu resultado! 👀😱😂`
+          : `O(a) operador(a) ${notice.actor_name} está te cutucando! 👉😂`}
+        onClose={() => dismissNotice(notice.id)}
+        onPing={notice.kind === "peek" ? () => { void respondToNotice(notice); } : undefined}
+        sending={sendingPingFor === notice.id}
+      />
+    </div>}
+  </>;
 }
