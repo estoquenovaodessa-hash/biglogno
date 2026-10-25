@@ -13,6 +13,8 @@ export type ItemOccurrence = {
   resolvido_por_id: string | null;
   resolvido_por_nome: string | null;
   resolvido_em: string | null;
+  // null somente em registros legados ou ainda não resolvidos.
+  enviado_zona_segura: boolean | null;
 };
 /**
  * Comandos aceitos (entre outros):
