@@ -57,6 +57,8 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
   const firstSeenAt = useRef(new Date().toISOString());
   const ready = useRef(false);
   const registeredArea = useRef<string | null>(null);
+  const displayedError = useRef(new Set<string>());
+  const emptyNotice = useRef(new Set<string>());
 
 
   useEffect(() => {
@@ -74,14 +76,36 @@ export function FriendlyPingBridge({ role, currentArea }: { role: AccessRole; cu
         ready.current = true;
         const visitKey = identityId + ":" + area;
         if (role === "gestor" && area !== "Fora" && registeredArea.current !== visitKey) {
-          registeredArea.current = visitKey;
-          try { await announce({ data: { clientId, area } }); }
-          catch (e) { console.warn("[BigLogno] Aviso ao operador:", e); }
+          try {
+            const result = await announce({ data: { clientId, area } });
+            if (cancelled) return;
+            if (result.sent > 0) registeredArea.current = visitKey;
+            else if (!emptyNotice.current.has(visitKey)) {
+              emptyNotice.current.add(visitKey);
+              toast.message("Ainda não há operador conectado em " + area, {
+                description: "O aviso será enviado quando um operador entrar nessa área.",
+                duration: 5000,
+              });
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "Falha ao enviar aviso ao operador.";
+            console.warn("[BigLogno] Aviso ao operador:", e);
+            if (!displayedError.current.has(visitKey + msg)) {
+              displayedError.current.add(visitKey + msg);
+              toast.error("Aviso do gestor não enviado", { description: msg, duration: 8000 });
+            }
+          }
         }
       } catch (e) {
         ready.current = false;
         // Os avisos são opcionais; falhas não interrompem a operação.
         console.warn("[BigLogno] Presença indisponível:", e);
+        const msg = e instanceof Error ? e.message : "Conexão com avisos indisponível.";
+        const errKey = area + ":" + msg;
+        if (role === "gestor" && !displayedError.current.has(errKey)) {
+          displayedError.current.add(errKey);
+          toast.error("Ping entre gestor e operador indisponível", { description: msg, duration: 9000 });
+        }
       } finally { inFlight = false; }
     };
     void register();
