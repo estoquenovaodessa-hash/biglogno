@@ -26,6 +26,8 @@ import {
   Smartphone,
   ClipboardCheck,
   MessageCircle,
+  ArrowLeft,
+  UserRound,
   LogOut,
   Truck,
   ChevronDown,
@@ -135,7 +137,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     } finally { setExiting(false); }
   };
   const { theme, toggleTheme, items, ready } = useStore();
-  const { employee } = useActiveEmployee();
+  const { employee, switchProfile } = useActiveEmployee();
   const [tab, setTab] = useState<TabKey>(role === "gestor" ? "Importação" : "Contagem");
   const [aberto, setAberto] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("desktop");
@@ -346,6 +348,24 @@ const brandHeader = (
   );
 
   if (role === "operador") {
+    // O Chat é um mensageiro em tela cheia: nenhum cabeçalho ou menu do painel.
+    if (operatorScreen === "Chat") {
+      return <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-[#10243a]">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#355b81] bg-[#13334f] px-3 pt-[max(10px,env(safe-area-inset-top))] pb-2.5 text-white sm:px-5">
+          <Button variant="ghost" className="h-11 gap-2 rounded-xl px-3 text-sm font-bold text-white hover:bg-white/10 hover:text-white"
+            onClick={() => setOperatorScreen(null)}>
+            <ArrowLeft className="h-5 w-5" /> Voltar
+          </Button>
+          <Button variant="outline" className="h-11 gap-2 rounded-xl border-[#6a93b2] bg-[#244c70] px-3 text-sm font-bold text-white hover:bg-[#315f87] hover:text-white"
+            onClick={() => { void switchProfile(); }}>
+            <UserRound className="h-4 w-4" /> Trocar de perfil
+          </Button>
+        </header>
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <ChatOcorrencias />
+        </main>
+      </div>;
+    }
     return <div className={cn("min-h-screen overflow-x-hidden bg-background", operatorScreen !== "Contagem" && viewMode === "mobile" && "mobile-view")}>
       <header className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-brand-gold bg-card px-2 py-3 sm:gap-3 sm:px-4">
         <img src={logo.url} alt="Bignotto Ferramentas" className="h-12 w-12 object-contain sm:h-14 sm:w-40" />
