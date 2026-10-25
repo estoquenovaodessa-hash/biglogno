@@ -477,7 +477,7 @@ const brandHeader = (
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Alternar tema">{theme === "dark" ? <Sun /> : <Moon />}</Button>
         </header>
         <main className="logistics-content min-w-0 px-3 py-5">
-          <div className="mb-4 flex items-center justify-between gap-3"><span className="text-sm font-semibold text-muted-foreground">{role === "gestor" ? "Gestor" : "Operador"}</span><Button variant="outline" onClick={handleExit} disabled={exiting}><LogOut className="h-4 w-4" /> Sair</Button></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><EmployeeTag /><Button variant="outline" onClick={handleExit} disabled={exiting}><LogOut className="h-4 w-4" /> Sair</Button></div>
           {pageHeading}
           <div className="mx-auto max-w-[1600px]">{content}</div>
         </main>
@@ -503,7 +503,7 @@ const brandHeader = (
       <div className="min-w-0 flex-1">
         <header className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b-4 border-brand-gold bg-card px-6 py-4">
           <div className="flex items-center gap-3"><img src={symbol.url} alt="" className="h-9 w-9 rounded-md" /><span className="text-xl font-bold text-primary">Gestão de Logística</span></div>
-          <div className="flex items-center gap-3"><span className="text-sm font-semibold text-muted-foreground">{role === "gestor" ? "Gestor" : "Operador"}</span><Button variant="outline" onClick={handleExit} disabled={exiting}><LogOut className="h-4 w-4" /> Sair</Button></div>
+          <div className="flex flex-wrap items-center gap-3"><EmployeeTag /><Button variant="outline" onClick={handleExit} disabled={exiting}><LogOut className="h-4 w-4" /> Sair</Button></div>
         </header>
         <main className="logistics-content min-w-0 px-5 py-6 lg:px-8">
           <div className="mx-auto max-w-[1600px]">{pageHeading}{content}</div>
