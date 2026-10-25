@@ -10,6 +10,9 @@ async function chatDb(): Promise<SupabaseClient> {
 }
 function handleChatError(error: { message: string; code?: string } | null) {
   if (!error) return;
+  if (error.code === "42703" || error.code === "PGRST204" || /enviado_zona_segura|resolve_item_chat_occurrence_v2/i.test(error.message)) {
+    throw new Error("Execute a atualização SQL da resolução Sim/Não no Supabase para habilitar essa opção.");
+  }
   if (error.code === "42P01" || /item_chat_occurrences/i.test(error.message)) {
     throw new Error("O Chat precisa da migração SQL. Solicite ao gestor a execução no Supabase.");
   }
