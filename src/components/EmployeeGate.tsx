@@ -50,6 +50,17 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
   if (active.isLoading || list.isLoading) return <p role="status" className="p-10 text-center">Carregando perfis dos funcionários…</p>;
   if (active.isError || list.isError) return <div className="mx-auto mt-16 max-w-md space-y-3 p-5 text-center"><p role="alert">Não foi possível carregar os perfis.</p><Button onClick={() => { void active.refetch(); void list.refetch(); }}>Tentar novamente</Button></div>;
   if (active.data && list.data?.some(e => e.id === active.data!.id && e.active && (role === "operador" || e.role === "GESTOR"))) return <Context.Provider value={{ employee: active.data, switchProfile }}>{children}</Context.Provider>;
+  // Inicialização segura: não impedir que o primeiro gestor entre
+  // para cadastrar um funcionário com cargo GESTOR.
+  const noManagerProfile = role === "gestor" && list.isSuccess
+    && !(list.data ?? []).some(e => e.active && e.role === "GESTOR");
+  if (noManagerProfile) return <Context.Provider value={{ employee: null, switchProfile }}>
+    <div className="sticky top-0 z-50 border-b border-amber-400/40 bg-[#4e3719] px-4 py-3 text-center text-sm font-semibold text-[#fff0c5]">
+      Para ativar os avisos divertidos, cadastre um funcionário com cargo GESTOR em Cadastro de Funcionários.
+      Depois, saia e entre novamente para selecionar o perfil.
+    </div>
+    {children}
+  </Context.Provider>;
   async function choose(employee: Employee) {
     setBusy(true); setError("");
     try {
