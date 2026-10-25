@@ -22,6 +22,18 @@ const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curr
 const number = (n: number) => n.toLocaleString("pt-BR");
 const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+// Os códigos 101 e 102 continuam registrados no banco, mas o gestor
+// visualiza a área operacional. Histórico antigo sem setor identificado
+// não é rotulado como Balcão por suposição.
+function conferenceArea(record: VerificationRecord): string {
+  const code = canonicalCode(record.verifierCode ?? "");
+  if (code === "101") return "BALCÃO";
+  if (code === "102") return "EXPEDIÇÃO";
+  if (record.channel === "balcao") return "BALCÃO";
+  if (record.channel === "expedicao" || record.seller === "EXPEDIÇÃO") return "EXPEDIÇÃO";
+  return "NÃO IDENTIFICADA";
+}
+
 export function SalesVerification({ role }: { role: AccessRole }) {
   const queryClient = useQueryClient();
   const read = useServerFn(readSalesVerification), importClients = useServerFn(replaceSalesClients), saveVerifiers = useServerFn(saveSalesVerifiers), saveCount = useServerFn(saveSalesPeriodCount), deleteRecord = useServerFn(deleteSalesVerification);
@@ -61,7 +73,26 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const availableSellers = [...new Set(periodRecords.map(r => r.seller))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const availableVerifiers = [...new Map(periodRecords.map(r => [`${canonicalCode(r.verifierCode)}|${r.verifierName}`, { code: canonicalCode(r.verifierCode), name: r.verifierName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const availableClients = [...new Map(periodRecords.map(r => [canonicalCode(r.clientCode), { code: canonicalCode(r.clientCode), name: r.clientName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const groupedVerifiers = [...new Set(records.map(r => `${r.verifierCode}|${r.verifierName}`))].map(key => { const list = records.filter(r => `${r.verifierCode}|${r.verifierName}` === key); return { code: list[0]?.verifierCode ?? "", name: list[0]?.verifierName ?? "—", hasTime: list.some(r => r.durationSeconds !== null), ...salesMetrics(list) }; }).sort((a, b) => b.count - a.count);
+  const verificationGroups = new Map<string, { name: string; area: string; records: VerificationRecord[] }>();
+  for (const record of records) {
+    const area = conferenceArea(record);
+    const name = record.verifierName?.trim() || "Não informado";
+    // IDs evitam juntar homônimos. O histórico sem ID agrupa pelo nome.
+    const identity = record.employeeId || `nome:${name.toLocaleLowerCase("pt-BR")}`;
+    const key = JSON.stringify([identity, area]);
+    let group = verificationGroups.get(key);
+    if (!group) {
+      group = { name, area, records: [] };
+      verificationGroups.set(key, group);
+    }
+    group.records.push(record);
+  }
+  const groupedVerifiers = [...verificationGroups.values()].map(group => ({
+    name: group.name,
+    area: group.area,
+    hasTime: group.records.some(r => r.durationSeconds !== null),
+    ...salesMetrics(group.records),
+  })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR") || a.area.localeCompare(b.area, "pt-BR"));
   const groupedSellers = [...new Set(records.map(r => r.seller))].map(s => ({ name: s, ...salesMetrics(records.filter(r => r.seller === s)) })).sort((a, b) => b.count - a.count);
   const searchedRecords = records.filter(r => {
     const q = recordSearch.toLocaleLowerCase("pt-BR").trim();
@@ -171,9 +202,9 @@ export function SalesVerification({ role }: { role: AccessRole }) {
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
         <section className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-start gap-2"><ChartNoAxesCombined className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h3 className="text-lg font-bold tracking-tight">Desempenho por conferente</h3><p className="text-xs text-muted-foreground">Resultado dos conferentes no filtro selecionado.</p></div></div>
+          <div className="mb-3 flex items-start gap-2"><ChartNoAxesCombined className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h3 className="text-lg font-bold tracking-tight">Desempenho por conferente</h3><p className="text-xs text-muted-foreground">Resultado de cada operador por área de conferência no filtro selecionado.</p></div></div>
           <div className="[&_table]:text-sm [&_th]:text-xs [&_td]:text-sm">
-            <DataTable headers={["Código", "Conferente", "Conferências", "Qtd. itens", "Certas", "Erros", "% acerto", "Tempo médio", "Valor"]} rows={groupedVerifiers.map(v => [v.code, v.name, number(v.count), number(v.items), number(v.correct), number(v.errors), <Percent value={v.accuracy} />, v.hasTime ? `${Math.round(v.minutes)} min` : "—", money(v.value)])} />
+            <DataTable headers={["Operador", "Área de conferência", "Conferências", "Qtd. itens", "Certas", "Erros", "% acerto", "Tempo médio", "Valor"]} rows={groupedVerifiers.map(v => [v.name, v.area, number(v.count), number(v.items), number(v.correct), number(v.errors), <Percent value={v.accuracy} />, v.hasTime ? `${Math.round(v.minutes)} min` : "—", money(v.value)])} />
           </div>
         </section>
         <section className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
