@@ -27,6 +27,7 @@ describe("confirmação de local no Google Maps", () => {
   test("rejeita URL curta, URL não Google, coordenadas fora do Brasil e entradas sem latitude/longitude", () => {
     expect(parseGoogleMapsPoint("https://maps.app.goo.gl/xxxx")).toBeNull();
     expect(parseGoogleMapsPoint("https://example.org/pos?query=-22.7771234,-47.2934567")).toBeNull();
+    expect(parseGoogleMapsPoint("https://www.google.evil/maps?q=-22.7771234,-47.2934567")).toBeNull();
     expect(parseGoogleMapsPoint("22.7771234, -47.2934567")).toBeNull();
     expect(parseGoogleMapsPoint("Rua das Flores, Nova Odessa")).toBeNull();
   });
