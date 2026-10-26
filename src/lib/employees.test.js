@@ -24,11 +24,14 @@ describe("emblemas e direitos por funcionário", () => {
     const e = mk("Novo", { badge: "VENDEDOR", permissions: { ...EMPTY_EMPLOYEE_PERMISSIONS } });
     expect(Object.values(effectiveEmployeePermissions(e)).some(Boolean)).toBe(false);
   });
-  test("cadastros antigos continuam operando até edição, sem inventar emblemas por nome", () => {
+  test("cadastros antigos sem direitos continuam em modo consulta", () => {
     const old = mk("Pessoa Antiga");
-    expect(effectiveEmployeePermissions(old).entregas).toBe(true);
-    expect(effectiveEmployeePermissions(old).conferencia).toBe(true);
+    expect(effectiveEmployeePermissions(old)).toEqual(EMPTY_EMPLOYEE_PERMISSIONS);
     expect(operatorBadge(old)).toBe("VENDEDOR");
+  });
+  test("nenhum funcionário recebe direito de expedição por seu nome", () => {
+    const employee = mk("Cauê");
+    expect(effectiveEmployeePermissions(employee).expedicao).toBe(false);
   });
   test("direito explícito revoga acesso previamente permitido", () => {
     const old = mk("Cauê", { permissions: { ...EMPTY_EMPLOYEE_PERMISSIONS } });
