@@ -468,3 +468,43 @@
     text-align: left;
   }
 }
+
+/* Mapa de entregas do gestor: piquetes vermelhos numerados, em estilo de navegação. */
+.biglogno-route-map-shell {
+  isolation: isolate;
+  z-index: 0;
+}
+.biglogno-route-map-shell .leaflet-container {
+  background: #e4edeb;
+  font-family: inherit;
+}
+.biglogno-route-marker {
+  border: 0;
+  background: transparent;
+}
+.biglogno-route-pin {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 5px;
+  background: #ee3547;
+  box-shadow: 0 3px 10px rgba(76, 19, 35, .36);
+  transform: rotate(-45deg);
+}
+.biglogno-route-pin span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+.biglogno-route-map-shell .leaflet-popup-content {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.biglogno-route-map-shell .leaflet-popup-content p {
+  margin: 5px 0;
+}
