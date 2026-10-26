@@ -16,14 +16,10 @@ export const EMPTY_EMPLOYEE_PERMISSIONS: EmployeePermissions = {
   expedicao: false, entregas: false, contagem: false, conferencia: false,
 };
 
-// Funcionários anteriores ainda não possuíam permissões individuais:
-// mantemos provisoriamente suas operações antigas até o gestor salvar o cadastro.
-// Expedição era exceção, reservada ao perfil do Cauê.
+// Sem direitos explícitos, o funcionário fica somente em modo consulta.
+// Aplica-se também aos cadastros anteriores: acesso nunca é concedido pelo nome.
 export function effectiveEmployeePermissions(employee: Employee): EmployeePermissions {
-  if (employee.permissions) return employee.permissions;
-  const isLegacyCaue = /^caue(?:\s|$)/.test(employee.name.trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"));
-  return { expedicao: isLegacyCaue, entregas: true, contagem: true, conferencia: true };
+  return employee.permissions ?? { ...EMPTY_EMPLOYEE_PERMISSIONS };
 }
 
 export const employeeSchema = z.object({
