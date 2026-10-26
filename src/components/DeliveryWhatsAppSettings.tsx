@@ -31,9 +31,9 @@ export function DeliveryWhatsAppSettings({ deliveries }: { deliveries: Delivery[
   const [optedIn, setOptedIn] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const clients = [...new Map(deliveries
+  const clients = [...new Map<string, string>(deliveries
     .filter(d => d.companyCode && d.company)
-    .map(d => [d.companyCode!.replace(/^0+(?=\d)/, ""), d.company])
+    .map(d => [d.companyCode!.replace(/^0+(?=\d)/, ""), d.company] as const)
   )].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
   const target = clients.find(c => c[0] === code);
   const selected = query.data?.contacts.find(c => c.code === code);
