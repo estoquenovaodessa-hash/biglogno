@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ClipboardCheck, Truck } from "lucide-react";
+import { Check, ClipboardCheck, PackageCheck, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient } from "@/lib/sales-verification";
@@ -18,6 +18,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
   const [errorReasons, setErrorReasons] = useState<ErrorReason[]>([]);
   const [seller, setSeller] = useState("");
   const [forDelivery, setForDelivery] = useState(false);
+  const [balcaoDestination, setBalcaoDestination] = useState<"entrega" | "retira" | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -44,13 +45,13 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
     }} onSubmit={async e => {
       e.preventDefault(); if (busy) return; setError(""); setMessage("");
       const numericValue = parseMoneyInput(value);
-      const parsed = verificationSchema.safeParse({ requestId: requestId.current ?? crypto.randomUUID(), document, items: Number(items), clientCode, verifierCode, value: numericValue, correct, errorReasons: correct === false ? errorReasons : [], seller: verifier?.expedition ? "EXPEDIÇÃO" : seller, forDelivery: verifier?.expedition ? forDelivery : false, durationSeconds: Math.min(86400, Math.floor((Date.now() - started.current) / 1000)) });
+      const parsed = verificationSchema.safeParse({ requestId: requestId.current ?? crypto.randomUUID(), document, items: Number(items), clientCode, verifierCode, value: numericValue, correct, errorReasons: correct === false ? errorReasons : [], seller: verifier?.expedition ? "EXPEDIÇÃO" : seller, forDelivery: verifier?.expedition ? forDelivery : false, balcaoDestination: verifier?.expedition ? undefined : (balcaoDestination ?? undefined), durationSeconds: Math.min(86400, Math.floor((Date.now() - started.current) / 1000)) });
       if (!parsed.success || !value.trim()) { setError(parsed.success ? "Informe o valor." : parsed.error.issues[0]?.message ?? "Confira os campos."); return; }
       if (!client || !employee) { setError(!client ? "Cliente não encontrado na base." : "Selecione o perfil do funcionário."); return; }
       requestId.current = parsed.data.requestId; setBusy(true);
       try {
         const result = await register({ data: parsed.data });
-        setDocument(result.prefix); setItems(""); setClientCode(parsed.data.clientCode); setVerifierCode(parsed.data.verifierCode); setValue(""); setCorrect(null); setErrorReasons([]); setSeller(""); setForDelivery(false);
+        setDocument(result.prefix); setItems(""); setClientCode(parsed.data.clientCode); setVerifierCode(parsed.data.verifierCode); setValue(""); setCorrect(null); setErrorReasons([]); setSeller(""); setForDelivery(false); setBalcaoDestination(null);
         setMessage(`Documento ${document} registrado com sucesso.`); requestId.current = null; started.current = Date.now(); onRegistered(); documentInput.current?.focus();
       } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível registrar."); }
       finally { setBusy(false); }
@@ -61,12 +62,34 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
       </div>
       <Field label="Código do cliente" id="sales-client"><Input id="sales-client" inputMode="numeric" required maxLength={12} value={clientCode} onChange={e => { setClientCode(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${client ? "text-success" : "text-muted-foreground"}`}>{client?.name ?? (clientCode ? "Cliente não encontrado" : "—")}</p></Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Setor *</legend><div className="grid grid-cols-2 gap-2">{[{code:"101",name:"Balcão"},{code:"102",name:"Expedição"}].map(v => <Button key={v.code} type="button" variant={verifierCode === v.code ? "default" : "outline"} className="h-11 gap-1 text-sm font-bold" aria-pressed={verifierCode === v.code} onClick={() => { setVerifierCode(v.code); setSeller(""); setForDelivery(false); requestId.current = null; }}>{v.name}</Button>)}</div><p className="mt-1 text-sm font-semibold text-success">Funcionário: {employee?.name ?? "Não selecionado"}</p></fieldset>
+        <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Setor *</legend><div className="grid grid-cols-2 gap-2">{[{code:"101",name:"Balcão"},{code:"102",name:"Expedição"}].map(v => <Button key={v.code} type="button" variant={verifierCode === v.code ? "default" : "outline"} className="h-11 gap-1 text-sm font-bold" aria-pressed={verifierCode === v.code} onClick={() => { setVerifierCode(v.code); setSeller(""); setForDelivery(false); setBalcaoDestination(null); requestId.current = null; }}>{v.name}</Button>)}</div><p className="mt-1 text-sm font-semibold text-success">Funcionário: {employee?.name ?? "Não selecionado"}</p></fieldset>
         <Field label="Valor (R$)" id="sales-value"><Input id="sales-value" inputMode="decimal" required maxLength={15} placeholder="0,00" value={value} onChange={e => { setValue(e.target.value.replace(/[^\d.,]/g, "")); requestId.current = null; }} onBlur={() => value.trim() && setValue(formatMoneyInput(value))} className="h-11 text-xl font-semibold md:text-xl" /></Field>
       </div>
       <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Situação *</legend><div className="grid grid-cols-2 gap-3">{[true, false].map(option => <Button key={String(option)} type="button" variant={correct === option ? "default" : "outline"} className="h-11 text-lg font-bold" aria-pressed={correct === option} onClick={() => { setCorrect(option); if (option) setErrorReasons([]); requestId.current = null; }}>{correct === option && <Check className="h-4 w-4" />}{option ? "Certo" : "Errado"}</Button>)}</div></fieldset>
       {correct === false && <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Motivos do erro *</legend><div className="grid grid-cols-3 gap-2">{ERROR_REASONS.map(reason => <Button key={reason} type="button" variant={errorReasons.includes(reason) ? "secondary" : "outline"} aria-pressed={errorReasons.includes(reason)} className="h-11 min-w-0 gap-1 px-1 text-sm font-bold sm:px-2 sm:text-base" onClick={() => { setErrorReasons(current => current.includes(reason) ? current.filter(item => item !== reason) : [...current, reason]); requestId.current = null; }}>{errorReasons.includes(reason) && <Check className="h-3 w-3 shrink-0" />}{reason}</Button>)}</div></fieldset>}
       <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Vendedor *</legend><div className={`grid gap-2 ${verifier?.expedition ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-4"}`}>{(verifier?.expedition ? ["EXPEDIÇÃO"] : SELLERS).map(name => <Button type="button" key={name} variant={seller === name || verifier?.expedition ? "secondary" : "outline"} aria-pressed={seller === name || verifier?.expedition} onClick={() => { setSeller(name); requestId.current = null; }} className="min-h-10 px-2 text-base font-semibold">{name}</Button>)}</div></fieldset>
+      {!verifier.expedition && <fieldset className="space-y-2 rounded-lg border border-border p-3">
+        <legend className="px-1 text-base font-bold uppercase text-muted-foreground">Destino do pedido (opcional)</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant={balcaoDestination === "entrega" ? "default" : "outline"}
+            className="h-12 gap-2 text-base font-bold" aria-pressed={balcaoDestination === "entrega"}
+            onClick={() => { setBalcaoDestination(old => old === "entrega" ? null : "entrega"); requestId.current = null; }}>
+            {balcaoDestination === "entrega" ? <Check className="h-5 w-5" /> : <Truck className="h-5 w-5" />}Entrega
+          </Button>
+          <Button type="button" variant={balcaoDestination === "retira" ? "default" : "outline"}
+            className="h-12 gap-2 text-base font-bold" aria-pressed={balcaoDestination === "retira"}
+            onClick={() => { setBalcaoDestination(old => old === "retira" ? null : "retira"); requestId.current = null; }}>
+            {balcaoDestination === "retira" ? <Check className="h-5 w-5" /> : <PackageCheck className="h-5 w-5" />}Retira
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {balcaoDestination === "entrega"
+            ? "Registra na Conferência e envia para Entregas e Expedição."
+            : balcaoDestination === "retira"
+              ? "Registra na Conferência e envia para Retiras e Expedição."
+              : "Sem selecionar, registra somente na Conferência. Clique novamente em uma opção para desmarcar."}
+        </p>
+      </fieldset>}
       {verifier?.expedition && <Button type="button" variant={forDelivery ? "default" : "outline"} aria-pressed={forDelivery} className="h-11 w-full text-lg font-bold" onClick={() => { setForDelivery(v => !v); requestId.current = null; }}>{forDelivery ? <Check className="h-5 w-5" /> : <Truck className="h-5 w-5" />}Para entrega</Button>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {message && <p role="status" className="text-success">{message}</p>}
