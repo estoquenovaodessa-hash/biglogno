@@ -94,17 +94,25 @@ export function listDeliveryRoutes(deliveries: Delivery[]) {
 }
 
 /** Limita a cinco paradas por link para funcionar também no Google Maps móvel. */
+function googleDirectionsPoint(stop: RouteStop): string {
+  const address = stop.address!;
+  if (address.locationSource === "google_maps" && address.latitude !== undefined && address.longitude !== undefined) {
+    return address.latitude.toFixed(7) + "," + address.longitude.toFixed(7);
+  }
+  return fullDeliveryAddress(address);
+}
+
 export function googleRouteSegments(stops: RouteStop[]): { url: string; first: string; last: string }[] {
   if (stops.length < 2 || stops.some(stop => !stop.address)) return [];
   const links: { url: string; first: string; last: string }[] = [];
   for (let i = 0; i < stops.length - 1; i += 4) {
     const group = stops.slice(i, i + 5);
     const params = new URLSearchParams({
-      api: "1", origin: fullDeliveryAddress(group[0].address!),
-      destination: fullDeliveryAddress(group[group.length - 1].address!), travelmode: "driving",
+      api: "1", origin: googleDirectionsPoint(group[0]),
+      destination: googleDirectionsPoint(group[group.length - 1]), travelmode: "driving",
     });
     if (group.length > 2) params.set("waypoints", group.slice(1, -1)
-      .map(stop => fullDeliveryAddress(stop.address!)).join("|"));
+      .map(googleDirectionsPoint).join("|"));
     links.push({ url: "https://www.google.com/maps/dir/?" + params.toString(),
       first: group[0].company, last: group[group.length - 1].company });
   }
