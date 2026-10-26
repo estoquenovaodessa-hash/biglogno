@@ -103,6 +103,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Avisos de saída para entrega ficam obsoletos. Se o conector esteve
+  -- desligado por mais de 2 h, não envie mensagens atrasadas.
+  UPDATE public.delivery_whatsapp_outbox o
+  SET status = 'cancelado', last_error = 'Aviso expirado (mais de 2 horas sem envio).'
+  WHERE o.status = 'pendente' AND o.created_at < now() - interval '2 hours';
+
   RETURN QUERY
   WITH selected AS (
     SELECT o.id FROM public.delivery_whatsapp_outbox o
