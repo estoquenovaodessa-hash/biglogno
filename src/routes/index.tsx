@@ -47,6 +47,7 @@ import {
 import { useStore, StoreProvider } from "@/lib/store";
 import { AccessGate } from "@/components/AccessGate";
 import { EmployeeGate, EmployeeTag, useActiveEmployee } from "@/components/EmployeeGate";
+import { useOperatorRights } from "@/components/useOperatorRights";
 import { FriendlyPingBridge } from "@/components/FriendlyPingBridge";
 import { CadastroFuncionarios } from "@/components/CadastroFuncionarios";
 import { canAccessTab, type AccessRole } from "@/lib/access-policy";
@@ -141,6 +142,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
   };
   const { theme, toggleTheme, items, ready } = useStore();
   const { employee, switchProfile } = useActiveEmployee();
+  const rights = useOperatorRights();
   const [tab, setTab] = useState<TabKey>(role === "gestor" ? "Importação" : "Contagem");
   const [aberto, setAberto] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("desktop");
@@ -175,7 +177,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
       case "Cadastro de Funcionários":
         return role === "gestor" ? <CadastroFuncionarios /> : null;
       case "Contagem":
-        return <CiclosContagem />;
+        return <CiclosContagem canOperate={role !== "operador" || rights.contagem} />;
       case "Roteiro de Apuração":
         return <Roteiro />;
       case "Zona Segura":
@@ -452,7 +454,7 @@ const brandHeader = (
           ) : (
             <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
           )}
-          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Expedição" ? <ExpedicaoOperador /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
+          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem canOperate={rights.contagem} /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Expedição" ? <ExpedicaoOperador /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
         </>}
       </main>
     </div>;
