@@ -29,7 +29,6 @@ export const addManualDelivery = createServerFn({ method: 'POST' }).inputValidat
   if (error) throw new Error('Não foi possível adicionar a entrega.'); return { ok: true };
 });
 export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(deliveryActionSchema).handler(async ({ data }) => {
-  const { requireSelectedOperator } = await import('./employees.functions');
   const { requireOperatorPermission } = await import('./employees.functions');
   const employee = await requireOperatorPermission('entregas');
   const { db, rows, list } = await loadAll();
