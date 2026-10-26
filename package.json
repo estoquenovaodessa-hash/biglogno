@@ -55,6 +55,7 @@
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.575.0",
     "papaparse": "^5.5.4",
     "pdfjs-dist": "4.10.38",
@@ -75,6 +76,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@types/node": "^22.16.5",
+    "@types/leaflet": "^1.9.21",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
