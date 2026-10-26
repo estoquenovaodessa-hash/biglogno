@@ -1,48 +1,25 @@
-import type { Employee } from "./employees";
+import type { Employee, EmployeeBadge } from "./employees";
 
-/**
- * Emblemas EXCLUSIVAMENTE visuais da seleção de perfis do operador.
- * Não alteram employee.role, autenticação ou políticas de acesso.
- *
- * A ordem de nomes em cada grupo segue o pedido operacional.
- * O restante dos funcionários é exibido como VENDEDOR ao final, em ordem alfabética.
- */
-const MANAGERS = ["caique neves", "leonardo", "arthur b"] as const;
-const ASSISTANTS = ["giovana nixdrof", "carlos eduardo", "ivan james", "caue"] as const;
+const BADGE_PRIORITY: Record<EmployeeBadge, number> = {
+  GESTOR: 0, "AUXILIAR LOG": 1, ENTREGADOR: 2, VENDEDOR: 3,
+};
 
-export type OperatorBadge = "GESTOR" | "AUXILIAR LOG" | "VENDEDOR";
+export const BADGE_COLORS: Record<EmployeeBadge, string> = {
+  GESTOR: "border-orange-400/70 bg-orange-500/20 text-orange-200",
+  "AUXILIAR LOG": "border-sky-400/70 bg-sky-500/20 text-sky-200",
+  ENTREGADOR: "border-emerald-400/70 bg-emerald-500/20 text-emerald-200",
+  VENDEDOR: "border-red-400/70 bg-red-500/20 text-red-200",
+};
 
-function normalizeName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-/** Aceita sobrenomes adicionais, mas nunca identifica apelidos por trecho parcial. */
-function matchingRank(name: string, names: readonly string[]): number {
-  return names.findIndex(prefix => name === prefix || name.startsWith(prefix + " "));
-}
-
-export function operatorBadge(name: string): { label: OperatorBadge; group: number; rank: number } {
-  const normalized = normalizeName(name);
-  const manager = matchingRank(normalized, MANAGERS);
-  if (manager !== -1) return { label: "GESTOR", group: 0, rank: manager };
-  const assistant = matchingRank(normalized, ASSISTANTS);
-  if (assistant !== -1) return { label: "AUXILIAR LOG", group: 1, rank: assistant };
-  return { label: "VENDEDOR", group: 2, rank: 0 };
+// Cadastros antigos recebem somente um emblema VISUAL provisório.
+// Ao editar o funcionário, o gestor atribui o emblema permanente.
+export function operatorBadge(employee: Employee): EmployeeBadge {
+  return employee.badge ?? (employee.role === "GESTOR" ? "GESTOR" : "VENDEDOR");
 }
 
 export function sortOperatorProfiles(employees: Employee[]): Employee[] {
-  return [...employees].sort((a, b) => {
-    const first = operatorBadge(a.name);
-    const second = operatorBadge(b.name);
-    return first.group - second.group
-      || first.rank - second.rank
-      || a.name.localeCompare(b.name, "pt-BR")
-      || a.id.localeCompare(b.id);
-  });
+  return [...employees].sort((a, b) =>
+    BADGE_PRIORITY[operatorBadge(a)] - BADGE_PRIORITY[operatorBadge(b)]
+    || a.name.localeCompare(b.name, "pt-BR")
+    || a.id.localeCompare(b.id));
 }
