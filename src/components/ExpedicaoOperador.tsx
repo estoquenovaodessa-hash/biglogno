@@ -129,9 +129,9 @@ function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
         </div>
       </div>)}
     </div>
-    {canTransfer && transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
+    {transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
       <Button type="button" variant="outline" size="sm" className="h-10 gap-2 text-sm font-bold"
-        disabled={busy} onClick={() => onTransfer({
+        disabled={busy || !canTransfer} onClick={() => onTransfer({
           kind: "toPickup",
           company: first.company,
           orders: transferable.map(order => ({
@@ -168,9 +168,9 @@ function PickupCard({ order, canTransfer, busy, onTransfer }: {
       <Detail label="Quem retirou">{order.receiver || "—"}</Detail>
       <Detail label="Entregue por">{order.handedBy || "—"}</Detail>
     </div>
-    {canTransfer && order.status === "pendente" &&
+    {order.status === "pendente" &&
       <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
-        <Button type="button" variant="outline" size="sm" disabled={busy} className="h-10 gap-2 text-sm font-bold"
+        <Button type="button" variant="outline" size="sm" disabled={busy || !canTransfer} className="h-10 gap-2 text-sm font-bold"
           onClick={() => onTransfer({
             kind: "toDelivery", company: order.company,
             orders: [{ id: order.id, document: order.document || "—",
@@ -183,7 +183,7 @@ function PickupCard({ order, canTransfer, busy, onTransfer }: {
 }
 
 export function ExpedicaoOperador() {
-  // A visão permanece consultiva para todos, exceto o operador Cauê.
+  // A visualização é livre; a transferência depende do direito individual.
   // Mesmo quando visível, a API verifica a permissão novamente no servidor.
   const { employee } = useActiveEmployee();
   const queryClient = useQueryClient();
@@ -287,6 +287,8 @@ export function ExpedicaoOperador() {
         </p>
       </div>
     </header>
+
+    {!canTransfer && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Expedição. Os botões de transferência estão bloqueados.</p>}
 
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
       <Summary icon={CheckCheck} title="Entregas separadas" value={deliveriesReady} />
