@@ -67,8 +67,15 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
   if (dupError) throw new Error("Não foi possível validar o documento.");
   if (existing?.length) throw new Error(`Documento ${data.document} já foi registrado.`);
   const payload = { ...data, verifierCode: code, clientName: client.name, verifierName: operator.name, employeeId: operator.id, channel: expedition ? "expedicao" : "balcao" };
-  if (data.forDelivery && !expedition) throw new Error("Somente a expedição pode marcar para entrega.");
-  const kind = expedition ? (data.forDelivery ? "deliveries" : "pickups") : "none";
+  if (data.forDelivery && !expedition) throw new Error("Somente a Expedição utiliza a opção antiga 'Para entrega'.");
+  if (expedition && data.balcaoDestination) throw new Error("As opções Entrega e Retira são exclusivas do Balcão.");
+  // Balcão: Entrega / Retira / nenhuma. A Expedição conserva seu fluxo atual.
+  // Esta rotina do Supabase registra Conferência e eventual pedido logístico
+  // na mesma transação, com o mesmo requestId (proteção contra duplicações).
+  const kind = expedition
+    ? (data.forDelivery ? "deliveries" : "pickups")
+    : data.balcaoDestination === "entrega" ? "deliveries"
+      : data.balcaoDestination === "retira" ? "pickups" : "none";
   const { error: insertError } = await supabaseAdmin.rpc("register_verification_logistics", {
     record_id: data.requestId, verification: payload,
     logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", channel: expedition ? "expedicao" : "balcao", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
