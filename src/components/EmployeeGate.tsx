@@ -5,6 +5,7 @@ import { LogOut, ShieldCheck, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccessRole } from "@/lib/access-policy";
 import type { Employee } from "@/lib/employees";
+import { operatorBadge, sortOperatorProfiles, type OperatorBadge } from "@/lib/operator-profile-badges";
 import { clearSelectedEmployee, currentEmployee, listEmployees, selectEmployee } from "@/lib/employees.functions";
 import { lockAccess } from "@/lib/access.functions";
 
@@ -27,6 +28,21 @@ export function EmployeeTag() {
       <span className="block truncate text-[11px] text-[#b4cee8]">{employee.job}</span></span>
   </button>;
 }
+const badgeClasses: Record<OperatorBadge, string> = {
+  GESTOR: "border-orange-400/70 bg-orange-500/20 text-orange-200",
+  "AUXILIAR LOG": "border-sky-400/70 bg-sky-500/20 text-sky-200",
+  VENDEDOR: "border-red-400/70 bg-red-500/20 text-red-200",
+};
+
+function OperatorEmblem({ name }: { name: string }) {
+  const badge = operatorBadge(name);
+  return <span
+    className={`inline-flex w-fit max-w-full items-center rounded-md border px-2 py-0.5 text-[11px] font-extrabold tracking-wide ${badgeClasses[badge.label]}`}
+    aria-label={`Emblema: ${badge.label}`}>
+    {badge.label}
+  </span>;
+}
+
 export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onExit: () => void; children: ReactNode }) {
   const client = useQueryClient();
   const fetchActive = useServerFn(currentEmployee);
@@ -38,6 +54,13 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
   const list = useQuery({ queryKey: ["employees-available", role], queryFn: () => fetchList(), enabled: true, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A lista do operador usa ordem visual fixa por grupos. No acesso
+  // do gestor, preserva a ordem anterior e as regras reais de permissões.
+  const selectableProfiles = (list.data ?? []).filter(employee =>
+    employee.active && (role === "operador" || employee.role === "GESTOR"));
+  const visibleProfiles = role === "operador"
+    ? sortOperatorProfiles(selectableProfiles)
+    : selectableProfiles;
   const switchProfile = async () => {
     setBusy(true); setError("");
     try {
@@ -77,16 +100,20 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
       </div></div>
       <p className="mt-3 text-sm text-[#b3cbe7]">{role === "gestor"
         ? "Selecione seu perfil de gestor para identificar quem está acompanhando a operação."
-        : "Escolha seu perfil antes de acessar Contagem, Conferência ou Entregas."}</p>
+        : "Escolha seu perfil antes de acessar as atividades do operador."}</p>
       {error && <p role="alert" className="mt-3 rounded-lg border border-red-400/50 p-3 text-sm text-red-300">{error}</p>}
       <div className="mt-5 max-h-[58vh] space-y-2 overflow-y-auto">
-        {(list.data ?? []).filter(employee => employee.active && (role === "operador" || employee.role === "GESTOR")).map(employee => <button key={employee.id} disabled={busy} onClick={() => { void choose(employee); }}
+        {visibleProfiles.map(employee => <button key={employee.id} disabled={busy} onClick={() => { void choose(employee); }}
           className="flex w-full items-center gap-4 rounded-xl border border-[#345983] bg-[#162a43] p-3 text-left transition-colors hover:border-[#77b5ff] hover:bg-[#21456c] disabled:opacity-60">
           <EmployeeAvatar employee={employee} size="lg" />
-          <span className="min-w-0 flex-1"><span className="block truncate text-lg font-bold">{employee.name}</span><span className="block truncate text-sm text-[#abc9eb]">{employee.job}</span></span>
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
+            <span className="block w-full truncate text-lg font-bold">{employee.name}</span>
+            {role === "operador" && <OperatorEmblem name={employee.name} />}
+            <span className="block w-full truncate text-sm text-[#abc9eb]">{employee.job}</span>
+          </span>
           <ShieldCheck className="h-5 w-5 shrink-0 text-[#84b9ff]" />
         </button>)}
-        {!list.data?.some(employee => employee.active && (role === "operador" || employee.role === "GESTOR")) &&
+        {!visibleProfiles.length &&
           <p className="rounded-xl border border-dashed border-[#345983] p-5 text-center text-sm text-[#adc6e3]">
             {role === "gestor" ? "Nenhum funcionário GESTOR cadastrado. Cadastre ou ative um perfil de gestor para identificar o acesso."
               : "Nenhum perfil ativo cadastrado. Solicite ao gestor um cadastro na aba Cadastro de Funcionários."}
