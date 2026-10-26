@@ -89,3 +89,35 @@ export const deleteEmployee = createServerFn({ method: "POST" })
     if (error) throw new Error("Não foi possível excluir o funcionário.");
     return { ok: true };
   });
+
+// Permissão especial da Central de Expedição.
+// Valida no servidor o ID de sessão contra o cadastro ativo de Cauê.
+// Se houver cadastros homônimos, falha fechado em vez de conceder a todos.
+// O login por senha compartilhada + escolha de perfil NÃO equivale
+// a autenticação pessoal; essa limitação é esclarecida ao gestor.
+function isCaue(name: string) {
+  const normalized = name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  return /^caue(?:\s|$)/.test(normalized);
+}
+
+async function selectedExpeditionTransferOperator() {
+  const { requireAccess, accessSession } = await import('./access.server');
+  if (await requireAccess() !== 'operador') return null;
+  const session = await accessSession();
+  const selectedId = session.data.employeeId;
+  if (!selectedId) return null;
+  const employees = await fetchEmployees();
+  const eligible = employees.filter(e => e.active && e.role === 'OPERADOR' && isCaue(e.name));
+  if (eligible.length !== 1 || eligible[0].id !== selectedId) return null;
+  return eligible[0];
+}
+
+export const canTransferExpedition = createServerFn({ method: 'GET' }).handler(async () => {
+  return { allowed: !!(await selectedExpeditionTransferOperator()) };
+});
+
+export async function requireExpeditionTransferOperator(): Promise<Employee> {
+  const employee = await selectedExpeditionTransferOperator();
+  if (!employee) throw new Error('Somente o perfil do Cauê pode transferir pedidos entre Entregas e Retiras.');
+  return employee;
+}
