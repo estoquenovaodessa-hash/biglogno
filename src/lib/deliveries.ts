@@ -14,7 +14,7 @@ export interface Delivery {
   driverEmployeeId?: string;
   /** Conferência que originou o pedido: futuro Balcão poderá direcionar para Entrega/Retira. */
   channel?: "balcao" | "expedicao";
-  /** Preparação física, independente do campo "separate" (desunificação de notas). */
+  /** Campos legados preservados para compatibilidade; não comandam o status Expedição. */
   preparedAt?: string;
   preparedBy?: string;
   startedAt?: string;
@@ -40,7 +40,6 @@ export const manualDeliverySchema = z.object({
 
 export const deliveryActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start"), id: z.string().uuid(), driver: z.string().trim().min(1, "Informe o nome do entregador.").max(100) }),
-  z.object({ action: z.literal("mark_ready"), id: z.string().uuid(), preparedBy: z.string().trim().min(1).max(150) }),
   z.object({ action: z.literal("cancel"), id: z.string().uuid() }),
   z.object({ action: z.literal("pause"), id: z.string().uuid() }),
   z.object({ action: z.literal("resume"), id: z.string().uuid() }),
@@ -81,9 +80,6 @@ export function applyDeliveryAction(d: Delivery, all: Delivery[], a: DeliveryAct
   const iso = now.toISOString();
   const busy = isLocked(d, all);
   switch (a.action) {
-    case "mark_ready":
-      if (d.status !== "nao_iniciada") throw new Error("Só é possível separar pedidos ainda não iniciados.");
-      return d.preparedAt ? d : { ...d, preparedAt: iso, preparedBy: a.preparedBy };
     case "start":
       if (d.status !== "nao_iniciada") throw new Error("Entrega já iniciada.");
       if (busy) throw new Error("Já existem duas entregas em andamento.");
