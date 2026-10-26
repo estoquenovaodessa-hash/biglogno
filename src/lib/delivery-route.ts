@@ -75,6 +75,24 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
   return stops;
 }
 
+/** Uma rota por entregador e data, independente do pedido selecionado no painel.
+ * Mostrar a rota mais recente por padrão evita abrir em branco ao selecionar um pendente. */
+export function listDeliveryRoutes(deliveries: Delivery[]) {
+  const groups = new Map<string, { key: string; name: string; day: string; selected: Delivery; count: number }>();
+  const finalized = deliveries.filter(d => d.status === "finalizada" && !!d.driver?.trim() && !!deliveryVisitTime(d))
+    .sort((a, b) => deliveryVisitTime(b).localeCompare(deliveryVisitTime(a)) || a.id.localeCompare(b.id));
+  for (const delivery of finalized) {
+    const day = saoPauloDay(deliveryVisitTime(delivery));
+    if (!day) continue;
+    const identity = delivery.driverEmployeeId?.trim() || normalizeName(delivery.driver ?? "");
+    const key = identity + "|" + day;
+    const group = groups.get(key);
+    if (group) group.count++;
+    else groups.set(key, { key, name: delivery.driver!.trim(), day, selected: delivery, count: 1 });
+  }
+  return [...groups.values()];
+}
+
 /** Limita a cinco paradas por link para funcionar também no Google Maps móvel. */
 export function googleRouteSegments(stops: RouteStop[]): { url: string; first: string; last: string }[] {
   if (stops.length < 2 || stops.some(stop => !stop.address)) return [];
