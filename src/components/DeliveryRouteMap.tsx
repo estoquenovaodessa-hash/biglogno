@@ -69,6 +69,8 @@ async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | nul
       [address.address, address.city, address.state, "Brasil"].filter(Boolean).join(", "),
       query,
     ].filter((candidate, index, list) => list.indexOf(candidate) === index);
+    let primaryError: unknown = null;
+    try {
     for (const candidate of candidates) {
       if (signal.aborted) return null;
       const url = new URL("https://nominatim.openstreetmap.org/search");
@@ -93,6 +95,48 @@ async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | nul
         lastPublicLookup = Date.now();
       }
     }
+    } catch (cause) {
+      if (signal.aborted) return null;
+      primaryError = cause;
+    }
+    // Alternativa de baixa frequência quando o endereço não foi localizado pelo
+    // Nominatim. Aceitar somente resultados da mesma cidade e com rua identificada;
+    // jamais colocar a parada num centro de município fictício.
+    try {
+      const url = new URL("https://photon.komoot.io/api/");
+      url.searchParams.set("q", [address.address, address.city, address.state].join(", "));
+      url.searchParams.set("countrycode", "BR");
+      url.searchParams.set("limit", "5");
+      const response = await fetch(url, { signal });
+      if (response.ok) {
+        const data = await response.json() as { features?: Array<{
+          geometry?: { coordinates?: number[] };
+          properties?: { city?: string; county?: string; street?: string; name?: string; osm_key?: string };
+        }> };
+        const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g, " ").trim();
+        const city = normalized(address.city);
+        const street = normalized(address.address.replace(/\b\d+[a-z]?\b/gi, ""));
+        const best = data.features?.find(feature => {
+          const place = normalized(feature.properties?.city ?? feature.properties?.county ?? "");
+          const road = normalized(feature.properties?.street ?? (feature.properties?.osm_key === "highway" ? feature.properties?.name ?? "" : ""));
+          const coords = feature.geometry?.coordinates ?? [];
+          return place === city && street.length >= 5 && road.length >= 5
+            && (road.includes(street) || street.includes(road))
+            && Number.isFinite(coords[0]) && Number.isFinite(coords[1]);
+        });
+        if (best?.geometry?.coordinates) {
+          const [lng, lat] = best.geometry.coordinates;
+          const point = { lat, lng };
+          toCache(query, point);
+          return point;
+        }
+      }
+    } catch (cause) {
+      if (signal.aborted) return null;
+      if (primaryError) throw primaryError;
+      throw cause;
+    }
+    if (primaryError) throw primaryError;
     toCache(query, null);
     return null;
   } finally { release(); }
