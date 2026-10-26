@@ -215,6 +215,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </form>
 
+    <DeliveryRoutePanel
+      deliveries={deliveries}
+      addresses={addressQuery.data ?? []}
+      onSaveAddress={async (address: DeliveryClientAddress) => {
+        await saveAddresses({ data: [address] });
+        await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+      }}
+    />
+
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <section className="min-w-0 rounded-xl border border-border bg-card p-3 sm:p-4">
         <div className="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-background/70 p-1" role="tablist" aria-label="Situação das entregas">
@@ -279,15 +288,6 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         </> : <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground"><Truck className="h-9 w-9" /><p className="text-sm">Selecione uma entrega na lista para ver os detalhes.</p></div>}
       </section>
     </div>
-    {selected && <DeliveryRoutePanel
-      key={selected.id}
-      deliveries={deliveries}
-      selected={selected}
-      addresses={addressQuery.data ?? []}
-      onSaveAddress={async (address: DeliveryClientAddress) => {
-        await saveAddresses({ data: [address] });
-        await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
-      }}
-    />}
+
   </div>;
 }
