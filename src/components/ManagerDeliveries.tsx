@@ -148,10 +148,6 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     : undefined;
   const addressText = address ? [address.address, address.neighborhood, address.city, address.state].filter(Boolean).join(", ") : "";
   const mapHref = addressText ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addressText + ", Brasil") : null;
-  // Visualização por endereço, não rastreamento GPS. Link externo permanece como alternativa.
-  const mapEmbedHref = addressText
-    ? "https://maps.google.com/maps?output=embed&z=16&q=" + encodeURIComponent(addressText + ", Brasil")
-    : null;
   async function importAddressFile(file?: File) {
     if (!file) return;
     setImporting(true); setImportMessage("");
@@ -263,26 +259,6 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
           </div>
 
-          <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
-            <h4 className="flex items-center gap-2 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" /> Endereço e localização</h4>
-            {address ? <>
-              <p className="mt-2 text-sm font-semibold">{address.address}</p>
-              <p className="text-sm text-muted-foreground">{[address.neighborhood, address.city, address.state].filter(Boolean).join(" · ")}</p>
-              {mapEmbedHref && <div className="mt-3 overflow-hidden rounded-lg border border-border bg-background">
-                <iframe
-                  key={selected.id}
-                  title={`Mapa do endereço de ${selected.company}`}
-                  src={mapEmbedHref}
-                  className="h-[300px] w-full sm:h-[360px]"
-                  loading="lazy"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>}
-              {mapHref && <a href={mapHref} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary underline"><MapPin className="h-4 w-4" /> Abrir endereço no Google Maps</a>}
-            </> : <p className="mt-2 text-sm text-muted-foreground">{selected.companyCode ? "Endereço não encontrado na base importada para este código de cliente." : "Pedido sem código do cliente. Não é possível associar um endereço com segurança."}</p>}
-            <p className="mt-2 text-xs text-muted-foreground">Sem rastreamento GPS ativo — nenhuma localização é simulada.</p>
-          </div>
           <DeliveryRoutePanel
             key={selected.id}
             deliveries={deliveries}
@@ -294,6 +270,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             }}
           />
 
+          <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
+            <h4 className="flex items-center gap-2 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" /> Endereço e localização</h4>
+            {address ? <>
+              <p className="mt-2 text-sm font-semibold">{address.address}</p>
+              <p className="text-sm text-muted-foreground">{[address.neighborhood, address.city, address.state].filter(Boolean).join(" · ")}</p>
+              {mapHref && <a href={mapHref} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary underline"><MapPin className="h-4 w-4" /> Abrir endereço no Google Maps</a>}
+            </> : <p className="mt-2 text-sm text-muted-foreground">{selected.companyCode ? "Endereço não encontrado na base importada para este código de cliente." : "Pedido sem código do cliente. Não é possível associar um endereço com segurança."}</p>}
+            <p className="mt-2 text-xs text-muted-foreground">Sem rastreamento GPS ativo — nenhuma localização é simulada.</p>
+          </div>
           <div className="mt-5 border-t border-border pt-4">
             <h4 className="mb-4 flex items-center gap-2 text-sm font-bold"><Clock3 className="h-4 w-4 text-primary" /> Linha do tempo</h4>
             <TimelineStep title="Pedido criado" at={selected.createdAt} completed />
