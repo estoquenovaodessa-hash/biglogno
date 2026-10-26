@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod';
 import { finishPickup, finishPickupSchema, manualPickupSchema, type Pickup } from './pickups';
 import { logisticsCommitError } from './logistics-commit-error';
 
@@ -63,3 +64,33 @@ export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(a
   }
   return records;
 });
+
+/**
+ * Transfere atomicamente uma Retira pendente originada da Conferência
+ * para Entregas, preservando o ID e created_at da Conferência/separação.
+ * A transferência exige a RPC instalada no Supabase, nunca faz
+ * INSERT + DELETE em requisições independentes.
+ */
+export const transferPickupToDelivery = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data }) => {
+    const { requireSelectedOperator } = await import('./employees.functions');
+    await requireSelectedOperator();
+    const { logisticsClient } = await import('./logistics.server');
+    const db = await logisticsClient();
+    const { data: moved, error } = await db.rpc('transfer_pickup_to_delivery', {
+      p_pickup_id: data.id,
+    });
+    if (error) {
+      console.error('[Retira → Entregas] Falha na transferência atômica', {
+        code: error.code, message: error.message,
+      });
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        throw new Error('Falta executar o SQL de transferência Retira → Entrega no Supabase.');
+      }
+      if (error.code === 'P0001') throw new Error(error.message);
+      throw new Error('Não foi possível transferir o pedido. Nenhuma transferência foi confirmada.');
+    }
+    if (moved !== true) throw new Error('O Supabase não confirmou a transferência.');
+    return { ok: true };
+  });
