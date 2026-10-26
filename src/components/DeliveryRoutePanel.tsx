@@ -83,7 +83,10 @@ export function DeliveryRoutePanel({
   const [form, setForm] = useState({ address: "", neighborhood: "", city: "", state: "SP" });
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const stops = useMemo(() => getRouteStops(deliveries, selected, addresses), [deliveries, selected, addresses]);
+  // As entregas são consultadas periodicamente. Preservar a identidade da sequência
+  // evita desmontar o mapa e reiniciar a localização de endereços a cada atualização.
+  const stopsSnapshot = JSON.stringify(getRouteStops(deliveries, selected, addresses));
+  const stops = useMemo(() => JSON.parse(stopsSnapshot) as RouteStop[], [stopsSnapshot]);
   const routeSegments = useMemo(() => googleRouteSegments(stops), [stops]);
   const missing = stops.filter(stop => !stop.address);
   const located = stops.filter(stop => !!stop.address);
