@@ -5,7 +5,8 @@ import { Camera, Pencil, Plus, Save, Search, Trash2, Users, X } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { employeeSchema, type Employee } from "@/lib/employees";
+import { employeeSchema, effectiveEmployeePermissions, EMPTY_EMPLOYEE_PERMISSIONS, type Employee, type EmployeeBadge, type EmployeePermissions, type EmployeePermission } from "@/lib/employees";
+import { BADGE_COLORS, operatorBadge } from "@/lib/operator-profile-badges";
 import { deleteEmployee, listEmployees, saveEmployees } from "@/lib/employees.functions";
 import { EmployeeAvatar } from "./EmployeeGate";
 
@@ -29,8 +30,20 @@ async function reducePhoto(file: File): Promise<string> {
     return data;
   } finally { URL.revokeObjectURL(blobUrl); }
 }
-type FormState = { name: string; job: string; role: Employee["role"]; photo: string | null };
-const empty: FormState = { name: "", job: "", role: "OPERADOR", photo: null };
+type FormState = {
+  name: string; job: string; role: Employee["role"]; photo: string | null;
+  badge: EmployeeBadge; permissions: EmployeePermissions;
+};
+const empty = (): FormState => ({
+  name: "", job: "", role: "OPERADOR", photo: null,
+  badge: "VENDEDOR", permissions: { ...EMPTY_EMPLOYEE_PERMISSIONS },
+});
+const permissionLabels: { key: EmployeePermission; label: string; description: string }[] = [
+  { key: "expedicao", label: "Expedição", description: "Transferir pedidos entre Entregas e Retira" },
+  { key: "entregas", label: "Entregas", description: "Iniciar, movimentar, assinar e organizar entregas" },
+  { key: "contagem", label: "Contagem", description: "Criar, finalizar e operar ciclos e contagens" },
+  { key: "conferencia", label: "Conferência", description: "Registrar conferências e operar retiradas" },
+];
 
 export function CadastroFuncionarios() {
   const queryClient = useQueryClient();
@@ -48,7 +61,10 @@ export function CadastroFuncionarios() {
 
   function edit(employee?: Employee) {
     setEditing(employee ?? null);
-    setForm(employee ? { name: employee.name, job: employee.job, role: employee.role, photo: employee.photo } : empty);
+    setForm(employee ? {
+      name: employee.name, job: employee.job, role: employee.role, photo: employee.photo,
+      badge: operatorBadge(employee), permissions: { ...effectiveEmployeePermissions(employee) },
+    } : empty());
     setError(""); setMessage(""); setOpen(true);
   }
   async function importPhoto(file?: File) {
@@ -66,7 +82,8 @@ export function CadastroFuncionarios() {
   async function save() {
     const parsed = employeeSchema.safeParse({
       id: editing?.id ?? crypto.randomUUID(), name: form.name, job: form.job,
-      role: form.role, photo: form.photo, active: editing?.active ?? true,
+      role: form.role, photo: form.photo, badge: form.badge,
+      permissions: form.permissions, active: editing?.active ?? true,
     });
     if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Confira o cadastro."); return; }
     setBusy(true); setError("");
@@ -122,7 +139,13 @@ export function CadastroFuncionarios() {
         <div className="flex items-center gap-3"><EmployeeAvatar employee={employee} size="lg" /><div className="min-w-0 flex-1">
           <h3 className="truncate text-lg font-bold">{employee.name}</h3>
           <p className="truncate text-sm text-muted-foreground">{employee.job}</p>
-          <span className={`mt-1 inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${employee.role === "GESTOR" ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"}`}>{employee.role}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-extrabold ${BADGE_COLORS[operatorBadge(employee)]}`}>{operatorBadge(employee)}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Acesso: {employee.role}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Direitos: {permissionLabels.filter(p => effectiveEmployeePermissions(employee)[p.key]).map(p => p.label).join(", ") || "Somente consulta"}
+          </p>
         </div></div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
           <span className={employee.active ? "text-sm font-semibold text-success" : "text-sm text-muted-foreground"}>{employee.active ? "Ativo" : "Inativo"}</span>
@@ -156,6 +179,40 @@ export function CadastroFuncionarios() {
               <option value="OPERADOR">OPERADOR</option><option value="GESTOR">GESTOR</option>
             </select>
           </label>
+          <fieldset className="space-y-2 rounded-lg border border-border p-3">
+            <legend className="px-1 text-sm font-bold">Emblema do funcionário</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {(["GESTOR", "AUXILIAR LOG", "ENTREGADOR", "VENDEDOR"] as const).map(badge => (
+                <button key={badge} type="button" aria-pressed={form.badge === badge}
+                  onClick={() => setForm(current => ({ ...current, badge }))}
+                  className={`rounded-lg border px-2 py-2 text-sm font-extrabold transition-opacity ${BADGE_COLORS[badge]} ${form.badge === badge ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "opacity-70 hover:opacity-100"}`}>
+                  {badge}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">O emblema é visual e organiza a lista dos operadores. Não altera o cargo de login.</p>
+          </fieldset>
+          <fieldset className="space-y-2 rounded-lg border border-border p-3">
+            <legend className="px-1 text-sm font-bold">Direitos de operação</legend>
+            {permissionLabels.map(permission => (
+              <label key={permission.key} className="flex cursor-pointer items-center gap-3 rounded-md border border-border/70 p-2.5">
+                <input type="checkbox" className="h-5 w-5 shrink-0 accent-primary"
+                  checked={form.permissions[permission.key]}
+                  onChange={event => {
+                    const checked = event.currentTarget.checked;
+                    setForm(previous => ({
+                      ...previous,
+                      permissions: { ...previous.permissions, [permission.key]: checked },
+                    }));
+                  }}/>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold">{permission.label}</span>
+                  <span className="block text-xs text-muted-foreground">{permission.description}</span>
+                </span>
+              </label>
+            ))}
+            <p className="text-xs text-muted-foreground">Sem um direito, o funcionário abre o grid para consulta, mas não pode executar suas ações.</p>
+          </fieldset>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={busy || query.isLoading}><Save className="h-4 w-4" /> {busy ? "Salvando…" : "Salvar cadastro"}</Button></div>
