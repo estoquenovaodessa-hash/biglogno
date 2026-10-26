@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { Package, Plus, Truck } from 'lucide-react';
 import { useActiveEmployee } from './EmployeeGate';
+import { useOperatorRights } from './useOperatorRights';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -23,6 +24,8 @@ export function Entregas({ role }: { role: AccessRole }) {
   const q = useQuery({ queryKey: ['deliveries'], queryFn: () => list(), refetchInterval: 10000 });
   const sales = useQuery({ queryKey: ['logistics-companies', role], queryFn: () => readSales(), enabled: role === 'operador' });
   const { employee } = useActiveEmployee();
+  const rights = useOperatorRights();
+  const canOperate = role === 'gestor' || rights.entregas;
   const driver = employee?.name ?? '';
   const [section, setSection] = useState('Entregas');
   const [arrived, setArrived] = useState<Delivery[] | null>(null), [receiver, setReceiver] = useState('');
@@ -34,7 +37,7 @@ export function Entregas({ role }: { role: AccessRole }) {
   const done = all.filter(d => d.status === 'finalizada').sort((a,b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
   const clients = sales.data?.clients ?? [];
   function move(i: number, direction: -1 | 1) { const next = [...groups]; const j = i + direction; if (j < 0 || j >= next.length) return; [next[i], next[j]] = [next[j], next[i]]; void run(() => reorder({ data: { ids: next.flatMap(g => g.map(d => d.id)) } })); }
-  const controlsDisabled = busy || !driver || q.isError;
+  const controlsDisabled = busy || !driver || q.isError || !canOperate;
   const queue = <div className="grid grid-cols-1 gap-4">
     {groups.map((group, index) => {
       const order = group[0];
@@ -80,19 +83,20 @@ export function Entregas({ role }: { role: AccessRole }) {
           <span className="text-lg font-extrabold tabular-nums text-[#ffc135]">{activeDeliveryCount(all)}/2</span>
         </p>
         <Button className="h-11 gap-2 rounded-lg border border-[#aacfff]/50 bg-[#75aaff] px-4 font-extrabold text-[#07182b] shadow-[0_3px_12px_rgba(50,119,231,0.15)] hover:bg-[#93bfff]"
-          disabled={!driver || !sales.data || sales.isError}
+          disabled={!canOperate || !driver || !sales.data || sales.isError}
           onClick={() => { setDocument(''); setCode(''); setValue(''); setOnlyDelivery(false); setError(''); setAdding(true); }}>
           <Plus className="h-5 w-5" /> Adicionar entrega
         </Button>
       </div>
       {sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>}
+      {!canOperate && <p role="status" className="text-sm text-muted-foreground">Somente consulta: seu perfil não possui o direito Entregas. Os botões operacionais estão bloqueados.</p>}
     </>}
     {error && !arrived && !adding && <p role="alert" className="text-destructive">{error}</p>}
     {role === 'gestor' ? <ManagerDeliveries deliveries={all} isLoading={!q.data && !q.isError} isError={q.isError} isFetching={q.isFetching} onRefresh={() => { void q.refetch(); }} /> : !q.data ? <p role={q.isError ? 'alert' : 'status'}>{q.isError ? 'Não foi possível carregar as entregas.' : 'Carregando entregas…'}</p> : role === 'operador' ? queue : <div className="grid gap-6 xl:grid-cols-2"><div><h2 className="mb-4 text-xl font-bold">Pendentes ({open.length})</h2>{queue}</div><div><h2 className="mb-4 text-xl font-bold text-success">Finalizadas ({done.length})</h2><div className="space-y-3">{done.map(d => <Card key={d.id} className="gap-2 p-4"><h3 className="break-words text-2xl font-bold">{d.company}</h3><p className="text-2xl font-bold">{d.onlyDelivery ? 'SOMENTE ENTREGA' : money(d.value)}</p>{d.document && <p className="text-lg">Nº documento: {d.document}</p>}<p className="text-lg">Entregador: <strong>{d.driver}</strong></p><div className="grid grid-cols-2 gap-3 bg-muted p-3"><p>Trajeto<strong className="block text-xl">{fmtDuration(travelMs(d))}</strong></p><p>Espera<strong className="block text-xl">{fmtDuration(waitMs(d))}</strong></p></div><p className="text-base text-muted-foreground">Recebedor: {d.receiver}<br />{fmtBrasilia(d.finishedAt)}</p></Card>)}{!done.length && <p className="py-6 text-muted-foreground">Nenhuma entrega finalizada.</p>}</div></div></div>}
     </>}
     {role === 'operador' && <>
-      <Dialog open={!!arrived} onOpenChange={o => { if (!busy && !o) setArrived(null); }}><DialogContent><DialogHeader><DialogTitle>Assinar notinhas</DialogTitle></DialogHeader><h2 className="break-words text-2xl font-bold">{arrived?.[0]?.company}</h2><p className="text-xl font-bold">{arrived && money(arrived.reduce((s,d) => s+d.value,0))}</p><p className="break-words text-lg">{arrived?.map(d => d.onlyDelivery ? 'SOMENTE ENTREGA' : `Doc. ${d.document}`).join(' · ')}</p><label className="block space-y-2 font-semibold">Nome do recebedor<Input aria-label="Nome do recebedor" autoFocus maxLength={150} value={receiver} onChange={e => setReceiver(e.target.value)} className="h-12 text-xl font-bold md:text-xl" /></label>{error && <p role="alert" className="text-destructive">{error}</p>}<Button className="h-12 text-lg font-bold" disabled={busy || !receiver.trim()} onClick={async () => { const d = arrived?.[0]; if (d && await action({ action:'finish', id:d.id, receiver:receiver.trim() })) setArrived(null); }}>Finalizar entrega{arrived && arrived.length > 1 ? ` (${arrived.length} pedidos)` : ''}</Button></DialogContent></Dialog>
-      <Dialog open={adding} onOpenChange={o => { if (!busy) setAdding(o); }}><DialogContent><DialogHeader><DialogTitle>Adicionar entrega</DialogTitle></DialogHeader><label className="flex items-center gap-3 text-lg font-bold"><input type="checkbox" checked={onlyDelivery} onChange={e => setOnlyDelivery(e.target.checked)} className="h-5 w-5 accent-primary" />Somente entrega</label><LogisticsOrderFields clients={clients} code={code} setCode={setCode} document={document} setDocument={setDocument} value={value} setValue={setValue} onlyCompany={onlyDelivery} />{error && <p role="alert" className="text-destructive">{error}</p>}<Button className="h-12 text-lg" disabled={busy || !clients.some(c => canonicalCode(c.code) === canonicalCode(code)) || (!onlyDelivery && (!document || !Number.isFinite(parseMoneyInput(value))))} onClick={async () => { if (await run(() => add({ data: { requestId:crypto.randomUUID(), companyCode:code, onlyDelivery, ...(onlyDelivery ? {} : { document, value:parseMoneyInput(value) }) } }))) setAdding(false); }}>Adicionar</Button></DialogContent></Dialog>
+      <Dialog open={!!arrived} onOpenChange={o => { if (!busy && !o) setArrived(null); }}><DialogContent><DialogHeader><DialogTitle>Assinar notinhas</DialogTitle></DialogHeader><h2 className="break-words text-2xl font-bold">{arrived?.[0]?.company}</h2><p className="text-xl font-bold">{arrived && money(arrived.reduce((s,d) => s+d.value,0))}</p><p className="break-words text-lg">{arrived?.map(d => d.onlyDelivery ? 'SOMENTE ENTREGA' : `Doc. ${d.document}`).join(' · ')}</p><label className="block space-y-2 font-semibold">Nome do recebedor<Input aria-label="Nome do recebedor" autoFocus maxLength={150} value={receiver} onChange={e => setReceiver(e.target.value)} className="h-12 text-xl font-bold md:text-xl" /></label>{error && <p role="alert" className="text-destructive">{error}</p>}<Button className="h-12 text-lg font-bold" disabled={busy || !canOperate || !receiver.trim()} onClick={async () => { const d = arrived?.[0]; if (d && await action({ action:'finish', id:d.id, receiver:receiver.trim() })) setArrived(null); }}>Finalizar entrega{arrived && arrived.length > 1 ? ` (${arrived.length} pedidos)` : ''}</Button></DialogContent></Dialog>
+      <Dialog open={adding} onOpenChange={o => { if (!busy) setAdding(o); }}><DialogContent><DialogHeader><DialogTitle>Adicionar entrega</DialogTitle></DialogHeader><label className="flex items-center gap-3 text-lg font-bold"><input type="checkbox" checked={onlyDelivery} onChange={e => setOnlyDelivery(e.target.checked)} className="h-5 w-5 accent-primary" />Somente entrega</label><LogisticsOrderFields clients={clients} code={code} setCode={setCode} document={document} setDocument={setDocument} value={value} setValue={setValue} onlyCompany={onlyDelivery} />{error && <p role="alert" className="text-destructive">{error}</p>}<Button className="h-12 text-lg" disabled={busy || !canOperate || !clients.some(c => canonicalCode(c.code) === canonicalCode(code)) || (!onlyDelivery && (!document || !Number.isFinite(parseMoneyInput(value))))} onClick={async () => { if (await run(() => add({ data: { requestId:crypto.randomUUID(), companyCode:code, onlyDelivery, ...(onlyDelivery ? {} : { document, value:parseMoneyInput(value) }) } }))) setAdding(false); }}>Adicionar</Button></DialogContent></Dialog>
     </>}
   </section>;
 }
