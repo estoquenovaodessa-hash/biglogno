@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getRouteStops, googleRouteSegments, saoPauloDay } from "./delivery-route";
+import { getRouteStops, googleRouteSegments, listDeliveryRoutes, saoPauloDay } from "./delivery-route";
 
 const address = code => ({
   client_code: code, address: "Rua Teste, 10", neighborhood: "Centro",
@@ -9,6 +9,25 @@ const done = (id, company, finishedAt, extra = {}) => ({
   id, position: Number(id) || 1, createdAt: "2026-10-26T11:00:00Z",
   document: id, company, companyCode: id, value: 10,
   source: "manual", status: "finalizada", driver: "Ana", finishedAt, ...extra,
+});
+
+describe("seleção de rotas no painel do gestor", () => {
+  test("encontra as seis entregas finalizadas mesmo se o pedido selecionado na tela estiver pendente", () => {
+    const day = ["12", "13", "14", "15", "16", "17"].map((hour, index) =>
+      done(String(index + 1), "Cliente " + (index + 1), "2026-10-26T" + hour + ":00:00Z"));
+    const other = done("7", "Outro motorista", "2026-10-26T18:00:00Z", { driver: "Carlos" });
+    const routes = listDeliveryRoutes([other, ...day, { ...day[0], id: "8", status: "nao_iniciada" }]);
+    expect(routes).toHaveLength(2);
+    const ana = routes.find(route => route.name === "Ana");
+    expect(ana?.count).toBe(6);
+    expect(getRouteStops(day, ana.selected, day.map(d => address(d.companyCode)))
+      .map(stop => stop.company)).toEqual(["Cliente 1", "Cliente 2", "Cliente 3", "Cliente 4", "Cliente 5", "Cliente 6"]);
+  });
+  test("separa corretamente as rotas de datas diferentes", () => {
+    const a = done("1", "A", "2026-10-26T18:00:00Z");
+    const b = done("2", "B", "2026-10-27T18:00:00Z");
+    expect(listDeliveryRoutes([a, b]).map(route => route.day)).toEqual(["2026-10-27", "2026-10-26"]);
+  });
 });
 
 describe("sequência de paradas do gestor", () => {
