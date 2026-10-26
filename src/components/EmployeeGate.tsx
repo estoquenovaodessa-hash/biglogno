@@ -5,7 +5,7 @@ import { LogOut, ShieldCheck, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AccessRole } from "@/lib/access-policy";
 import type { Employee } from "@/lib/employees";
-import { operatorBadge, sortOperatorProfiles, type OperatorBadge } from "@/lib/operator-profile-badges";
+import { BADGE_COLORS, operatorBadge, sortOperatorProfiles } from "@/lib/operator-profile-badges";
 import { clearSelectedEmployee, currentEmployee, listEmployees, selectEmployee } from "@/lib/employees.functions";
 import { lockAccess } from "@/lib/access.functions";
 
@@ -28,18 +28,12 @@ export function EmployeeTag() {
       <span className="block truncate text-[11px] text-[#b4cee8]">{employee.job}</span></span>
   </button>;
 }
-const badgeClasses: Record<OperatorBadge, string> = {
-  GESTOR: "border-orange-400/70 bg-orange-500/20 text-orange-200",
-  "AUXILIAR LOG": "border-sky-400/70 bg-sky-500/20 text-sky-200",
-  VENDEDOR: "border-red-400/70 bg-red-500/20 text-red-200",
-};
-
-function OperatorEmblem({ name }: { name: string }) {
-  const badge = operatorBadge(name);
+function OperatorEmblem({ employee }: { employee: Employee }) {
+  const label = operatorBadge(employee);
   return <span
-    className={`inline-flex w-fit max-w-full items-center rounded-md border px-2 py-0.5 text-[11px] font-extrabold tracking-wide ${badgeClasses[badge.label]}`}
-    aria-label={`Emblema: ${badge.label}`}>
-    {badge.label}
+    className={`inline-flex w-fit max-w-full items-center rounded-md border px-2 py-0.5 text-[11px] font-extrabold tracking-wide ${BADGE_COLORS[label]}`}
+    aria-label={`Emblema: ${label}`}>
+    {label}
   </span>;
 }
 
@@ -108,7 +102,7 @@ export function EmployeeGate({ role, onExit, children }: { role: AccessRole; onE
           <EmployeeAvatar employee={employee} size="lg" />
           <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
             <span className="block w-full truncate text-lg font-bold">{employee.name}</span>
-            {role === "operador" && <OperatorEmblem name={employee.name} />}
+            {role === "operador" && <OperatorEmblem employee={employee} />}
             <span className="block w-full truncate text-sm text-[#abc9eb]">{employee.job}</span>
           </span>
           <ShieldCheck className="h-5 w-5 shrink-0 text-[#84b9ff]" />
