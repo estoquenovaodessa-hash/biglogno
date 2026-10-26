@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight } from "lucide-react";
 import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { listDeliveries } from "@/lib/deliveries.functions";
-import { listExpeditionPickups, transferDeliveryToPickup, transferPickupToDelivery } from "@/lib/pickups.functions";
+import { listExpeditionPickups, transferExpeditionOrders } from "@/lib/pickups.functions";
 import { canTransferExpedition } from "@/lib/employees.functions";
 import { useActiveEmployee } from "./EmployeeGate";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,12 @@ import type { Pickup } from "@/lib/pickups";
 
 type Origin = "BALCÃO" | "EXPEDIÇÃO";
 type DisplayStatus = { text: string; theme: string; detail?: string };
-type TransferTarget = { id: string; kind: "toPickup" | "toDelivery"; company: string; document: string };
+type TransferNote = { id: string; document: string; value: number; separatedAt: string };
+type TransferTarget = {
+  kind: "toPickup" | "toDelivery";
+  company: string;
+  orders: TransferNote[];
+};
 
 const MONEY = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const green = "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
@@ -82,6 +87,10 @@ function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
   const origins = [...new Set(orders.map(originOf))];
   const differentOrigins = origins.length > 1;
   const driver = first.driver || orders.find(item => item.driver)?.driver;
+  // Notas sem documento ("Somente entrega") não podem ir para Retira.
+  const transferable = orders.filter(order =>
+    order.status === "nao_iniciada" && !order.onlyDelivery && !!order.document &&
+    typeof order.value === "number" && Number.isFinite(order.value));
 
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -116,14 +125,24 @@ function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
           <p className="text-sm font-semibold tabular-nums sm:text-right">
             <span className="text-xs font-medium text-muted-foreground">Separado: </span>{when(order.createdAt)}
           </p>
-          {canTransfer && order.status === "nao_iniciada" && !order.onlyDelivery && !!order.document &&
-            <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-bold" disabled={busy}
-              onClick={() => onTransfer({ id: order.id, kind: "toPickup", company: order.company, document: order.document })}>
-              <ArrowLeftRight className="h-4 w-4" /> Ir para Retira
-            </Button>}
+
         </div>
       </div>)}
     </div>
+    {canTransfer && transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
+      <Button type="button" variant="outline" size="sm" className="h-10 gap-2 text-sm font-bold"
+        disabled={busy} onClick={() => onTransfer({
+          kind: "toPickup",
+          company: first.company,
+          orders: transferable.map(order => ({
+            id: order.id, document: order.document,
+            value: order.value, separatedAt: order.createdAt,
+          })),
+        })}>
+        <ArrowLeftRight className="h-4 w-4" />
+        Ir para Retira {transferable.length > 1 ? `(${transferable.length} notas)` : ""}
+      </Button>
+    </div>}
   </article>;
 }
 
@@ -152,7 +171,11 @@ function PickupCard({ order, canTransfer, busy, onTransfer }: {
     {canTransfer && order.status === "pendente" &&
       <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
         <Button type="button" variant="outline" size="sm" disabled={busy} className="h-10 gap-2 text-sm font-bold"
-          onClick={() => onTransfer({ id: order.id, kind: "toDelivery", company: order.company, document: order.document || "—" })}>
+          onClick={() => onTransfer({
+            kind: "toDelivery", company: order.company,
+            orders: [{ id: order.id, document: order.document || "—",
+              value: Number(order.value) || 0, separatedAt: order.createdAt }],
+          })}>
           <Truck className="h-4 w-4" /> Ir para Entrega
         </Button>
       </div>}
@@ -167,9 +190,10 @@ export function ExpedicaoOperador() {
   const fetchDeliveries = useServerFn(listDeliveries);
   const fetchPickups = useServerFn(listExpeditionPickups);
   const readPermission = useServerFn(canTransferExpedition);
-  const moveToPickup = useServerFn(transferDeliveryToPickup);
-  const moveToDelivery = useServerFn(transferPickupToDelivery);
+  const transferOrders = useServerFn(transferExpeditionOrders);
   const [target, setTarget] = useState<TransferTarget | null>(null);
+  const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -213,17 +237,31 @@ export function ExpedicaoOperador() {
   const pickupsReady = pickups.filter(p => p.status === "pendente").length;
   const pickupsDone = pickups.filter(p => p.status === "finalizada").length;
 
+  function openTransfer(next: TransferTarget) {
+    setTarget(next);
+    setTransferMode("selected");
+    setSelectedIds([]);
+    setError("");
+    setNotice("");
+  }
+
+  // Para vários pedidos, a seleção deve ser explícita: Todos ou notas marcadas.
+  const chosenOrders = !target ? [] : target.orders.length === 1 || transferMode === "all"
+    ? target.orders
+    : target.orders.filter(order => selectedIds.includes(order.id));
+
   async function confirmTransfer() {
-    if (!target || !canTransfer || busy) return;
+    if (!target || !canTransfer || busy || !chosenOrders.length) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      if (target.kind === "toPickup") {
-        await moveToPickup({ data: { id: target.id } });
-      } else {
-        await moveToDelivery({ data: { id: target.id } });
-      }
-      setNotice(`Nota ${target.document} transferida para ${target.kind === "toPickup" ? "Retira" : "Entrega"}, com horário original preservado.`);
+      await transferOrders({ data: {
+        ids: chosenOrders.map(order => order.id),
+        direction: target.kind,
+      } });
+      const totalMoved = chosenOrders.length;
+      setNotice(`${totalMoved} ${totalMoved === 1 ? "nota transferida" : "notas transferidas"} para ${target.kind === "toPickup" ? "Retira" : "Entrega"}, mantendo os horários originais.`);
       setTarget(null);
+      setSelectedIds([]);
       await Promise.allSettled([
         deliveriesQuery.refetch(),
         pickupsQuery.refetch(),
@@ -231,7 +269,7 @@ export function ExpedicaoOperador() {
         queryClient.invalidateQueries({ queryKey: ["pickups"] }),
       ]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível transferir o pedido.");
+      setError(cause instanceof Error ? cause.message : "Não foi possível transferir os pedidos.");
     } finally {
       setBusy(false);
     }
@@ -271,7 +309,7 @@ export function ExpedicaoOperador() {
         <div className="space-y-2 p-3">
           {groups.map(orders => {
             const first = orders[0];
-            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} busy={busy} onTransfer={setTarget} /> : null;
+            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} busy={busy} onTransfer={openTransfer} /> : null;
           })}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa vinda da Conferência."}
@@ -286,7 +324,7 @@ export function ExpedicaoOperador() {
           <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{pickups.length}</span>
         </header>
         <div className="space-y-2 p-3">
-          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} busy={busy} onTransfer={setTarget} />)}
+          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} busy={busy} onTransfer={openTransfer} />)}
           {!pickups.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {pickupsQuery.isLoading ? "Carregando retiradas…" : "Nenhuma retirada vinda da Conferência."}
           </p>}
@@ -300,22 +338,76 @@ export function ExpedicaoOperador() {
       </p>}
     {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold text-success">{notice}</p>}
     {error && !target && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-    <Dialog open={!!target} onOpenChange={open => { if (!open && !busy) { setTarget(null); setError(""); } }}>
-      <DialogContent>
+    <Dialog open={!!target} onOpenChange={open => {
+      if (!open && !busy) { setTarget(null); setSelectedIds([]); setError(""); }
+    }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Confirmar transferência para {target?.kind === "toPickup" ? "Retira" : "Entrega"}?</DialogTitle>
+          <DialogTitle>Transferir para {target?.kind === "toPickup" ? "Retira" : "Entrega"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 text-sm">
+        <div className="space-y-3 text-sm">
           <p className="break-words text-base font-extrabold">{target?.company}</p>
-          <p>Nota: <strong>{target?.document}</strong></p>
-          <p>Apenas este pedido será transferido. O documento, valor, registro da Conferência e horário original de separação não serão alterados.</p>
-          <p>{target?.kind === "toPickup" ? "A entrega ainda não pode ter sido iniciada." : "A retirada ainda não pode ter sido concluída."}</p>
+          {target && target.orders.length > 1 && <>
+            <p className="font-semibold">Quais notas deseja transferir?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant={transferMode === "all" ? "default" : "outline"}
+                aria-pressed={transferMode === "all"} disabled={busy}
+                onClick={() => { setTransferMode("all"); setError(""); }}>
+                Todos ({target.orders.length})
+              </Button>
+              <Button type="button" variant={transferMode === "selected" ? "default" : "outline"}
+                aria-pressed={transferMode === "selected"} disabled={busy}
+                onClick={() => { setTransferMode("selected"); setError(""); }}>
+                Selecionar notas
+              </Button>
+            </div>
+          </>}
+          {target && (target.orders.length === 1 || transferMode === "selected") &&
+            <fieldset className="space-y-2">
+              {target.orders.length > 1 && <legend className="text-xs font-semibold text-muted-foreground">
+                Marque uma ou mais notas:
+              </legend>}
+              {target.orders.map(order =>
+                <label key={order.id} className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg border border-border bg-card/60 p-3">
+                  {target.orders.length > 1 && <input type="checkbox"
+                    aria-label={`Selecionar nota ${order.document}`}
+                    className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                    checked={selectedIds.includes(order.id)} disabled={busy}
+                    onChange={event => {
+                      setSelectedIds(previous => event.target.checked
+                        ? [...previous.filter(id => id !== order.id), order.id]
+                        : previous.filter(id => id !== order.id));
+                    }} />}
+                  <span className="min-w-0 flex-1">
+                    <strong className="block break-all text-sm">Nota {order.document}</strong>
+                    <span className="block text-xs text-muted-foreground">
+                      {MONEY.format(order.value)} • Separado: {when(order.separatedAt)}
+                    </span>
+                  </span>
+                </label>
+              )}
+            </fieldset>}
+          {target && target.orders.length > 1 && transferMode === "all" &&
+            <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold">
+              Todas as {target.orders.length} notas do grupo serão transferidas juntas.
+            </p>}
+          <p className="text-sm font-semibold">
+            {chosenOrders.length} {chosenOrders.length === 1 ? "nota selecionada" : "notas selecionadas"}
+            {" · "}Total: {MONEY.format(chosenOrders.reduce((sum, order) => sum + order.value, 0))}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Empresa, documentos, valores, conferência e horários individuais de separação serão preservados.
+            Se alguma nota não puder ser transferida, nenhuma delas será movimentada.
+          </p>
         </div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" disabled={busy} onClick={() => { setTarget(null); setError(""); }}>Cancelar</Button>
-          <Button disabled={busy || !canTransfer} onClick={() => { void confirmTransfer(); }}>
-            <ArrowLeftRight className="h-4 w-4" />{busy ? "Transferindo…" : "Confirmar transferência"}
+          <Button variant="outline" disabled={busy}
+            onClick={() => { setTarget(null); setSelectedIds([]); setError(""); }}>Cancelar</Button>
+          <Button disabled={busy || !canTransfer || chosenOrders.length === 0}
+            onClick={() => { void confirmTransfer(); }}>
+            <ArrowLeftRight className="h-4 w-4" />
+            {busy ? "Transferindo…" : `Transferir ${chosenOrders.length} ${chosenOrders.length === 1 ? "nota" : "notas"}`}
           </Button>
         </div>
       </DialogContent>
