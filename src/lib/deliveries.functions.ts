@@ -23,14 +23,15 @@ export const listDeliveries = createServerFn({ method: 'GET' }).handler(async ()
 });
 export const addManualDelivery = createServerFn({ method: 'POST' }).inputValidator(manualDeliverySchema).handler(async ({ data }) => {
   const { operatorAccess, companyByCode, logisticsClient } = await import('./logistics.server');
-  await operatorAccess(); const company = await companyByCode(data.companyCode); const db = await logisticsClient();
+  await operatorAccess(); const { requireOperatorPermission } = await import('./employees.functions'); await requireOperatorPermission('entregas'); const company = await companyByCode(data.companyCode); const db = await logisticsClient();
   const payload = { document: data.onlyDelivery ? '' : data.document, value: data.onlyDelivery ? 0 : data.value, company: company.name, companyCode: company.code, onlyDelivery: data.onlyDelivery, source: 'manual', status: 'nao_iniciada' };
   const { error } = await db.from('deliveries').upsert({ id: data.requestId, payload, position: Date.now() / 1000 }, { onConflict: 'id', ignoreDuplicates: true });
   if (error) throw new Error('Não foi possível adicionar a entrega.'); return { ok: true };
 });
 export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(deliveryActionSchema).handler(async ({ data }) => {
   const { requireSelectedOperator } = await import('./employees.functions');
-  const employee = await requireSelectedOperator();
+  const { requireOperatorPermission } = await import('./employees.functions');
+  const employee = await requireOperatorPermission('entregas');
   const { db, rows, list } = await loadAll();
   const action = data.action === 'start' ? { ...data, driver: employee.name } : data;
   const next = applyDeliveryGroupAction(list, action, new Date()).map(d =>
@@ -48,6 +49,7 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
 });
 export const reorderDeliveries = createServerFn({ method: 'POST' }).inputValidator(z.object({ ids: z.array(z.string().uuid()).min(1).max(10000) })).handler(async ({ data }) => {
   const { operatorAccess } = await import('./logistics.server'); await operatorAccess();
+  const { requireOperatorPermission } = await import('./employees.functions'); await requireOperatorPermission('entregas');
   const { db, rows, list } = await loadAll();
   const open = list.filter(d => d.status !== 'finalizada');
   if (new Set(data.ids).size !== data.ids.length || data.ids.length !== open.length || open.some(d => !data.ids.includes(d.id))) throw new Error('A fila mudou. Atualize e tente novamente.');
