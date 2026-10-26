@@ -3,7 +3,7 @@ import type { DeliveryClientAddress } from "./delivery-addresses";
 export type ConfirmedPoint = { latitude: number; longitude: number };
 
 const PAIR = /^\s*(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})\s*$/;
-const SOURCE_PATTERN = /^https:\/\/(?:([a-z0-9-]+\.)?google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl)\//i;
+const GOOGLE_HOST = /^(?:(?:www|maps)\.)?google\.(?:com(?:\.[a-z]{2})?|[a-z]{2,3}(?:\.[a-z]{2})?)$/i;
 
 /** Apenas coordenadas de um marcador são aceitas. Coordenadas de @lat,lng
  * representam frequentemente o CENTRO DO MAPA e não são seguras para confirmar. */
@@ -25,10 +25,10 @@ export function parseGoogleMapsPoint(input: string): ConfirmedPoint | null {
   if (!text || text.length > 4000) return null;
   const direct = parsePair(text);
   if (direct) return direct;
-  if (!SOURCE_PATTERN.test(text)) return null;
+  if (!/^https:\/\//i.test(text)) return null;
   let url: URL;
   try { url = new URL(text); } catch { return null; }
-  if (url.protocol !== "https:") return null;
+  if (url.protocol !== "https:" || !GOOGLE_HOST.test(url.hostname)) return null;
   // !3dLAT!4dLNG indica o local; @LAT,LNG é só o centro da visualização.
   let decoded = "";
   try { decoded = decodeURIComponent(url.toString()); } catch { return null; }
