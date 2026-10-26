@@ -74,8 +74,8 @@ export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(a
 export const transferPickupToDelivery = createServerFn({ method: 'POST' })
   .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data }) => {
-    const { requireSelectedOperator } = await import('./employees.functions');
-    await requireSelectedOperator();
+    const { requireExpeditionTransferOperator } = await import('./employees.functions');
+    await requireExpeditionTransferOperator();
     const { logisticsClient } = await import('./logistics.server');
     const db = await logisticsClient();
     const { data: moved, error } = await db.rpc('transfer_pickup_to_delivery', {
@@ -90,6 +90,32 @@ export const transferPickupToDelivery = createServerFn({ method: 'POST' })
       }
       if (error.code === 'P0001') throw new Error(error.message);
       throw new Error('Não foi possível transferir o pedido. Nenhuma transferência foi confirmada.');
+    }
+    if (moved !== true) throw new Error('O Supabase não confirmou a transferência.');
+    return { ok: true };
+  });
+
+/** Transferência protegida: Entrega não iniciada => Retira. O SQL
+ * move a nota entre tabelas preservando created_at e ID originais. */
+export const transferDeliveryToPickup = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data }) => {
+    const { requireExpeditionTransferOperator } = await import('./employees.functions');
+    await requireExpeditionTransferOperator();
+    const { logisticsClient } = await import('./logistics.server');
+    const db = await logisticsClient();
+    const { data: moved, error } = await db.rpc('transfer_delivery_to_pickup', {
+      p_delivery_id: data.id,
+    });
+    if (error) {
+      console.error('[Entregas → Retira] Falha na transferência atômica', {
+        code: error.code, message: error.message,
+      });
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        throw new Error('Falta executar o SQL de transferências da Expedição no Supabase.');
+      }
+      if (error.code === 'P0001') throw new Error(error.message);
+      throw new Error('Não foi possível transferir a entrega. Nenhuma transferência foi confirmada.');
     }
     if (moved !== true) throw new Error('O Supabase não confirmou a transferência.');
     return { ok: true };
