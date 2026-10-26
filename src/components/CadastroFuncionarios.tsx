@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { employeeSchema, effectiveEmployeePermissions, EMPTY_EMPLOYEE_PERMISSIONS, type Employee, type EmployeeBadge, type EmployeePermissions, type EmployeePermission } from "@/lib/employees";
-import { BADGE_COLORS, operatorBadge } from "@/lib/operator-profile-badges";
+import { BADGE_COLORS_FORM, operatorBadge } from "@/lib/operator-profile-badges";
 import { deleteEmployee, listEmployees, saveEmployees } from "@/lib/employees.functions";
 import { EmployeeAvatar } from "./EmployeeGate";
 
@@ -140,7 +140,7 @@ export function CadastroFuncionarios() {
           <h3 className="truncate text-lg font-bold">{employee.name}</h3>
           <p className="truncate text-sm text-muted-foreground">{employee.job}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-extrabold ${BADGE_COLORS[operatorBadge(employee)]}`}>{operatorBadge(employee)}</span>
+            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-extrabold ${BADGE_COLORS_FORM[operatorBadge(employee)]}`}>{operatorBadge(employee)}</span>
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Acesso: {employee.role}</span>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -185,7 +185,7 @@ export function CadastroFuncionarios() {
               {(["GESTOR", "AUXILIAR LOG", "ENTREGADOR", "VENDEDOR"] as const).map(badge => (
                 <button key={badge} type="button" aria-pressed={form.badge === badge}
                   onClick={() => setForm(current => ({ ...current, badge }))}
-                  className={`rounded-lg border px-2 py-2 text-sm font-extrabold transition-opacity ${BADGE_COLORS[badge]} ${form.badge === badge ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "opacity-70 hover:opacity-100"}`}>
+                  className={`rounded-lg border px-2 py-2 text-sm font-extrabold transition-opacity ${BADGE_COLORS_FORM[badge]} ${form.badge === badge ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "opacity-70 hover:opacity-100"}`}>
                   {badge}
                 </button>
               ))}
