@@ -58,7 +58,15 @@ export const writeProtectedState = createServerFn({ method: "POST" })
       if (["ciclos-contagem", "contagem-atual", "zona-segura"].includes(data.key)) {
         await requireOperatorPermission("contagem");
       } else if (data.key === "conferencia") {
-        await requireOperatorPermission("conferencia");
+        // O índice "conferencia" também é atualizado ao concluir contagens
+        // enviadas para a Zona Segura. Não bloquear uma operação de Contagem
+        // válida apenas porque a permissão comercial de Conferência é distinta.
+        const { requireSelectedOperator } = await import("./employees.functions");
+        const { effectiveEmployeePermissions } = await import("./employees");
+        const effective = effectiveEmployeePermissions(await requireSelectedOperator());
+        if (!effective.contagem && !effective.conferencia) {
+          throw new Error("Sem permissão para alterar dados de conferência/contagem.");
+        }
       }
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
