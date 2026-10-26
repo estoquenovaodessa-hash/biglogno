@@ -21,6 +21,7 @@ export const listPickups = createServerFn({ method: 'GET' }).handler(async () =>
 });
 export const addManualPickup = createServerFn({ method: 'POST' }).inputValidator(manualPickupSchema).handler(async ({ data }) => {
   const { operatorAccess, companyByCode, logisticsClient } = await import('./logistics.server'); await operatorAccess();
+  const { requireOperatorPermission } = await import('./employees.functions'); await requireOperatorPermission('conferencia');
   const db = await logisticsClient();
   const company = data.source === 'NO' ? await companyByCode(data.companyCode) : null;
   const payload = data.source === 'SBO' ? { source: 'SBO', company: data.collector, collector: data.collector, status: 'pendente' } : { source: 'NO', company: company?.name, companyCode: company?.code, document: data.document, value: data.value, status: 'pendente' };
@@ -29,7 +30,8 @@ export const addManualPickup = createServerFn({ method: 'POST' }).inputValidator
 });
 export const completePickup = createServerFn({ method: 'POST' }).inputValidator(finishPickupSchema).handler(async ({ data }) => {
   const { requireSelectedOperator } = await import('./employees.functions');
-  const employee = await requireSelectedOperator();
+  const { requireOperatorPermission } = await import('./employees.functions');
+  const employee = await requireOperatorPermission('conferencia');
   const { logisticsClient } = await import('./logistics.server'); const db = await logisticsClient();
   const { data: row, error } = await db.from('pickups').select('id,created_at,payload').eq('id', data.id).maybeSingle();
   if (error || !row) throw new Error('Retira não encontrada.');
