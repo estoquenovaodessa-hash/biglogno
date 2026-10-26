@@ -95,7 +95,7 @@ function ResumoCampo({ icon: Icon, label, value, tone, vazio = false }: {
   );
 }
 
-export function CiclosContagem() {
+export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) {
   const { items, zonaSegura, enderecoBase, movimentos, conferencia, adicionarConferidos } = useStore();
   const { ciclos, ready, salvar } = useCiclos();
   const [abertoId, setAbertoId] = useState<string | null>(null);
@@ -164,6 +164,7 @@ export function CiclosContagem() {
   };
 
   const criar = (tipo: TipoCiclo, itens: CicloItem[], selecao?: SelecaoContagem) => {
+    if (!canOperate) throw new Error("Sem direito para operar a Contagem.");
     const numero = proximoNumero(ciclos, tipo);
     const c: Ciclo = {
       id: crypto.randomUUID(), tipo, numero, titulo: tituloCiclo(tipo, numero),
@@ -175,6 +176,7 @@ export function CiclosContagem() {
   };
 
   const substituirCiclo = (cicloAtualizado: Ciclo) => {
+    if (!canOperate) throw new Error("Sem direito para operar a Contagem.");
     salvar(ciclos.map((c) => (c.id === cicloAtualizado.id ? cicloAtualizado : c)));
   };
 
@@ -346,6 +348,7 @@ export function CiclosContagem() {
 
   return (
     <div className="counting-root space-y-4">
+      {!canOperate && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Contagem. As ações dos ciclos estão bloqueadas.</p>}
       <div className="counting-toolbar flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="counting-suggestion-action flex items-center rounded-lg border border-border bg-card px-3 py-2">
           <Button size="sm" variant="secondary" className="gap-2" onClick={abrirSugestoes} disabled={!ready}>
@@ -353,10 +356,10 @@ export function CiclosContagem() {
           </Button>
         </div>
         <div className="counting-main-actions flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setSelecionando(true)} disabled={!ready || !podeCriar(ciclos, "padrao")}>
+          <Button variant="outline" onClick={() => setSelecionando(true)} disabled={!canOperate || !ready || !podeCriar(ciclos, "padrao")}>
             <Layers className="h-4 w-4" /> Contar por Linha ou Grupo
           </Button>
-          <Button onClick={onColetar} disabled={!ready || !podeCriar(ciclos, "apuracao")}>
+          <Button onClick={onColetar} disabled={!canOperate || !ready || !podeCriar(ciclos, "apuracao")}>
             <ClipboardList className="h-4 w-4" /> Coletar e Contar
           </Button>
         </div>
@@ -364,7 +367,7 @@ export function CiclosContagem() {
 
       {aberto ? (
         <CicloDetalhe c={aberto} onVoltar={() => setAbertoId(null)}
-          onFinalizar={() => setFinalizando(aberto)} onZona={() => enviarZona(aberto)}
+          onFinalizar={() => setFinalizando(aberto)} onZona={() => enviarZona(aberto)} canOperate={canOperate}
           onReinventariar={() => onReinventariar(aberto)} onExcluir={() => setExcluindo(aberto)} />
       ) : (
         <div className="space-y-2">
@@ -417,21 +420,21 @@ export function CiclosContagem() {
                   </button>
                   <div className="counting-cycle-actions flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
-                      aria-label={`Excluir ciclo ${c.titulo}`} title="Excluir ciclo" onClick={() => setExcluindo(c)}>
+                      aria-label={`Excluir ciclo ${c.titulo}`} title="Excluir ciclo" disabled={!canOperate} onClick={() => setExcluindo(c)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     {c.status === "aberto" && (
-                      <Button size="sm" variant="outline" onClick={() => setFinalizando(c)}>
+                      <Button size="sm" variant="outline" disabled={!canOperate} onClick={() => setFinalizando(c)}>
                         <CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo
                       </Button>
                     )}
                     {c.status === "finalizado" && (
-                      <Button size="sm" onClick={() => onReinventariar(c)}>
+                      <Button size="sm" disabled={!canOperate} onClick={() => onReinventariar(c)}>
                         <RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}
                       </Button>
                     )}
                     <Button size="sm" variant={c.enviadoZona ? "ghost" : "default"}
-                      disabled={c.enviadoZona || c.status !== "finalizado"}
+                      disabled={!canOperate || c.enviadoZona || c.status !== "finalizado"}
                       title={c.status !== "finalizado" ? "Finalize o ciclo primeiro" : undefined}
                       onClick={() => enviarZona(c)}>
                       <ShieldCheck className="h-4 w-4" /> {c.enviadoZona ? "Enviado" : "Zona Segura"}
@@ -531,7 +534,7 @@ export function CiclosContagem() {
                   <p className="text-sm text-muted-foreground">Último reinventário: {dt(ultimoEm)}</p>
                   <p className="text-sm text-muted-foreground">{nf(ciclo.itens.length)} itens</p>
                 </div>
-                <Button size="sm" className="shrink-0" onClick={() => {
+                <Button size="sm" className="shrink-0" disabled={!canOperate} onClick={() => {
                   setMostrandoSugestoes(false);
                   onReinventariar(ciclo);
                 }}>
@@ -588,7 +591,7 @@ export function CiclosContagem() {
                       )}
                     </div>
                   </div>
-                  <Button className="shrink-0" aria-label={`Criar ciclo ${selecao.valor}`} disabled={!ready || !podeCriar(ciclos, "padrao")} onClick={() => onSelecao(selecao)}><ClipboardList /> Criar ciclo</Button>
+                  <Button className="shrink-0" aria-label={`Criar ciclo ${selecao.valor}`} disabled={!canOperate || !ready || !podeCriar(ciclos, "padrao")} onClick={() => onSelecao(selecao)}><ClipboardList /> Criar ciclo</Button>
                 </div>
               );
             })}
@@ -609,7 +612,7 @@ export function CiclosContagem() {
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setExcluindo(null)}>Voltar</Button>
-            <Button variant="destructive" onClick={confirmarExclusao}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
+            <Button variant="destructive" disabled={!canOperate} onClick={confirmarExclusao}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -627,8 +630,8 @@ export function CiclosContagem() {
             className="rounded-md border border-input bg-background px-3 py-2 text-sm" />
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setFinalizando(null)}>Cancelar</Button>
-            <Button variant="outline" disabled={busy} onClick={() => finalizar(false)}>Finalizar sem divergências</Button>
-            <Button disabled={busy || !arquivoFinalizacao} onClick={() => finalizar(true)}>Finalizar Ciclo</Button>
+            <Button variant="outline" disabled={!canOperate || busy} onClick={() => finalizar(false)}>Finalizar sem divergências</Button>
+            <Button disabled={!canOperate || busy || !arquivoFinalizacao} onClick={() => finalizar(true)}>Finalizar Ciclo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -646,8 +649,8 @@ export function CiclosContagem() {
             className="rounded-md border border-input bg-background px-3 py-2 text-sm" />
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setReinventarioDialogo(null)}>Cancelar</Button>
-            <Button variant="outline" disabled={busy} onClick={() => finalizarReinventario(false)}>Finalizar sem divergências</Button>
-            <Button disabled={busy || !arquivoReinventario} onClick={() => finalizarReinventario(true)}>Finalizar reinventário</Button>
+            <Button variant="outline" disabled={!canOperate || busy} onClick={() => finalizarReinventario(false)}>Finalizar sem divergências</Button>
+            <Button disabled={!canOperate || busy || !arquivoReinventario} onClick={() => finalizarReinventario(true)}>Finalizar reinventário</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -655,8 +658,8 @@ export function CiclosContagem() {
   );
 }
 
-function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir }: {
-  c: Ciclo; onVoltar: () => void; onFinalizar: () => void; onZona: () => void; onReinventariar: () => void; onExcluir: () => void;
+function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir, canOperate }: {
+  c: Ciclo; canOperate: boolean; onVoltar: () => void; onFinalizar: () => void; onZona: () => void; onReinventariar: () => void; onExcluir: () => void;
 }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todos" | "div" | "ok">("todos");
@@ -680,10 +683,10 @@ function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExc
         </span>
         {reinvAberto && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">Reinventário em andamento</span>}
         <div className="counting-detail-actions ml-auto flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={onExcluir}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
-          {!fin && <Button size="sm" variant="outline" onClick={onFinalizar}><CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo</Button>}
-          {fin && <Button size="sm" onClick={onReinventariar}><RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}</Button>}
-          <Button size="sm" disabled={c.enviadoZona || !fin} onClick={onZona}>
+          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={!canOperate} onClick={onExcluir}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
+          {!fin && <Button size="sm" variant="outline" disabled={!canOperate} onClick={onFinalizar}><CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo</Button>}
+          {fin && <Button size="sm" disabled={!canOperate} onClick={onReinventariar}><RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}</Button>}
+          <Button size="sm" disabled={!canOperate || c.enviadoZona || !fin} onClick={onZona}>
             <ShieldCheck className="h-4 w-4" /> {c.enviadoZona ? "Enviado à Zona Segura" : "Zona Segura"}
           </Button>
         </div>
