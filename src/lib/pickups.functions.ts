@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
-import { finishPickup, finishPickupSchema, markPickupReadySchema, manualPickupSchema, type Pickup } from './pickups';
+import { finishPickup, finishPickupSchema, manualPickupSchema, type Pickup } from './pickups';
 import { logisticsCommitError } from './logistics-commit-error';
 
 export const listPickups = createServerFn({ method: 'GET' }).handler(async () => {
@@ -63,28 +63,3 @@ export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(a
   }
   return records;
 });
-
-/** Registra separação física sem alterar o status da retirada nem o responsável. */
-export const markPickupPrepared = createServerFn({ method: 'POST' })
-  .inputValidator(markPickupReadySchema).handler(async ({ data }) => {
-    const { requireSelectedOperator } = await import('./employees.functions');
-    const employee = await requireSelectedOperator();
-    const { logisticsClient } = await import('./logistics.server');
-    const db = await logisticsClient();
-    const { data: row, error } = await db.from('pickups')
-      .select('id,payload').eq('id', data.id).maybeSingle();
-    if (error || !row) throw new Error('Retirada não encontrada.');
-    const original = row.payload as unknown as Pickup;
-    if (original.source !== 'conferencia') throw new Error('Apenas retiras vindas da Conferência podem ser separadas nesta tela.');
-    if (original.status !== 'pendente') throw new Error('O pedido já foi retirado.');
-    if (original.preparedAt) return { ok: true };
-    const payload = { ...original, preparedAt: new Date().toISOString(), preparedBy: employee.name };
-    const { data: saved, error: saveError } = await db.rpc('commit_logistics_changes', {
-      kind: 'pickups',
-      expected: [{ id: row.id, payload: row.payload }],
-      changes: [{ id: row.id, payload }],
-    });
-    if (saveError) throw logisticsCommitError('marcar a retirada como separada', saveError);
-    if (saved !== true) throw new Error('A separação não foi confirmada pelo Supabase. Atualize e tente novamente.');
-    return { ok: true };
-  });
