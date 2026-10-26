@@ -120,3 +120,39 @@ export const transferDeliveryToPickup = createServerFn({ method: 'POST' })
     if (moved !== true) throw new Error('O Supabase não confirmou a transferência.');
     return { ok: true };
   });
+
+/**
+ * Transfere em uma só transação TODAS as notas selecionadas de uma empresa.
+ * Não executa loops de requisições: qualquer falha desfaz o grupo inteiro.
+ * O servidor valida a identidade do perfil autorizado antes de usar service_role.
+ */
+export const transferExpeditionOrders = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    ids: z.array(z.string().uuid()).min(1, 'Selecione ao menos uma nota.').max(100),
+    direction: z.enum(['toPickup', 'toDelivery']),
+  }).superRefine((input, ctx) => {
+    if (new Set(input.ids).size !== input.ids.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ids'], message: 'Há notas repetidas na seleção.' });
+    }
+  }))
+  .handler(async ({ data }) => {
+    const { requireExpeditionTransferOperator } = await import('./employees.functions');
+    await requireExpeditionTransferOperator();
+    const { logisticsClient } = await import('./logistics.server');
+    const db = await logisticsClient();
+    const { data: moved, error } = await db.rpc('transfer_expedition_orders', {
+      p_ids: data.ids, p_direction: data.direction,
+    });
+    if (error) {
+      console.error('[Expedição] Falha na transferência atômica de notas', {
+        code: error.code, message: error.message,
+      });
+      if (error.code === 'PGRST202' || error.code === '42883') {
+        throw new Error('Instale o SQL de transferência de notas unificadas no Supabase.');
+      }
+      if (error.code === 'P0001') throw new Error(error.message);
+      throw new Error('A transferência não foi confirmada. Nenhum pedido deve ser considerado movido.');
+    }
+    if (moved !== true) throw new Error('O Supabase não confirmou a transferência conjunta.');
+    return { ok: true, count: data.ids.length };
+  });
