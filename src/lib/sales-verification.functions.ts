@@ -71,7 +71,7 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
   const kind = expedition ? (data.forDelivery ? "deliveries" : "pickups") : "none";
   const { error: insertError } = await supabaseAdmin.rpc("register_verification_logistics", {
     record_id: data.requestId, verification: payload,
-    logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
+    logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", channel: expedition ? "expedicao" : "balcao", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
   });
   if (insertError) {
     // Não mostrar informações internas do banco ao operador, mas registrar
