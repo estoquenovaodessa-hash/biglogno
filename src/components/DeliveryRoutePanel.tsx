@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { normalizeDeliveryClientCode, type DeliveryClientAddress } from "@/lib/delivery-addresses";
-import { fullDeliveryAddress, getRouteStops, googleRouteSegments, saoPauloDay, type RouteStop } from "@/lib/delivery-route";
+import { fullDeliveryAddress, getRouteStops, googleRouteSegments, listDeliveryRoutes, type RouteStop } from "@/lib/delivery-route";
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -72,25 +72,26 @@ function StopCard({
 }
 
 export function DeliveryRoutePanel({
-  deliveries, selected, addresses, onSaveAddress,
+  deliveries, addresses, onSaveAddress,
 }: {
   deliveries: Delivery[];
-  selected: Delivery;
   addresses: DeliveryClientAddress[];
   onSaveAddress: (address: DeliveryClientAddress) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<number | null>(null);
+  const [routeKey, setRouteKey] = useState("");
   const [form, setForm] = useState({ address: "", neighborhood: "", city: "", state: "SP" });
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
-  // As entregas são consultadas periodicamente. Preservar a identidade da sequência
-  // evita desmontar o mapa e reiniciar a localização de endereços a cada atualização.
-  const stopsSnapshot = JSON.stringify(getRouteStops(deliveries, selected, addresses));
+  // A rota independe da entrega selecionada no grid (que pode estar pendente).
+  const routes = useMemo(() => listDeliveryRoutes(deliveries), [deliveries]);
+  const activeRoute = routes.find(route => route.key === routeKey) ?? routes[0] ?? null;
+  const stopsSnapshot = JSON.stringify(activeRoute ? getRouteStops(deliveries, activeRoute.selected, addresses) : []);
   const stops = useMemo(() => JSON.parse(stopsSnapshot) as RouteStop[], [stopsSnapshot]);
   const routeSegments = useMemo(() => googleRouteSegments(stops), [stops]);
   const missing = stops.filter(stop => !stop.address);
   const located = stops.filter(stop => !!stop.address);
-  const routeDate = saoPauloDay(selected.finishedAt || selected.arrivedAt || selected.startedAt || selected.createdAt);
+  const routeDate = activeRoute?.day.split("-").reverse().join("/") ?? "";
   const openEdit = (stop: RouteStop, index: number) => {
     setEditing(index);
     setForm({ address: stop.address?.address ?? "", neighborhood: stop.address?.neighborhood ?? "", city: stop.address?.city ?? "", state: stop.address?.state ?? "SP" });
@@ -119,7 +120,7 @@ export function DeliveryRoutePanel({
         <div>
           <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.15em] text-[#a8c8f0]"><Navigation2 className="h-4 w-4" /> Percurso do entregador</div>
           <h4 className="mt-1 flex items-center gap-2 text-lg font-extrabold sm:text-xl"><Route className="h-5 w-5 text-[#78b5ff]" /> Rota realizada</h4>
-          <p className="mt-1 text-xs text-[#ceddf0]">{selected.driver ? selected.driver + " · " + routeDate.split("-").reverse().join("/") : "Entregador ainda não definido"}</p>
+          <p className="mt-1 text-xs text-[#ceddf0]">{activeRoute ? activeRoute.name + " · " + routeDate : "Nenhuma rota finalizada disponível"}</p>
         </div>
         <span className="rounded-xl border border-[#4f7195] bg-[#1b4068] px-3 py-2 text-center text-xs font-bold text-white">
           <span className="block text-2xl font-black">{stops.length}</span> {stops.length === 1 ? "parada" : "paradas"}
@@ -127,6 +128,13 @@ export function DeliveryRoutePanel({
       </div>
     </header>
     <div className="space-y-4 p-3 sm:p-4">
+      {routes.length > 0 && <label className="block space-y-1.5 text-sm font-bold">
+        <span>Selecionar entregador e dia</span>
+        <select aria-label="Rota finalizada por entregador e data" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); }}
+          className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground">
+          {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {route.count} {route.count === 1 ? "entrega" : "entregas"} finalizadas</option>)}
+        </select>
+      </label>}
       {located.length > 0 && <DeliveryRouteMap stops={stops} />}
       {!located.length && stops.length > 0 && <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
         <MapPin className="h-7 w-7 text-[#245ddc]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
@@ -150,7 +158,7 @@ export function DeliveryRoutePanel({
           editing={editing === index} openEdit={() => openEdit(stop, index)}
           form={form} setForm={setForm} saveEdit={() => { void saveEdit(stop); }}
           closeEdit={() => setEditing(null)} busy={busy} saveError={saveError} />)}
-        {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada neste dia para este entregador. O mapa será preenchido após as confirmações.</p>}
+        {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada com entregador e horário foi encontrada. O mapa será preenchido após as confirmações.</p>}
       </div>
     </div>
   </section>;
