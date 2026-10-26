@@ -259,17 +259,6 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
           </div>
 
-          <DeliveryRoutePanel
-            key={selected.id}
-            deliveries={deliveries}
-            selected={selected}
-            addresses={addressQuery.data ?? []}
-            onSaveAddress={async (address: DeliveryClientAddress) => {
-              await saveAddresses({ data: [address] });
-              await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
-            }}
-          />
-
           <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
             <h4 className="flex items-center gap-2 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" /> Endereço e localização</h4>
             {address ? <>
@@ -290,5 +279,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         </> : <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground"><Truck className="h-9 w-9" /><p className="text-sm">Selecione uma entrega na lista para ver os detalhes.</p></div>}
       </section>
     </div>
+    {selected && <DeliveryRoutePanel
+      key={selected.id}
+      deliveries={deliveries}
+      selected={selected}
+      addresses={addressQuery.data ?? []}
+      onSaveAddress={async (address: DeliveryClientAddress) => {
+        await saveAddresses({ data: [address] });
+        await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+      }}
+    />}
   </div>;
 }
