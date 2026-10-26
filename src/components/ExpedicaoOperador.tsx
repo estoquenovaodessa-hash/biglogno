@@ -78,7 +78,7 @@ export function ExpedicaoOperador() {
   const deliveries = (deliveriesQuery.data ?? [])
     .filter(d => d.source === "conferencia" && d.status !== "finalizada")
     .sort((a, b) => a.position - b.position);
-  const pickups = (pickupsQuery.data ?? [])
+  const pickups = (pickupsQuery.data ?? []).slice()
     .sort((a, b) => a.status === b.status ? b.createdAt.localeCompare(a.createdAt)
       : a.status === "pendente" ? -1 : 1);
   const deliveriesReady = deliveries.filter(d => !!d.preparedAt && d.status === "nao_iniciada").length;
