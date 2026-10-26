@@ -10,7 +10,8 @@ type RouteResponse = {
   code?: string;
   routes?: Array<{ geometry?: { type?: string; coordinates?: number[][] } }>;
 };
-const CACHE_PREFIX = "biglogno:route-geocode:v1:";
+const CACHE_PREFIX = "biglogno:route-geocode:v2:";
+const PREVIOUS_CACHE_PREFIX = "biglogno:route-geocode:v1:";
 const ROUTE_CACHE_PREFIX = "biglogno:road-route:v1:";
 const CACHE_TTL = 90 * 86400000;
 const EMPTY_TTL = 7 * 86400000;
@@ -36,9 +37,22 @@ function toCache(query: string, point: Point | null) {
 
 /** Geocodificação de endereços somente quando o gestor abre o mapa.
  * A fila e o cache respeitam o limite de um pedido por segundo do Nominatim público. */
-async function locate(query: string, signal: AbortSignal): Promise<Point | null> {
+async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | null> {
+  const address = stop.address!;
+  const query = fullDeliveryAddress(address);
   const cached = fromCache(query);
   if (cached !== undefined) return cached;
+  // Reaproveita localizações já resolvidas antes desta correção.
+  try {
+    const earlier = localStorage.getItem(PREVIOUS_CACHE_PREFIX + query);
+    if (earlier) {
+      const parsed = JSON.parse(earlier) as LookupEntry;
+      if (parsed.point && Date.now() - parsed.at < CACHE_TTL) {
+        toCache(query, parsed.point);
+        return parsed.point;
+      }
+    }
+  } catch { /* Continuar com a consulta normal. */ }
   let release!: () => void;
   const next = new Promise<void>(resolve => { release = resolve; });
   const previous = lookupQueue;
@@ -50,23 +64,37 @@ async function locate(query: string, signal: AbortSignal): Promise<Point | null>
     if (delay) await new Promise(resolve => setTimeout(resolve, delay));
     if (signal.aborted) return null;
     lastPublicLookup = Date.now();
-    const url = new URL("https://nominatim.openstreetmap.org/search");
-    url.searchParams.set("format", "jsonv2");
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("countrycodes", "br");
-    url.searchParams.set("q", query);
-    const response = await fetch(url, {
-      signal,
-      headers: { "Accept-Language": "pt-BR" },
-      referrerPolicy: "strict-origin-when-cross-origin",
-    });
-    if (!response.ok) throw new Error("Busca de endereços temporariamente indisponível.");
-    const results: { lat: string; lon: string }[] = await response.json();
-    const lat = Number(results[0]?.lat), lng = Number(results[0]?.lon);
-    const point = results.length && Number.isFinite(lat) && Number.isFinite(lng)
-      ? { lat, lng } : null;
-    toCache(query, point);
-    return point;
+    const candidates = [
+      // Retirar o bairro evita falhas em ruas pequenas ou cadastros de bairro abreviados.
+      [address.address, address.city, address.state, "Brasil"].filter(Boolean).join(", "),
+      query,
+    ].filter((candidate, index, list) => list.indexOf(candidate) === index);
+    for (const candidate of candidates) {
+      if (signal.aborted) return null;
+      const url = new URL("https://nominatim.openstreetmap.org/search");
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("limit", "1");
+      url.searchParams.set("countrycodes", "br");
+      url.searchParams.set("q", candidate);
+      const response = await fetch(url, {
+        signal, headers: { "Accept-Language": "pt-BR" },
+      });
+      if (!response.ok) throw new Error("Busca de endereços indisponível (HTTP " + response.status + ").");
+      const results: { lat: string; lon: string }[] = await response.json();
+      const lat = Number(results[0]?.lat), lng = Number(results[0]?.lon);
+      if (results.length && Number.isFinite(lat) && Number.isFinite(lng)) {
+        const point = { lat, lng };
+        toCache(query, point);
+        return point;
+      }
+      if (candidate !== candidates[candidates.length - 1]) {
+        const pause = Math.max(0, 1200 - (Date.now() - lastPublicLookup));
+        if (pause) await new Promise(resolve => setTimeout(resolve, pause));
+        lastPublicLookup = Date.now();
+      }
+    }
+    toCache(query, null);
+    return null;
   } finally { release(); }
 }
 
@@ -146,6 +174,8 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
       }).addTo(map);
 
+      const roadLayer = L.layerGroup().addTo(map);
+      const markerLayer = L.layerGroup().addTo(map);
       const located: LocatedStop[] = [];
       let done = 0;
       for (const [index, stop] of stops.entries()) {
@@ -153,7 +183,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         if (!stop.address) continue;
         let point: Point | null = null;
         try {
-          point = await locate(fullDeliveryAddress(stop.address), controller.signal);
+          point = await locate(stop, controller.signal);
         } catch (cause) {
           if (cancelled) return;
           setError(cause instanceof Error ? cause.message : "Alguns endereços não foram localizados.");
@@ -162,6 +192,26 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         done++;
         if (point) {
           located.push({ index, stop, point });
+          const isFirst = index === 0;
+          const icon = L.divIcon({
+            className: "biglogno-route-marker",
+            html: '<span class="biglogno-route-pin ' + (isFirst ? "biglogno-route-pin--start" : "biglogno-route-pin--stop") + '"><span>' + (index + 1) + '</span></span>',
+            iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -23],
+          });
+          const marker = L.marker([point.lat, point.lng], {
+            icon, zIndexOffset: 1000 + index,
+            title: (index + 1) + "ª parada: " + stop.company,
+          }).addTo(markerLayer);
+          const popup = document.createElement("div");
+          const heading = document.createElement("strong");
+          heading.textContent = (index + 1) + "ª parada · " + stop.company;
+          const addressText = document.createElement("p");
+          addressText.textContent = fullDeliveryAddress(stop.address);
+          const docs = document.createElement("p");
+          docs.textContent = "Notas: " + stop.deliveries.map(delivery =>
+            delivery.onlyDelivery ? "Somente entrega" : delivery.document).join(", ");
+          popup.append(heading, addressText, docs);
+          marker.bindPopup(popup);
           const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
           if (coordinates.length === 1) map.setView(coordinates[0], 13);
           else map.fitBounds(L.latLngBounds(coordinates), { padding: [50, 50], maxZoom: 14 });
@@ -175,7 +225,6 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         return;
       }
 
-      const roadLayer = L.layerGroup().addTo(map);
       const groups = consecutiveGroups(stops, located);
       let roadsDrawn = 0;
       let failures = 0;
@@ -205,30 +254,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
       }
       if (cancelled || !map) return;
 
-      for (const { index, stop, point } of located) {
-        const isFirst = index === 0;
-        const icon = L.divIcon({
-          className: "biglogno-route-marker",
-          html: '<span class="biglogno-route-pin ' + (isFirst ? "biglogno-route-pin--start" : "biglogno-route-pin--stop") + '"><span>' + (index + 1) + '</span></span>',
-          iconSize: [40, 40],
-          iconAnchor: [20, 20],
-          popupAnchor: [0, -23],
-        });
-        const marker = L.marker([point.lat, point.lng], {
-          icon, zIndexOffset: 1000 + index,
-          title: (index + 1) + "ª parada: " + stop.company,
-        }).addTo(map);
-        const popup = document.createElement("div");
-        const heading = document.createElement("strong");
-        heading.textContent = (index + 1) + "ª parada · " + stop.company;
-        const address = document.createElement("p");
-        address.textContent = fullDeliveryAddress(stop.address!);
-        const docs = document.createElement("p");
-        docs.textContent = "Notas: " + stop.deliveries.map(delivery =>
-          delivery.onlyDelivery ? "Somente entrega" : delivery.document).join(", ");
-        popup.append(heading, address, docs);
-        marker.bindPopup(popup);
-      }
+
 
       const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
       if (coordinates.length > 1) map.fitBounds(L.latLngBounds(coordinates), { padding: [60, 60], maxZoom: 14 });
