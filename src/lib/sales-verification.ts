@@ -17,6 +17,8 @@ export const verificationSchema = z.object({
   errorReason: z.enum(ERROR_REASONS).optional(),
   errorReasons: z.array(z.enum(ERROR_REASONS)).max(3).optional(),
   forDelivery: z.boolean().optional(),
+  /** Encaminhamento opcional exclusivo do Balcão: sem seleção = somente Conferência. */
+  balcaoDestination: z.enum(["entrega", "retira"]).optional(),
 }).superRefine((record, ctx) => {
   const reasons = record.errorReasons?.length || record.errorReason;
   if (!record.correct && !reasons) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["errorReasons"], message: "Selecione MATERIAL, QUANTIDADE ou CPF." });
