@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { addManualPickup, completePickup, listPickups, transferPickupToDelivery } from '@/lib/pickups.functions';
+import { canTransferExpedition } from '@/lib/employees.functions';
+import { useActiveEmployee } from './EmployeeGate';
 import { type Pickup } from '@/lib/pickups';
 import { parseMoneyInput, canonicalCode, type SalesClient } from '@/lib/sales-verification';
 import { fmtBrasilia } from '@/lib/deliveries';
@@ -17,6 +19,16 @@ const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', curr
 export function Retira({ role, clients = [] }: { role: AccessRole; clients?: SalesClient[] }) {
   const list = useServerFn(listPickups), add = useServerFn(addManualPickup), complete = useServerFn(completePickup), moveToDelivery = useServerFn(transferPickupToDelivery);
   const queryClient = useQueryClient();
+  const { employee } = useActiveEmployee();
+  const readTransferPermission = useServerFn(canTransferExpedition);
+  const permission = useQuery({
+    queryKey: ['expedition-transfer-permission', employee?.id],
+    queryFn: () => readTransferPermission(),
+    enabled: role === 'operador' && !!employee?.id,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+  const canTransfer = permission.data?.allowed === true;
   const q = useQuery({ queryKey: ['pickups', role], queryFn: () => list(), refetchInterval: 10000 });
   const [selected, setSelected] = useState<Pickup | null>(null), [receiver, setReceiver] = useState('');
   const [transferTarget, setTransferTarget] = useState<Pickup | null>(null);
@@ -52,7 +64,7 @@ export function Retira({ role, clients = [] }: { role: AccessRole; clients?: Sal
     {p.value !== undefined && <p className="text-2xl font-bold">{money(p.value)}</p>}{p.document && <p className="text-lg font-semibold">Doc. {p.document}</p>}
     {finished ? <><p className="text-lg">Retirado por: <strong>{p.receiver ?? 'Não informado'}</strong></p><p className="text-sm">Operador que entregou: <strong>{p.handedBy ?? 'Não informado'}</strong></p><p className="font-semibold text-muted-foreground">Retirado em {fmtBrasilia(p.finishedAt)}</p></> : role === 'operador' && <div className="grid gap-2 sm:grid-cols-2">
       <Button className={p.source === 'conferencia' ? "h-12 w-full text-lg font-bold" : "h-12 w-full text-lg font-bold sm:col-span-2"} disabled={busy} onClick={() => { setReceiver(''); setError(''); setSelected(p); }}><PackageCheck />RETIRAR</Button>
-      {p.source === 'conferencia' && <Button variant="outline" className="h-12 w-full gap-2 text-base font-bold" disabled={busy} onClick={() => { setTransferTarget(p); setError(''); }}><Truck className="h-5 w-5" />Ir entrega</Button>}
+      {p.source === 'conferencia' && canTransfer && <Button variant="outline" className="h-12 w-full gap-2 text-base font-bold" disabled={busy} onClick={() => { setTransferTarget(p); setError(''); }}><Truck className="h-5 w-5" />Ir entrega</Button>}
     </div>}
   </Card>)}{!records.length && <p className="py-5 text-muted-foreground">{finished ? 'Nenhuma retirada finalizada.' : 'Nenhum pedido para retira.'}</p>}</div>;
   return <section className="min-w-0 space-y-4">
