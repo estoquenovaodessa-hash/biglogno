@@ -6,6 +6,11 @@ export interface DeliveryClientAddress {
   neighborhood: string;
   city: string;
   state: string;
+  /** Coordenadas confirmadas manualmente pelo gestor no Google Maps. */
+  latitude?: number;
+  longitude?: number;
+  locationSource?: "google_maps";
+  locationConfirmedAt?: string;
 }
 
 const normalize = (value: string) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
@@ -40,4 +45,21 @@ export function parseDeliveryAddressesCsv(csvText: string): DeliveryClientAddres
   }
   if (!results.size) throw new Error("Nenhum cliente válido com endereço foi encontrado no CSV.");
   return [...results.values()];
+}
+
+/** Preserva o ponto validado se o CSV importado mantém o mesmo endereço.
+ * Se rua, bairro, cidade ou UF mudar, exige nova confirmação. */
+export function mergeDeliveryAddress(current: DeliveryClientAddress | undefined, incoming: DeliveryClientAddress): DeliveryClientAddress {
+  if (!current) return incoming;
+  const fingerprint = (address: DeliveryClientAddress) =>
+    [address.address, address.neighborhood, address.city, address.state]
+      .map(value => normalize(value).replace(/\s+/g, " ")).join("|");
+  if (fingerprint(current) !== fingerprint(incoming)) return incoming;
+  return {
+    ...incoming,
+    ...(current.latitude !== undefined && current.longitude !== undefined && current.locationSource === "google_maps"
+      ? { latitude: current.latitude, longitude: current.longitude,
+          locationSource: current.locationSource, locationConfirmedAt: current.locationConfirmedAt }
+      : {}),
+  };
 }
