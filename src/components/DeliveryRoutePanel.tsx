@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { CheckCircle2, Clock3, ExternalLink, MapPin, Navigation2, Route, Save, TriangleAlert, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,8 @@ import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { normalizeDeliveryClientCode, type DeliveryClientAddress } from "@/lib/delivery-addresses";
 import { fullDeliveryAddress, getRouteStops, googleRouteSegments, listDeliveryRoutes, type RouteStop } from "@/lib/delivery-route";
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
+import { GoogleMapsAddressConfirm } from "./GoogleMapsAddressConfirm";
+import type { ConfirmedPoint } from "@/lib/google-maps-location";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 function RouteStopNumber({ number }: { number: number }) {
@@ -14,12 +16,14 @@ function RouteStopNumber({ number }: { number: number }) {
   </span>;
 }
 function StopCard({
-  stop, index, editing, openEdit, form, setForm, saveEdit, closeEdit, busy, saveError,
+  stop, index, editing, openEdit, form, setForm, saveEdit, closeEdit, busy, saveError, unresolved, onConfirmLocation,
 }: {
   stop: RouteStop; index: number; editing: boolean; openEdit: () => void;
   form: { address: string; neighborhood: string; city: string; state: string };
   setForm: Dispatch<SetStateAction<{ address: string; neighborhood: string; city: string; state: string }>>;
   saveEdit: () => void; closeEdit: () => void; busy: boolean; saveError: string;
+  unresolved: boolean;
+  onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const receiver = [...new Set(stop.deliveries.map(d => d.receiver?.trim()).filter((v): v is string => !!v))];
   const value = stop.deliveries.reduce((total, d) => total + (d.onlyDelivery ? 0 : Number(d.value) || 0), 0);
@@ -67,22 +71,29 @@ function StopCard({
           <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={closeEdit}>Cancelar</Button>
         </div>
       </form>}
+      <GoogleMapsAddressConfirm stop={stop} unresolved={unresolved}
+        onSave={point => onConfirmLocation(stop.clientCode, point)} />
     </article>
   </div>;
 }
 
 export function DeliveryRoutePanel({
-  deliveries, addresses, onSaveAddress,
+  deliveries, addresses, onSaveAddress, onConfirmLocation,
 }: {
   deliveries: Delivery[];
   addresses: DeliveryClientAddress[];
   onSaveAddress: (address: DeliveryClientAddress) => Promise<void>;
+  onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [routeKey, setRouteKey] = useState("");
   const [form, setForm] = useState({ address: "", neighborhood: "", city: "", state: "SP" });
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [unresolved, setUnresolved] = useState<number[]>([]);
+  const reportUnresolved = useCallback((indices: number[]) => {
+    setUnresolved(current => current.length === indices.length && current.every((id, i) => id === indices[i]) ? current : indices);
+  }, []);
   // A rota independe da entrega selecionada no grid (que pode estar pendente).
   const routes = useMemo(() => listDeliveryRoutes(deliveries), [deliveries]);
   const activeRoute = routes.find(route => route.key === routeKey) ?? routes[0] ?? null;
@@ -135,7 +146,7 @@ export function DeliveryRoutePanel({
           {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {route.count} {route.count === 1 ? "entrega" : "entregas"} finalizadas</option>)}
         </select>
       </label>}
-      {located.length > 0 && <DeliveryRouteMap stops={stops} />}
+      {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved} />}
       {!located.length && stops.length > 0 && <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
         <MapPin className="h-7 w-7 text-[#245ddc]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
       </div>}
@@ -157,7 +168,8 @@ export function DeliveryRoutePanel({
         {stops.map((stop, index) => <StopCard key={stop.key + ":" + stop.at + ":" + index} stop={stop} index={index}
           editing={editing === index} openEdit={() => openEdit(stop, index)}
           form={form} setForm={setForm} saveEdit={() => { void saveEdit(stop); }}
-          closeEdit={() => setEditing(null)} busy={busy} saveError={saveError} />)}
+          closeEdit={() => setEditing(null)} busy={busy} saveError={saveError}
+          unresolved={unresolved.includes(index)} onConfirmLocation={onConfirmLocation} />)}
         {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada com entregador e horário foi encontrada. O mapa será preenchido após as confirmações.</p>}
       </div>
     </div>
