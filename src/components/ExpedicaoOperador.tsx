@@ -362,19 +362,20 @@ export function ExpedicaoOperador() {
               </Button>
             </div>
           </>}
-          {target && (target.orders.length === 1 || transferMode === "selected") &&
+          {target &&
             <fieldset className="space-y-2">
-              {target.orders.length > 1 && <legend className="text-xs font-semibold text-muted-foreground">
+              {target.orders.length > 1 && transferMode === "selected" && <legend className="text-xs font-semibold text-muted-foreground">
                 Marque uma ou mais notas:
               </legend>}
               {target.orders.map(order =>
                 <label key={order.id} className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg border border-border bg-card/60 p-3">
-                  {target.orders.length > 1 && <input type="checkbox"
+                  {target.orders.length > 1 && transferMode === "selected" && <input type="checkbox"
                     aria-label={`Selecionar nota ${order.document}`}
                     className="mt-1 h-4 w-4 shrink-0 accent-primary"
                     checked={selectedIds.includes(order.id)} disabled={busy}
                     onChange={event => {
-                      setSelectedIds(previous => event.target.checked
+                      const checked = event.currentTarget.checked;
+                      setSelectedIds(previous => checked
                         ? [...previous.filter(id => id !== order.id), order.id]
                         : previous.filter(id => id !== order.id));
                     }} />}
