@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { employeeListSchema, type Employee } from "./employees";
+import { effectiveEmployeePermissions, employeeListSchema, type Employee, type EmployeePermission } from "./employees";
 
 async function fetchEmployees(): Promise<Employee[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -90,34 +90,43 @@ export const deleteEmployee = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Permissão especial da Central de Expedição.
-// Valida no servidor o ID de sessão contra o cadastro ativo de Cauê.
-// Se houver cadastros homônimos, falha fechado em vez de conceder a todos.
-// O login por senha compartilhada + escolha de perfil NÃO equivale
-// a autenticação pessoal; essa limitação é esclarecida ao gestor.
-function isCaue(name: string) {
-  const normalized = name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
-  return /^caue(?:\s|$)/.test(normalized);
+// Direitos agora são configuráveis individualmente pelo gestor, sem regras de nomes.
+// O cargo role continua sendo apenas a credencial de acesso ao ambiente.
+export async function requireOperatorPermission(permission: EmployeePermission): Promise<Employee> {
+  const employee = await requireSelectedOperator();
+  if (!effectiveEmployeePermissions(employee)[permission]) {
+    const areas: Record<EmployeePermission, string> = {
+      expedicao: "transferir pedidos na Expedição",
+      entregas: "operar os botões de Entregas",
+      contagem: "operar os botões de Contagem",
+      conferencia: "operar os botões de Conferência",
+    };
+    throw new Error(`O seu perfil não tem permissão para ${areas[permission]}.`);
+  }
+  return employee;
 }
 
-async function selectedExpeditionTransferOperator() {
-  const { requireAccess, accessSession } = await import('./access.server');
-  if (await requireAccess() !== 'operador') return null;
-  const session = await accessSession();
-  const selectedId = session.data.employeeId;
-  if (!selectedId) return null;
-  const employees = await fetchEmployees();
-  const eligible = employees.filter(e => e.active && e.role === 'OPERADOR' && isCaue(e.name));
-  if (eligible.length !== 1 || eligible[0].id !== selectedId) return null;
-  return eligible[0];
-}
+export const currentOperatorPermissions = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireAccess } = await import("./access.server");
+  const role = await requireAccess();
+  if (role !== "operador") {
+    return { expedicao: true, entregas: true, contagem: true, conferencia: true };
+  }
+  const employee = await requireSelectedOperator();
+  return effectiveEmployeePermissions(employee);
+});
 
 export const canTransferExpedition = createServerFn({ method: 'GET' }).handler(async () => {
-  return { allowed: !!(await selectedExpeditionTransferOperator()) };
+  const { requireAccess } = await import('./access.server');
+  if (await requireAccess() !== 'operador') return { allowed: false };
+  try {
+    const employee = await requireSelectedOperator();
+    return { allowed: effectiveEmployeePermissions(employee).expedicao };
+  } catch {
+    return { allowed: false };
+  }
 });
 
 export async function requireExpeditionTransferOperator(): Promise<Employee> {
-  const employee = await selectedExpeditionTransferOperator();
-  if (!employee) throw new Error('Somente o perfil do Cauê pode transferir pedidos entre Entregas e Retiras.');
-  return employee;
+  return requireOperatorPermission("expedicao");
 }
