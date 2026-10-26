@@ -29,7 +29,6 @@ export const addManualPickup = createServerFn({ method: 'POST' }).inputValidator
   if (error) throw new Error('Não foi possível adicionar Retira.'); return { ok: true };
 });
 export const completePickup = createServerFn({ method: 'POST' }).inputValidator(finishPickupSchema).handler(async ({ data }) => {
-  const { requireSelectedOperator } = await import('./employees.functions');
   const { requireOperatorPermission } = await import('./employees.functions');
   const employee = await requireOperatorPermission('conferencia');
   const { logisticsClient } = await import('./logistics.server'); const db = await logisticsClient();
