@@ -141,7 +141,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
     return () => { cancelled = true; controller.abort(); map?.remove(); };
   }, [stops]);
 
-  return <div className="relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
+  return <div className="biglogno-route-map-shell relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
     <div ref={container} className="h-[310px] w-full sm:h-[400px]" role="region" aria-label="Mapa interativo da sequência de entregas" />
     <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[calc(100%-24px)] rounded-xl border border-white/90 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-md">
       <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-600" /> Paradas na ordem de finalização</span>
