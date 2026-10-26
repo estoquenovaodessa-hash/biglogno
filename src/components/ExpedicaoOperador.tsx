@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardList, Clock3, PackageCheck, Truck } from "lucide-react";
+import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck } from "lucide-react";
 import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { listDeliveries } from "@/lib/deliveries.functions";
 import { listExpeditionPickups } from "@/lib/pickups.functions";
