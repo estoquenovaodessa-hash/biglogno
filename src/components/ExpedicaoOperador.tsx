@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck } from "lucide-react";
@@ -44,7 +45,7 @@ function Status({ value }: { value: DisplayStatus }) {
   </div>;
 }
 
-function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+function Detail({ label, children }: { label: string; children: ReactNode }) {
   return <div className="min-w-0">
     <p className="text-[11px] font-medium leading-4 text-muted-foreground">{label}</p>
     <div className="mt-0.5 break-words text-xs font-semibold leading-5 [overflow-wrap:anywhere]">{children}</div>
