@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient } from "@/lib/sales-verification";
 import { registerSalesVerification } from "@/lib/sales-verification.functions";
 import { useActiveEmployee } from "./EmployeeGate";
+import { useOperatorRights } from "./useOperatorRights";
 
 export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVerifierCode, onRegistered }: { clients: SalesClient[]; prefix: string; lastClientCode: string; lastVerifierCode: string; onRegistered: () => void }) {
   const { employee } = useActiveEmployee();
+  const rights = useOperatorRights();
+  const canOperate = rights.conferencia;
   const [document, setDocument] = useState(prefix);
   const [items, setItems] = useState("");
   const [clientCode, setClientCode] = useState(lastClientCode);
@@ -43,7 +46,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
         els[i + 1]?.focus();
       }, 0);
     }} onSubmit={async e => {
-      e.preventDefault(); if (busy) return; setError(""); setMessage("");
+      e.preventDefault(); if (busy || !canOperate) return; setError(""); setMessage("");
       const numericValue = parseMoneyInput(value);
       const parsed = verificationSchema.safeParse({ requestId: requestId.current ?? crypto.randomUUID(), document, items: Number(items), clientCode, verifierCode, value: numericValue, correct, errorReasons: correct === false ? errorReasons : [], seller: verifier?.expedition ? "EXPEDIÇÃO" : seller, forDelivery: verifier?.expedition ? forDelivery : false, balcaoDestination: verifier?.expedition ? undefined : (balcaoDestination ?? undefined), durationSeconds: Math.min(86400, Math.floor((Date.now() - started.current) / 1000)) });
       if (!parsed.success || !value.trim()) { setError(parsed.success ? "Informe o valor." : parsed.error.issues[0]?.message ?? "Confira os campos."); return; }
@@ -56,6 +59,10 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
       } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível registrar."); }
       finally { setBusy(false); }
     }}>
+      {!canOperate && <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">
+        Somente consulta: o perfil não possui o direito Conferência. Os botões de registro estão bloqueados.
+      </p>}
+      <fieldset disabled={!canOperate} className="contents">
       <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
         <Field label="Nº do documento" id="sales-document"><Input ref={documentInput} id="sales-document" inputMode="numeric" required pattern="[0-9]{4,20}" maxLength={20} value={document} onChange={e => { setDocument(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /></Field>
         <Field label="Qtd. itens" id="sales-items"><Input id="sales-items" type="number" required min={1} max={100000} value={items} onChange={e => { setItems(e.target.value); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /></Field>
@@ -93,8 +100,9 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
       {verifier?.expedition && <Button type="button" variant={forDelivery ? "default" : "outline"} aria-pressed={forDelivery} className="h-11 w-full text-lg font-bold" onClick={() => { setForDelivery(v => !v); requestId.current = null; }}>{forDelivery ? <Check className="h-5 w-5" /> : <Truck className="h-5 w-5" />}Para entrega</Button>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {message && <p role="status" className="text-success">{message}</p>}
-      <Button type="submit" disabled={busy || !clients.length || !employee} className="h-12 w-full text-lg font-bold"><ClipboardCheck className="h-5 w-5" />{busy ? "Registrando…" : "Registrar"}</Button>
+      <Button type="submit" disabled={busy || !canOperate || !clients.length || !employee} className="h-12 w-full text-lg font-bold"><ClipboardCheck className="h-5 w-5" />{busy ? "Registrando…" : "Registrar"}</Button>
       {!clients.length && <p className="text-sm text-muted-foreground">Aguardando importação dos clientes pelo gestor.</p>}
+      </fieldset>
     </form>
   </section>;
 }
