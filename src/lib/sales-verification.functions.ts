@@ -52,7 +52,8 @@ export const saveSalesVerifiers = createServerFn({ method: "POST" }).inputValida
 
 export const registerSalesVerification = createServerFn({ method: "POST" }).inputValidator(verificationSchema).handler(async ({ data }) => {
   const { requireSelectedOperator } = await import("./employees.functions");
-  const operator = await requireSelectedOperator();
+  const { requireOperatorPermission } = await import("./employees.functions");
+  const operator = await requireOperatorPermission("conferencia");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: state, error } = await supabaseAdmin.from("app_state").select("key,value").eq("key", "sales-clients");
   if (error) throw new Error("Não foi possível validar os cadastros.");
