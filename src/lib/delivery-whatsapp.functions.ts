@@ -72,6 +72,9 @@ export const saveDeliveryWhatsAppContact = createServerFn({ method: "POST" })
     const db = await managerDb();
     const code = data.code.replace(/^0+(?=\d)/, "");
     const phone = normalizeBrazilPhone(data.phone);
+    const { data: previous, error: readError } = await db.from("delivery_whatsapp_contacts")
+      .select("phone_e164,opted_in").eq("company_code", code).maybeSingle();
+    ensureOk(readError);
     // Não basta ter o número: o gestor deve registrar o opt-in autorizado pelo cliente.
     const { error } = await db.from("delivery_whatsapp_contacts").upsert({
       company_code: code, company_name: data.companyName,
@@ -80,11 +83,13 @@ export const saveDeliveryWhatsAppContact = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     }, { onConflict: "company_code" });
     ensureOk(error);
-    // Se o cliente revogar autorização ou o telefone mudar, não enviar avisos
-    // pendentes com as informações anteriores.
-    const { error: cancelError } = await db.from("delivery_whatsapp_outbox")
-      .update({ status: "cancelado", last_error: "Contato alterado ou autorização revogada." })
-      .eq("company_code", code).eq("status", "pendente");
-    ensureOk(cancelError);
+    // Se a autorização foi revogada ou o número mudou, os avisos
+    // pendentes devem ser cancelados para evitar envio ao contato antigo.
+    if (previous && (!data.optedIn || previous.phone_e164 !== phone)) {
+      const { error: cancelError } = await db.from("delivery_whatsapp_outbox")
+        .update({ status: "cancelado", last_error: "Contato alterado ou autorização revogada." })
+        .eq("company_code", code).eq("status", "pendente");
+      ensureOk(cancelError);
+    }
     return { ok: true };
   });
