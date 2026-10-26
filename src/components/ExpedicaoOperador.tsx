@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck } from "lucide-react";
-import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
+import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { listDeliveries } from "@/lib/deliveries.functions";
 import { listExpeditionPickups } from "@/lib/pickups.functions";
 import type { Pickup } from "@/lib/pickups";
@@ -64,21 +64,48 @@ function Summary({ title, value, icon: Icon }: {
   </div>;
 }
 
-function DeliveryCard({ order }: { order: Delivery }) {
+function DeliveryGroupCard({ orders }: { orders: Delivery[] }) {
+  const first = orders[0];
+  if (!first) return null;
+  const total = orders.reduce((sum, item) => sum + (item.onlyDelivery ? 0 : Number(item.value) || 0), 0);
+  const onlyDelivery = orders.every(item => item.onlyDelivery);
+  const origins = [...new Set(orders.map(originOf))];
+  const differentOrigins = origins.length > 1;
+  const driver = first.driver || orders.find(item => item.driver)?.driver;
+
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{order.company}</h3>
-        <p className="mt-0.5 break-all text-sm text-muted-foreground">Nota: {order.onlyDelivery ? "Somente entrega" : (order.document || "—")}</p>
+        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{first.company}</h3>
+        <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
+          {orders.length} {orders.length === 1 ? "nota" : "notas"} {orders.length > 1 ? "unificadas" : ""}
+        </p>
       </div>
-      <Status value={deliveryStatus(order)} />
+      <Status value={deliveryStatus(first)} />
     </div>
+
     <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/70 pt-3 sm:grid-cols-3">
-      <Detail label="Tipo / origem">ENTREGA • {originOf(order)}</Detail>
-      <Detail label="Valor">{order.onlyDelivery ? "Somente entrega" : MONEY.format(order.value ?? 0)}</Detail>
-      <Detail label="Separado às">{when(order.createdAt)}</Detail>
-      <Detail label="Saiu para entrega">{when(order.startedAt)}</Detail>
-      <Detail label="Entregador">{order.driver || "—"}</Detail>
+      <Detail label="Tipo / origem">ENTREGA • {origins.join(" / ")}</Detail>
+      <Detail label="Valor total">{onlyDelivery ? "Somente entrega" : MONEY.format(total)}</Detail>
+      <Detail label="Saiu para entrega">{when(first.startedAt)}</Detail>
+      <Detail label="Entregador">{driver || "—"}</Detail>
+    </div>
+
+    <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
+      <h4 className="text-sm font-extrabold">Notas e horários de separação</h4>
+      {orders.map(order => <div key={order.id}
+        className="grid min-w-0 grid-cols-1 gap-1 rounded-md border border-border/60 bg-card/70 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+        <div className="min-w-0">
+          <p className="break-all text-sm font-bold">
+            {order.onlyDelivery ? "Somente entrega" : `Nota: ${order.document || "—"}`}
+          </p>
+          {!order.onlyDelivery && <p className="text-xs text-muted-foreground">{MONEY.format(Number(order.value) || 0)}</p>}
+          {differentOrigins && <p className="text-xs text-muted-foreground">Origem: {originOf(order)}</p>}
+        </div>
+        <p className="text-sm font-semibold tabular-nums sm:text-right">
+          <span className="text-xs font-medium text-muted-foreground">Separado: </span>{when(order.createdAt)}
+        </p>
+      </div>)}
     </div>
   </article>;
 }
@@ -125,6 +152,10 @@ export function ExpedicaoOperador() {
     .filter(d => d.source === "conferencia" && d.status !== "finalizada")
     .slice().sort((a, b) => a.position - b.position);
 
+  // Reutiliza exatamente a regra de agrupamento da tela do entregador:
+  // mesma empresa, status e viagem; notas desunificadas permanecem individuais.
+  const groups = deliveryGroups(deliveries);
+
   const pickups = (pickupsQuery.data ?? []).slice()
     .sort((a, b) => a.status === b.status
       ? b.createdAt.localeCompare(a.createdAt)
@@ -162,10 +193,12 @@ export function ExpedicaoOperador() {
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Truck className="h-5 w-5 shrink-0 text-primary" />
           <h2 className="text-lg font-extrabold sm:text-xl">ENTREGAS</h2>
-          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{deliveries.length}</span>
+          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">
+            {groups.length} {groups.length === 1 ? "grupo" : "grupos"} • {deliveries.length} {deliveries.length === 1 ? "nota" : "notas"}
+          </span>
         </header>
         <div className="space-y-2 p-3">
-          {deliveries.map(d => <DeliveryCard key={d.id} order={d} />)}
+          {groups.map(orders => <DeliveryGroupCard key={orders[0].id} orders={orders} />)}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa vinda da Conferência."}
           </p>}
