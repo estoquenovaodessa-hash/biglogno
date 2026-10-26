@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { readDeliveryAddresses, saveDeliveryAddresses } from "@/lib/delivery-addresses.functions";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
+import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
 import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
 import {
   CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
@@ -186,6 +187,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </div>
 
+    <DeliveryWhatsAppSettings deliveries={deliveries} />
     {importMessage && <p role="status" className="rounded-md border border-border p-3 text-sm">{importMessage}</p>}
     {isError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
