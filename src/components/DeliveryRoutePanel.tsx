@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { CheckCircle2, Clock3, ExternalLink, MapPin, Navigation2, Route, Save, TriangleAlert, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,6 @@ import { fullDeliveryAddress, getRouteStops, googleRouteSegments, saoPauloDay, t
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-function timeLabel(iso: string) {
-  return fmtBrasilia(iso).split(", ").pop() ?? fmtBrasilia(iso);
-}
 function RedStopPin({ number }: { number: number }) {
   return <span aria-label={number + "ª parada"} className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-white bg-[#ed3547] text-xs font-black text-white shadow-[0_3px_9px_rgba(127,27,41,0.28)] ring-1 ring-red-200">
     {number}
@@ -21,7 +18,7 @@ function StopCard({
 }: {
   stop: RouteStop; index: number; editing: boolean; openEdit: () => void;
   form: { address: string; neighborhood: string; city: string; state: string };
-  setForm: React.Dispatch<React.SetStateAction<{ address: string; neighborhood: string; city: string; state: string }>>;
+  setForm: Dispatch<SetStateAction<{ address: string; neighborhood: string; city: string; state: string }>>;
   saveEdit: () => void; closeEdit: () => void; busy: boolean; saveError: string;
 }) {
   const receiver = [...new Set(stop.deliveries.map(d => d.receiver?.trim()).filter((v): v is string => !!v))];
