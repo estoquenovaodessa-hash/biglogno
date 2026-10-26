@@ -78,7 +78,7 @@ function DeliveryGroupCard({ orders }: { orders: Delivery[] }) {
       <div className="min-w-0 flex-1">
         <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{first.company}</h3>
         <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
-          {orders.length} {orders.length === 1 ? "nota" : "notas"} {orders.length > 1 ? "unificadas" : ""}
+          {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} {orders.length > 1 ? "unificados" : ""}
         </p>
       </div>
       <Status value={deliveryStatus(first)} />
@@ -194,11 +194,14 @@ export function ExpedicaoOperador() {
           <Truck className="h-5 w-5 shrink-0 text-primary" />
           <h2 className="text-lg font-extrabold sm:text-xl">ENTREGAS</h2>
           <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">
-            {groups.length} {groups.length === 1 ? "grupo" : "grupos"} • {deliveries.length} {deliveries.length === 1 ? "nota" : "notas"}
+            {groups.length} {groups.length === 1 ? "grupo" : "grupos"} • {deliveries.length} {deliveries.length === 1 ? "pedido" : "pedidos"}
           </span>
         </header>
         <div className="space-y-2 p-3">
-          {groups.map(orders => <DeliveryGroupCard key={orders[0].id} orders={orders} />)}
+          {groups.map(orders => {
+            const first = orders[0];
+            return first ? <DeliveryGroupCard key={first.id} orders={orders} /> : null;
+          })}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa vinda da Conferência."}
           </p>}
