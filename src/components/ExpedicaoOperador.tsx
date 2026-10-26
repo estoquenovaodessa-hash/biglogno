@@ -38,17 +38,17 @@ function pickupStatus(p: Pickup): DisplayStatus {
 
 function Status({ value }: { value: DisplayStatus }) {
   return <div className="flex shrink-0 flex-col items-end gap-1">
-    <span className={["inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-extrabold", value.theme].join(" ")}>
+    <span className={["inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-extrabold", value.theme].join(" ")}>
       {value.text}
     </span>
-    {value.detail && <span className="text-right text-[11px] text-muted-foreground">{value.detail}</span>}
+    {value.detail && <span className="text-right text-xs text-muted-foreground">{value.detail}</span>}
   </div>;
 }
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return <div className="min-w-0">
-    <p className="text-[11px] font-medium leading-4 text-muted-foreground">{label}</p>
-    <div className="mt-0.5 break-words text-xs font-semibold leading-5 [overflow-wrap:anywhere]">{children}</div>
+    <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
+    <div className="mt-0.5 break-words text-sm font-semibold leading-5 [overflow-wrap:anywhere]">{children}</div>
   </div>;
 }
 
@@ -58,7 +58,7 @@ function Summary({ title, value, icon: Icon }: {
   return <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card p-3">
     <Icon className="h-5 w-5 shrink-0 text-primary" />
     <div className="min-w-0">
-      <p className="text-[11px] font-medium leading-4 text-muted-foreground">{title}</p>
+      <p className="text-xs font-medium leading-5 text-muted-foreground">{title}</p>
       <p className="text-xl font-extrabold tabular-nums">{value}</p>
     </div>
   </div>;
@@ -68,8 +68,8 @@ function DeliveryCard({ order }: { order: Delivery }) {
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <h3 className="break-words text-sm font-extrabold leading-5 [overflow-wrap:anywhere]">{order.company}</h3>
-        <p className="mt-0.5 break-all text-xs text-muted-foreground">Nota: {order.onlyDelivery ? "Somente entrega" : (order.document || "—")}</p>
+        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{order.company}</h3>
+        <p className="mt-0.5 break-all text-sm text-muted-foreground">Nota: {order.onlyDelivery ? "Somente entrega" : (order.document || "—")}</p>
       </div>
       <Status value={deliveryStatus(order)} />
     </div>
@@ -87,8 +87,8 @@ function PickupCard({ order }: { order: Pickup }) {
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <h3 className="break-words text-sm font-extrabold leading-5 [overflow-wrap:anywhere]">{order.company}</h3>
-        <p className="mt-0.5 break-all text-xs text-muted-foreground">Nota: {order.document || "—"}</p>
+        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{order.company}</h3>
+        <p className="mt-0.5 break-all text-sm text-muted-foreground">Nota: {order.document || "—"}</p>
       </div>
       <Status value={pickupStatus(order)} />
     </div>
@@ -142,7 +142,7 @@ export function ExpedicaoOperador() {
       </span>
       <div className="min-w-0">
         <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Central de Expedição</h1>
-        <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+        <p className="mt-1 text-sm text-muted-foreground">
           Pedidos da Conferência • Entregas e Retiras • Atualização automática a cada 10 segundos
         </p>
       </div>
@@ -161,8 +161,8 @@ export function ExpedicaoOperador() {
       <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Entrega da Conferência">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Truck className="h-5 w-5 shrink-0 text-primary" />
-          <h2 className="text-base font-extrabold sm:text-lg">ENTREGAS</h2>
-          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-xs font-bold">{deliveries.length}</span>
+          <h2 className="text-lg font-extrabold sm:text-xl">ENTREGAS</h2>
+          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{deliveries.length}</span>
         </header>
         <div className="space-y-2 p-3">
           {deliveries.map(d => <DeliveryCard key={d.id} order={d} />)}
@@ -175,8 +175,8 @@ export function ExpedicaoOperador() {
       <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Retira da Conferência">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <PackageCheck className="h-5 w-5 shrink-0 text-primary" />
-          <h2 className="text-base font-extrabold sm:text-lg">RETIRAS</h2>
-          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-xs font-bold">{pickups.length}</span>
+          <h2 className="text-lg font-extrabold sm:text-xl">RETIRAS</h2>
+          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{pickups.length}</span>
         </header>
         <div className="space-y-2 p-3">
           {pickups.map(p => <PickupCard key={p.id} order={p} />)}
