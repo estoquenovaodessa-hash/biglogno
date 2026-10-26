@@ -8,8 +8,8 @@ import { fullDeliveryAddress, getRouteStops, googleRouteSegments, saoPauloDay, t
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-function RedStopPin({ number }: { number: number }) {
-  return <span aria-label={number + "ª parada"} className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-white bg-[#ed3547] text-xs font-black text-white shadow-[0_3px_9px_rgba(127,27,41,0.28)] ring-1 ring-red-200">
+function RouteStopNumber({ number }: { number: number }) {
+  return <span aria-label={number + "ª parada"} className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-white text-xs font-black text-white shadow-[0_3px_9px_rgba(22,65,151,0.28)] ${number === 1 ? "bg-[#06a247]" : "bg-[#245ddc]"}`}>
     {number}
   </span>;
 }
@@ -25,7 +25,7 @@ function StopCard({
   const value = stop.deliveries.reduce((total, d) => total + (d.onlyDelivery ? 0 : Number(d.value) || 0), 0);
   return <div className="relative flex gap-3 pb-4 last:pb-0">
     <div className="absolute left-[17px] top-9 bottom-[-1px] w-[3px] rounded-full bg-[#bad3f0] last:hidden" aria-hidden="true" />
-    <RedStopPin number={index + 1} />
+    <RouteStopNumber number={index + 1} />
     <article className="min-w-0 flex-1 rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -129,9 +129,9 @@ export function DeliveryRoutePanel({
     <div className="space-y-4 p-3 sm:p-4">
       {located.length > 0 && <DeliveryRouteMap stops={stops} />}
       {!located.length && stops.length > 0 && <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
-        <MapPin className="h-7 w-7 text-[#ee3e50]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
+        <MapPin className="h-7 w-7 text-[#245ddc]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
       </div>}
-      <p className="text-xs text-muted-foreground">Os piquetes vermelhos seguem os horários de conclusão registrados pelo operador. As ligações pontilhadas representam somente a sequência entre endereços, não a estrada percorrida nem uma trilha de GPS. Localizações são aproximadas a partir dos endereços.</p>
+      <p className="text-xs text-muted-foreground">A linha azul acompanha as ruas calculadas a partir dos endereços, seguindo a ordem das entregas confirmadas. Não é uma gravação do GPS do veículo. Quando o roteamento falha, aparecem trechos pontilhados estimados.</p>
       {missing.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
         <TriangleAlert className="mr-1 inline h-4 w-4" /> {missing.length} {missing.length === 1 ? "parada está sem endereço" : "paradas estão sem endereço"}: {missing.map(stop => stop.company).join(", ")}. Nenhuma parada é retirada da lista.
       </p>}
