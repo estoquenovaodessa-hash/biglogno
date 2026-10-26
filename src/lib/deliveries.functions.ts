@@ -32,7 +32,8 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   const { requireSelectedOperator } = await import('./employees.functions');
   const employee = await requireSelectedOperator();
   const { db, rows, list } = await loadAll();
-  const action = data.action === 'start' ? { ...data, driver: employee.name } : data;
+  const action = data.action === 'start' ? { ...data, driver: employee.name }
+    : data.action === 'mark_ready' ? { ...data, preparedBy: employee.name } : data;
   const next = applyDeliveryGroupAction(list, action, new Date()).map(d =>
     data.action === 'start' && d.status === 'em_rota' && d.startedAt && list.find(old => old.id === d.id)?.status === 'nao_iniciada'
       ? { ...d, driverEmployeeId: employee.id }
