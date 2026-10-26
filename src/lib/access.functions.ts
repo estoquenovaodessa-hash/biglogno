@@ -52,6 +52,15 @@ export const writeProtectedState = createServerFn({ method: "POST" })
     const { requireAccess } = await import("./access.server");
     const role = await requireAccess();
     if (!canAccessState(role, data.key, true)) throw new Error("Sem permissão para alterar esses dados.");
+    if (role === "operador") {
+      const { requireOperatorPermission } = await import("./employees.functions");
+      // Apenas edição: a leitura continua liberada para consulta.
+      if (["ciclos-contagem", "contagem-atual", "zona-segura"].includes(data.key)) {
+        await requireOperatorPermission("contagem");
+      } else if (data.key === "conferencia") {
+        await requireOperatorPermission("conferencia");
+      }
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("app_state").upsert({ key: data.key, value: data.value as never, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error) throw new Error("Não foi possível salvar os dados.");
