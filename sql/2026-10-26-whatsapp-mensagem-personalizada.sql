@@ -34,9 +34,9 @@ DECLARE
 BEGIN
   -- Os nomes vêm de cadastros já existentes e são apenas exibidos no aviso.
   recipient := left(regexp_replace(coalesce(nullif(btrim(p_company), ''), 'cliente'),
-    '[\r\n]+', ' ', 'g'), 150);
+    '[[:cntrl:]]+', ' ', 'g'), 150);
   driver_label := left(regexp_replace(coalesce(nullif(btrim(p_driver), ''), 'Não informado'),
-    '[\r\n]+', ' ', 'g'), 100);
+    '[[:cntrl:]]+', ' ', 'g'), 100);
 
   IF coalesce(array_length(p_notes, 1), 0) = 0 THEN
     notes_label := 'Número da nota: não informado (somente entrega)';
@@ -98,7 +98,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  code := regexp_replace(coalesce(NEW.payload->>'companyCode', ''), '^0+(?=\\d)', '');
+  code := regexp_replace(coalesce(NEW.payload->>'companyCode', ''), '^0+(?=[0-9])', '');
   started := NEW.payload->>'startedAt';
   IF code = '' OR nullif(started, '') IS NULL THEN
     RETURN NEW;
@@ -119,7 +119,7 @@ BEGIN
   -- em R$ 0,00 e não deixar payloads antigos inválidos impedir a saída.
   IF NEW.payload->>'onlyDelivery' IS DISTINCT FROM 'true' THEN
     new_priced_count := 1;
-    IF coalesce(NEW.payload->>'value','') ~ '^[0-9]+(\\.[0-9]+)?$' THEN
+    IF coalesce(NEW.payload->>'value','') ~ '^[0-9]+([.][0-9]+)?$' THEN
       line_value := least((NEW.payload->>'value')::numeric, 100000000);
     END IF;
   END IF;
