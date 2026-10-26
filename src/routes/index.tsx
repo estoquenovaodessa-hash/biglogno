@@ -61,6 +61,7 @@ import { FuroEstoqueNotifier } from "@/components/FuroEstoque";
 import { Historico } from "@/components/Historico";
 import { Enderecamento } from "@/components/Enderecamento";
 import { Entregas } from "@/components/Entregas";
+import { ExpedicaoOperador } from "@/components/ExpedicaoOperador";
 import { CiclosContagem } from "@/components/CiclosContagem";
 import { ApuracaoGeral } from "@/components/ApuracaoGeral";
 import { ChatOcorrencias } from "@/components/ChatOcorrencias";
@@ -123,7 +124,7 @@ function App() {
 function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void }) {
   const queryClient = useQueryClient();
   const lock = useServerFn(lockAccess);
-  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Chat" | null>(null);
+  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Expedição" | "Chat" | null>(null);
   const [exiting, setExiting] = useState(false);
   const handleExit = async () => {
     setExiting(true);
@@ -418,6 +419,15 @@ const brandHeader = (
                 <span className="text-xs font-medium leading-snug text-muted-foreground">Acompanhe suas entregas</span>
               </Button>
               <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-indigo-500/35 border-t-4 border-t-indigo-500 bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-500 hover:bg-indigo-500/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-indigo-500"
+                onClick={() => setOperatorScreen("Expedição")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-500 transition-colors group-hover:bg-indigo-500/20">
+                  <PackageCheck aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">Expedição</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">Controle de separação, entregas e retiras</span>
+              </Button>
+              <Button variant="outline"
                 className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-emerald-500/35 border-t-4 border-t-emerald-500 bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-500/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-500"
                 onClick={() => setOperatorScreen("Chat")}>
                 <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500 transition-colors group-hover:bg-emerald-500/20">
@@ -441,7 +451,7 @@ const brandHeader = (
           ) : (
             <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
           )}
-          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
+          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Expedição" ? <ExpedicaoOperador /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
         </>}
       </main>
     </div>;
