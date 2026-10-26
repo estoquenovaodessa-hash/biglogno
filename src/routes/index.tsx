@@ -12,6 +12,7 @@ import {
   CalendarClock,
   Upload,
   Package,
+  PackageCheck,
   BarChart3,
   ChartColumnIncreasing,
   UsersRound,
