@@ -39,6 +39,10 @@ function toCache(query: string, point: Point | null) {
  * A fila e o cache respeitam o limite de um pedido por segundo do Nominatim público. */
 async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | null> {
   const address = stop.address!;
+  // A coordenada confirmada tem prioridade absoluta e não depende de APIs públicas.
+  if (address.locationSource === "google_maps" && address.latitude !== undefined && address.longitude !== undefined) {
+    return { lat: address.latitude, lng: address.longitude };
+  }
   const query = fullDeliveryAddress(address);
   const cached = fromCache(query);
   if (cached !== undefined) return cached;
@@ -190,7 +194,10 @@ function consecutiveGroups(stops: RouteStop[], located: LocatedStop[]): LocatedS
   return groups;
 }
 
-export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
+export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
+  stops: RouteStop[];
+  onUnresolvedChange?: (indexes: number[]) => void;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState({ done: 0, found: 0, total: 0 });
   const [routeState, setRouteState] = useState<"loading" | "road" | "partial" | "unavailable">("loading");
@@ -207,6 +214,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
     setProgress({ done: 0, found: 0, total: validCount });
     setRouteState("loading");
     setError("");
+    onUnresolvedChange?.([]);
     setNotLocated([]);
 
     async function renderMap() {
@@ -240,6 +248,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         if (!point) {
           unresolved.push((index + 1) + " · " + stop.company);
           setNotLocated([...unresolved]);
+          onUnresolvedChange?.(unresolved.map(item => Number(item.split(" · ")[0]) - 1));
         }
         if (point) {
           located.push({ index, stop, point });
