@@ -131,10 +131,10 @@ async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | nul
           return point;
         }
       }
-    } catch (cause) {
+    } catch {
       if (signal.aborted) return null;
-      if (primaryError) throw primaryError;
-      throw cause;
+      // O serviço alternativo é opcional; sua indisponibilidade não apaga os
+      // resultados já localizados e nem bloqueia a sequência das entregas.
     }
     if (primaryError) throw primaryError;
     toCache(query, null);
@@ -195,6 +195,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
   const [progress, setProgress] = useState({ done: 0, found: 0, total: 0 });
   const [routeState, setRouteState] = useState<"loading" | "road" | "partial" | "unavailable">("loading");
   const [error, setError] = useState("");
+  const [notLocated, setNotLocated] = useState<string[]>([]);
 
   useEffect(() => {
     const element = container.current;
@@ -206,6 +207,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
     setProgress({ done: 0, found: 0, total: validCount });
     setRouteState("loading");
     setError("");
+    setNotLocated([]);
 
     async function renderMap() {
       const L = await import("leaflet");
@@ -221,6 +223,7 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
       const roadLayer = L.layerGroup().addTo(map);
       const markerLayer = L.layerGroup().addTo(map);
       const located: LocatedStop[] = [];
+      const unresolved: string[] = [];
       let done = 0;
       for (const [index, stop] of stops.entries()) {
         if (cancelled) return;
@@ -234,6 +237,10 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         }
         if (cancelled || !map) return;
         done++;
+        if (!point) {
+          unresolved.push((index + 1) + " · " + stop.company);
+          setNotLocated([...unresolved]);
+        }
         if (point) {
           located.push({ index, stop, point });
           const isFirst = index === 0;
@@ -325,6 +332,9 @@ export function DeliveryRouteMap({ stops }: { stops: RouteStop[] }) {
         : <span className="mt-1 block text-slate-500">{progress.found} de {stops.length} paradas no mapa</span>}
       {routeState === "partial" && <span className="mt-1 block text-slate-500">Linhas pontilhadas não seguem necessariamente as ruas.</span>}
     </div>
-    {error && <div role="status" className="absolute bottom-3 left-3 z-[500] max-w-[75%] rounded-lg bg-white/95 p-2 text-xs text-amber-800 shadow-sm">{error}</div>}
+    {(notLocated.length > 0 || error) && <div role="status" className="absolute bottom-3 left-3 z-[500] max-w-[83%] rounded-lg bg-white/95 p-2 text-xs text-amber-900 shadow-sm">
+      {error && <p>{error}</p>}
+      {notLocated.length > 0 && <p>Sem localização exata: {notLocated.join(", ")}. Confira ou corrija esses endereços nos cartões abaixo.</p>}
+    </div>}
   </div>;
 }
