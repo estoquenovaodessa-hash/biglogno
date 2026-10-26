@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { readDeliveryAddresses, saveDeliveryAddresses } from "@/lib/delivery-addresses.functions";
+import { readDeliveryAddresses, saveDeliveryAddresses, confirmDeliveryAddressLocation } from "@/lib/delivery-addresses.functions";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
 import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
+import type { ConfirmedPoint } from "@/lib/google-maps-location";
 import {
   CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
   MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound,
@@ -117,6 +118,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
 }) {
   const readAddresses = useServerFn(readDeliveryAddresses);
   const saveAddresses = useServerFn(saveDeliveryAddresses);
+  const confirmLocation = useServerFn(confirmDeliveryAddressLocation);
   const addressQuery = useQuery({ queryKey: ["delivery-addresses"], queryFn: () => readAddresses(), staleTime: 60000 });
   const queryClient = useQueryClient();
   const [importing, setImporting] = useState(false);
@@ -220,6 +222,10 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       addresses={addressQuery.data ?? []}
       onSaveAddress={async (address: DeliveryClientAddress) => {
         await saveAddresses({ data: [address] });
+        await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+      }}
+      onConfirmLocation={async (clientCode: string, point: ConfirmedPoint) => {
+        await confirmLocation({ data: { clientCode, latitude: point.latitude, longitude: point.longitude } });
         await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
       }}
     />
