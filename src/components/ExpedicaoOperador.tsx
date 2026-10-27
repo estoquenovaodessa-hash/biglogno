@@ -10,6 +10,7 @@ import { useActiveEmployee } from "./EmployeeGate";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Pickup } from "@/lib/pickups";
+import { ExpeditionCompletedHistory } from "./ExpeditionCompletedHistory";
 
 type Origin = "BALCÃO" | "EXPEDIÇÃO";
 type DisplayStatus = { text: string; theme: string; detail?: string };
@@ -297,6 +298,8 @@ export function ExpedicaoOperador() {
       <Summary icon={PackageCheck} title="Retiras separadas" value={pickupsReady} />
       <Summary icon={Clock3} title="Retiras realizadas" value={pickupsDone} />
     </div>
+
+    <ExpeditionCompletedHistory deliveries={deliveriesQuery.data ?? []} />
 
     {/* Os dois painéis crescem com os pedidos: sem largura mínima de tabela,
         rolagem horizontal ou barras de rolagem independentes. */}
