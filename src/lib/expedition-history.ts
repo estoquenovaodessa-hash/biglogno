@@ -37,6 +37,12 @@ export function completedDeliveryHistory(records: Delivery[], range: ExpeditionD
     .slice().sort(byFinishedDesc);
 }
 
+/** Grid operacional mostra somente pendências. Concluídos ficam no histórico "Retirados". */
+export function pendingExpeditionPickups(records: Pickup[]): Pickup[] {
+  return records.filter(item => item.status === "pendente")
+    .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 export function completedPickupHistory(records: Pickup[], range: ExpeditionDateRange): Pickup[] {
   return records.filter(item => item.status === "finalizada" && expeditionWithinPeriod(item.finishedAt, range))
     .slice().sort(byFinishedDesc);
