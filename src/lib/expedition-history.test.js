@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  completedDeliveryHistory, completedPickupHistory,
+  completedDeliveryHistory, completedPickupHistory, pendingExpeditionPickups,
   expeditionDateTime, expeditionLocalDay, expeditionWithinPeriod,
 } from "./expedition-history";
 
@@ -40,6 +40,12 @@ describe("histórico somente leitura da Expedição", () => {
   test("filtra datas inicial e final inclusive", () => {
     const one = completedDeliveryHistory(deliveries, { from: "2026-10-27", to: "2026-10-27" });
     expect(one.map(d => d.id)).toEqual(["4"]);
+  });
+  test("o grid principal mostra apenas retiradas pendentes; concluídas aparecem apenas em Retirados", () => {
+    const originalIds = pickups.map(p => p.id);
+    expect(pendingExpeditionPickups(pickups).map(p => p.id)).toEqual(["c"]);
+    expect(completedPickupHistory(pickups, { from: "", to: "" }).map(p => p.id)).toEqual(["b", "a"]);
+    expect(pickups.map(p => p.id)).toEqual(originalIds);
   });
   test("inclui retiradas concluídas de todas as origens sem listar pendências", () => {
     expect(completedPickupHistory(pickups, { from: "", to: "" }).map(p => p.id)).toEqual(["b", "a"]);
