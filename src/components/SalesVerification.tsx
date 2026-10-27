@@ -115,8 +115,8 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível salvar a quantidade de vendas."); }
     finally { setBusy(false); }
   }
-  return <div className="sales-manager min-w-0 space-y-5">
-    <header className="rounded-xl border border-border bg-card/80 p-4 shadow-sm lg:p-5">
+  return <div className="sales-manager min-w-0 space-y-3 sm:space-y-4">
+    <header className="rounded-xl border border-border bg-card/80 p-3 shadow-sm sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary"><ClipboardCheck className="h-6 w-6" /></span>
@@ -142,7 +142,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     {notice && <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success" role="status">{notice}</div>}
 
     {tab === "Painel" && <>
-      <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Filtros do período">
+      <section className="rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4" aria-label="Filtros do período">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-foreground"><CalendarDays className="h-4 w-4 text-primary" /> Filtros e vendas do período</h3>
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={resetFilters}><RotateCcw className="h-4 w-4" /> Limpar filtros</Button>
@@ -185,7 +185,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         </div>
       </section>
 
-      <section aria-label="Indicadores de conferência" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+      <section aria-label="Indicadores de conferência" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
         <VerificationKpi icon={ClipboardCheck} title="Total de conferências" value={number(metrics.count)} detail="Registros no filtro" />
         <VerificationKpi icon={Package} title="Qtd. itens" value={number(metrics.items)} detail="Itens conferidos" />
         <VerificationKpi icon={CheckCircle2} title="Certas" value={number(metrics.correct)} detail="Conferências corretas" tone="success" />
@@ -194,13 +194,13 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         <VerificationKpi icon={Target} title="% de acerto" value={<Percent value={metrics.count ? metrics.accuracy : null} />} detail="Meta de acuracidade: 100%" tone="primary" />
       </section>
 
-      <section className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-4 py-3" aria-label="Comparativo entre vendas e conferências">
+      <section className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-3 py-2.5 sm:px-4" aria-label="Comparativo entre vendas e conferências">
         <div className="flex items-center gap-2 text-sm"><ListChecks className="h-5 w-5 text-primary" /><span className="text-muted-foreground">Vendas no período:</span><strong className="text-lg tabular-nums">{number(savedSalesCount)}</strong><span className="text-xs text-muted-foreground">vendas</span></div>
         <div className="flex items-center gap-2 text-sm"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><span className="text-muted-foreground">Conferência × Vendas:</span><Percent value={savedSalesCount > 0 ? periodMetrics.count / savedSalesCount * 100 : null} /></div>
         <span className="text-xs text-muted-foreground">Comparativo calculado com todas as conferências do período, sem os filtros de vendedor, cliente ou situação.</span>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
         <section className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-start gap-2"><ChartNoAxesCombined className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h3 className="text-lg font-bold tracking-tight">Desempenho por conferente</h3><p className="text-xs text-muted-foreground">Resultado de cada operador por área de conferência no filtro selecionado.</p></div></div>
           <div className="[&_table]:text-sm [&_th]:text-xs [&_td]:text-sm">
@@ -248,12 +248,12 @@ function VerificationKpi({ icon: Icon, title, value, detail, tone = "primary" }:
   icon: LucideIcon; title: string; value: ReactNode; detail: string; tone?: "primary" | "success" | "danger";
 }) {
   const toneColor = tone === "success" ? "text-success bg-success/10" : tone === "danger" ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10";
-  return <div className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
-    <div className="mb-3 flex items-center gap-3">
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneColor}`}><Icon className="h-5 w-5" /></span>
-      <p className="text-xs font-bold uppercase leading-snug tracking-wide text-muted-foreground">{title}</p>
+  return <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+    <div className="flex min-h-8 items-center gap-2">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${toneColor}`}><Icon className="h-4 w-4" /></span>
+      <p className="min-w-0 text-[11px] font-bold uppercase leading-tight tracking-wide text-muted-foreground">{title}</p>
     </div>
-    <div className="break-words text-2xl font-extrabold tracking-tight tabular-nums text-foreground">{value}</div>
-    <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    <div className="mt-1.5 break-words text-xl font-extrabold leading-tight tracking-tight tabular-nums text-foreground">{value}</div>
+    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{detail}</p>
   </div>;
 }
