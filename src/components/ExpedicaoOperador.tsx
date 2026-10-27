@@ -229,15 +229,16 @@ export function ExpedicaoOperador() {
   // mesma empresa, status e viagem; notas desunificadas permanecem individuais.
   const groups = deliveryGroups(deliveries);
 
-  const pickups = (pickupsQuery.data ?? []).slice()
-    .sort((a, b) => a.status === b.status
-      ? b.createdAt.localeCompare(a.createdAt)
-      : a.status === "pendente" ? -1 : 1);
+  // O grid principal contém SOMENTE retiradas pendentes.
+  // Pedidos já retirados permanecem no botão "Retirados" (histórico consultivo).
+  const allPickups = pickupsQuery.data ?? [];
+  const pickups = allPickups.filter(p => p.status === "pendente")
+    .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const deliveriesReady = deliveries.filter(d => d.status === "nao_iniciada").length;
   const deliveriesRoute = deliveries.length - deliveriesReady;
-  const pickupsReady = pickups.filter(p => p.status === "pendente").length;
-  const pickupsDone = pickups.filter(p => p.status === "finalizada").length;
+  const pickupsReady = pickups.length;
+  const pickupsDone = allPickups.filter(p => p.status === "finalizada").length;
 
   function openTransfer(next: TransferTarget) {
     setTarget(next);
