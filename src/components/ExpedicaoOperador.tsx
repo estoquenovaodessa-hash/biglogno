@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Pickup } from "@/lib/pickups";
 import { ExpeditionCompletedHistory } from "./ExpeditionCompletedHistory";
+import { pendingExpeditionPickups } from "@/lib/expedition-history";
 
 type Origin = "BALCÃO" | "EXPEDIÇÃO";
 type DisplayStatus = { text: string; theme: string; detail?: string };
@@ -232,8 +233,7 @@ export function ExpedicaoOperador() {
   // O grid principal contém SOMENTE retiradas pendentes.
   // Pedidos já retirados permanecem no botão "Retirados" (histórico consultivo).
   const allPickups = pickupsQuery.data ?? [];
-  const pickups = allPickups.filter(p => p.status === "pendente")
-    .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const pickups = pendingExpeditionPickups(allPickups);
 
   const deliveriesReady = deliveries.filter(d => d.status === "nao_iniciada").length;
   const deliveriesRoute = deliveries.length - deliveriesReady;
