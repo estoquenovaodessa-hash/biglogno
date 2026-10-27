@@ -66,6 +66,30 @@ export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(a
   return records;
 });
 
+/** Histórico somente de leitura. Todos os perfis autenticados na Expedição
+ * podem consultar retiradas concluídas, independentemente do direito de alterar pedidos.
+ * Inclui Conferência, NO e SBO; não interfere na lista operacional de pendências. */
+export const listCompletedPickups = createServerFn({ method: 'GET' }).handler(async () => {
+  const { requireAccess } = await import('./access.server');
+  await requireAccess();
+  const { logisticsClient } = await import('./logistics.server');
+  const db = await logisticsClient();
+  const records: Pickup[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db.from('pickups')
+      .select('id,created_at,payload')
+      .eq('payload->>status', 'finalizada')
+      .order('created_at', { ascending: false }).order('id')
+      .range(offset, offset + 999);
+    if (error) throw new Error('Não foi possível carregar o histórico de retiradas.');
+    records.push(...(data ?? []).map(r => ({
+      ...(r.payload as unknown as Pickup), id: r.id, createdAt: r.created_at,
+    })));
+    if (!data || data.length < 1000) break;
+  }
+  return records;
+});
+
 /**
  * Transfere atomicamente uma Retira pendente originada da Conferência
  * para Entregas, preservando o ID e created_at da Conferência/separação.
