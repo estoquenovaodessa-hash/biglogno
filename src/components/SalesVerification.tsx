@@ -116,71 +116,92 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     finally { setBusy(false); }
   }
   return <div className="sales-manager min-w-0 space-y-3 sm:space-y-4">
-    <header className="rounded-xl border border-border bg-card/80 p-3 shadow-sm sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary"><ClipboardCheck className="h-6 w-6" /></span>
-          <div><h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Painel de Conferência</h2><p className="mt-1 text-sm text-muted-foreground">Acompanhe resultados e gerencie os registros da operação.</p></div>
+    <header className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><ClipboardCheck className="h-5 w-5" /></span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-extrabold tracking-tight text-foreground sm:text-xl">Conferência</h2>
+            <p className="text-xs text-muted-foreground sm:text-sm">Acompanhamento e gestão dos registros</p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end" aria-label="Ações da conferência">
           {tab === "Painel" && <>
             <SalesHistoryImport onImported={() => query.refetch()} />
-            <Button size="sm" variant="secondary" className="font-semibold" onClick={() => setAnalyzing(true)}><ChartNoAxesCombined className="h-4 w-4" /> Analisar</Button>
-            <Button size="sm" variant="outline" onClick={exportReport}><FileDown className="h-4 w-4" /> PDF</Button>
+            <Button size="sm" variant="secondary" className="gap-1.5 font-bold" onClick={() => setAnalyzing(true)}><ChartNoAxesCombined className="h-4 w-4" /> Analisar</Button>
+            <Button size="sm" variant="outline" className="gap-1.5" title="Exportar relatório em PDF" onClick={exportReport}><FileDown className="h-4 w-4" /> PDF</Button>
           </>}
-          <Button size="sm" variant="outline" disabled={query.isFetching} onClick={() => query.refetch()}><RefreshCw className={query.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Atualizar</Button>
+          <Button size="sm" variant="outline" className="gap-1.5" disabled={query.isFetching} onClick={() => query.refetch()}><RefreshCw className={query.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Atualizar</Button>
         </div>
       </div>
-      <nav className="mt-5 flex flex-wrap gap-1 border-t border-border pt-3" aria-label="Áreas da conferência">
-        {["Painel", "Clientes"].map(t => <Button key={t} size="sm" variant={tab === t ? "secondary" : "ghost"} aria-current={tab === t ? "page" : undefined} className="rounded-lg font-semibold" onClick={() => { setTab(t); setSearch(""); }}>
-          {t}
-        </Button>)}
-      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/25 px-3 py-2 sm:px-4">
+        <nav className="flex items-center gap-1 rounded-lg border border-border bg-background/80 p-1" aria-label="Áreas da conferência">
+          {(["Painel", "Clientes"] as const).map(t => <Button key={t} size="sm" variant="ghost"
+            aria-current={tab === t ? "page" : undefined}
+            className={`h-8 gap-1.5 rounded-md px-3 text-xs font-bold sm:text-sm ${tab === t ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground" : "text-muted-foreground"}`}
+            onClick={() => { setTab(t); setSearch(""); }}>
+            {t === "Painel" ? <ClipboardCheck className="h-4 w-4" /> : <Users className="h-4 w-4" />}{t}
+          </Button>)}
+        </nav>
+        <span className="text-xs font-medium text-muted-foreground">{tab === "Painel" ? `Período: ${periodLabel}` : "Cadastro de clientes"}</span>
+      </div>
     </header>
 
     {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</div>}
     {notice && <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success" role="status">{notice}</div>}
 
     {tab === "Painel" && <>
-      <section className="rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4" aria-label="Filtros do período">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-foreground"><CalendarDays className="h-4 w-4 text-primary" /> Filtros e vendas do período</h3>
-          <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={resetFilters}><RotateCcw className="h-4 w-4" /> Limpar filtros</Button>
+      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" aria-label="Filtros do período">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><CalendarDays className="h-4 w-4" /></span>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Filtros de conferência</h3>
+              <p className="text-xs text-muted-foreground">Refine os resultados por período, equipe e cliente.</p>
+            </div>
+          </div>
+          <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}><RotateCcw className="h-3.5 w-3.5" /> Limpar filtros</Button>
         </div>
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Período
-            <select aria-label="Período" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={period} onChange={e => { setPeriod(e.target.value); setSales(null); resetFilters(); setSelectedSeller(null); }}>
+        <div className="grid grid-cols-1 items-end gap-2.5 border-t border-border/70 px-3 py-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 sm:px-4">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Período
+            <select aria-label="Período" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={period} onChange={e => { setPeriod(e.target.value); setSales(null); resetFilters(); setSelectedSeller(null); }}>
               <option value="all">Todo o período</option><option value="today">Hoje</option>
               <option value={localDay(new Date()).slice(0, 7)}>Mês atual</option>
               <option value={localDay(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)).slice(0, 7)}>Mês anterior</option>
             </select>
           </label>
-          <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Vendedor
-            <select aria-label="Filtrar vendedor" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={sellerFilter} onChange={e => { setSellerFilter(e.target.value); setRecordLimit(200); }}>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Vendedor
+            <select aria-label="Filtrar vendedor" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={sellerFilter} onChange={e => { setSellerFilter(e.target.value); setRecordLimit(200); }}>
               <option value="all">Todos</option>{availableSellers.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
-          <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Conferente
-            <select aria-label="Filtrar conferente" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={verifierFilter} onChange={e => { setVerifierFilter(e.target.value); setRecordLimit(200); }}>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Conferente
+            <select aria-label="Filtrar conferente" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={verifierFilter} onChange={e => { setVerifierFilter(e.target.value); setRecordLimit(200); }}>
               <option value="all">Todos</option>{availableVerifiers.map(v => <option key={`${v.code}|${v.name}`} value={`${v.code}|${v.name}`}>{v.name} · {v.code === "101" ? "Balcão" : v.code === "102" ? "Expedição" : v.code}</option>)}
             </select>
           </label>
-          <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Cliente
-            <select aria-label="Filtrar cliente" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={clientFilter} onChange={e => { setClientFilter(e.target.value); setRecordLimit(200); }}>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Cliente
+            <select aria-label="Filtrar cliente" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={clientFilter} onChange={e => { setClientFilter(e.target.value); setRecordLimit(200); }}>
               <option value="all">Todos</option>{availableClients.map(v => <option key={v.code} value={v.code}>{v.name}</option>)}
             </select>
           </label>
-          <label className="min-w-0 space-y-1.5 text-xs font-semibold text-muted-foreground">Situação
-            <select aria-label="Filtrar situação" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setRecordLimit(200); }}>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Situação
+            <select aria-label="Filtrar situação" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setRecordLimit(200); }}>
               <option value="all">Todas</option><option value="correct">Certo</option><option value="wrong">Errado</option>
             </select>
           </label>
-          <div className="min-w-0 space-y-1.5 rounded-lg border border-brand-gold/50 bg-brand-gold/5 px-2 py-1.5">
-            <label htmlFor="sales-period-count" className="block text-xs font-bold text-foreground">Vendas no período <span className="font-normal text-muted-foreground">(quantidade)</span></label>
-            <div className="flex gap-1.5">
-              <Input id="sales-period-count" aria-label="Quantidade de vendas no período" title="Informe o número de vendas, não o valor financeiro" inputMode="numeric" type="number" min={0} step={1} max={100000000} className="h-9 min-w-0 flex-1 border-brand-gold/30 bg-background text-base font-bold tabular-nums" value={sales ?? data.periodCounts[periodKey] ?? 0} onChange={e => { setSales(e.target.value); setNotice(""); }} />
-              <Button size="sm" className="h-9 shrink-0" title="Salvar quantidade de vendas no período" aria-label="Salvar quantidade de vendas no período" disabled={busy || !salesInputValid} onClick={persistSalesCount}><Save className="h-4 w-4" /> Salvar</Button>
+        </div>
+        <div className="flex flex-col gap-2 border-t border-border/70 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <ListChecks className="h-4 w-4 shrink-0 text-primary" />
+            <div>
+              <label htmlFor="sales-period-count" className="block text-xs font-bold text-foreground">Vendas no período <span className="font-normal text-muted-foreground">(quantidade)</span></label>
+              <p className="text-[11px] text-muted-foreground">Total de vendas de {periodLabel.toLocaleLowerCase("pt-BR")}</p>
             </div>
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Input id="sales-period-count" aria-label="Quantidade de vendas no período" title="Informe o número de vendas, não o valor financeiro" inputMode="numeric" type="number" min={0} step={1} max={100000000} className="h-9 min-w-0 flex-1 border-brand-gold/40 bg-background text-base font-bold tabular-nums sm:w-36 sm:flex-none" value={sales ?? data.periodCounts[periodKey] ?? 0} onChange={e => { setSales(e.target.value); setNotice(""); }} />
+            <Button size="sm" className="h-9 shrink-0 gap-1.5" title="Salvar quantidade de vendas no período" aria-label="Salvar quantidade de vendas no período" disabled={busy || !salesInputValid} onClick={persistSalesCount}><Save className="h-4 w-4" /> Salvar</Button>
           </div>
         </div>
       </section>
