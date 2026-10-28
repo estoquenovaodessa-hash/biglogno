@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, collectionCompanySchema } from "./collections";
+import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, deleteCollectionSchema, collectionCompanySchema } from "./collections";
 import { z } from "zod";
 
 const CATALOG_KEY = "collection-companies";
@@ -129,5 +129,31 @@ export const editCollection = createServerFn({ method: "POST" })
       throw new Error(`Não foi possível editar a coleta (erro ${saveError.code || "desconhecido"}). Informe este código ao gestor.`);
     }
     if (saved !== true) throw new Error("O Supabase não confirmou a edição da coleta. Tente novamente.");
+    return { ok: true };
+  });
+
+/** Somente a Expedição pode excluir coletas ainda não iniciadas.
+ * O DELETE é condicional e atômico: caso o entregador inicie a coleta
+ * antes da confirmação, status deixa de ser nao_iniciada e nada é excluído.
+ * Nunca atinge entregas comuns, retiras nem operações finalizadas. */
+export const deleteCollection = createServerFn({ method: "POST" })
+  .inputValidator(deleteCollectionSchema)
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import("./employees.functions");
+    await requireOperatorPermission("expedicao");
+    const { logisticsClient } = await import("./logistics.server");
+    const db = await logisticsClient();
+    const { data: deleted, error } = await db.from("deliveries")
+      .delete()
+      .eq("id", data.id)
+      .eq("payload->>source", "coleta")
+      .eq("payload->>status", "nao_iniciada")
+      .select("id");
+    if (error) {
+      console.error("[Coletas] Falha na exclusão", { code: error.code, message: error.message });
+      throw new Error("Não foi possível excluir a coleta. Atualize a Expedição e tente novamente.");
+    }
+    if (deleted?.length !== 1)
+      throw new Error("Coleta não encontrada ou já iniciada. Atualize a Expedição; nada foi excluído.");
     return { ok: true };
   });
