@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, Sun, Sunset } from "lucide-react";
+import { CalendarDays, Sun, Sunset, Trash2 } from "lucide-react";
 import type { Delivery } from "@/lib/deliveries";
 import type { CollectionCompany } from "@/lib/collections";
-import { editCollection } from "@/lib/collections.functions";
+import { editCollection, deleteCollection } from "@/lib/collections.functions";
 import { scheduledDateLabel, shiftLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
 import { parseMoneyInput } from "@/lib/sales-verification";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const displayValue = (record: Delivery) => record.collectionValueProvided === false
   ? "" : Number.isFinite(record.value) ? String(record.value).replace(".", ",") : "";
@@ -22,6 +26,7 @@ export function ExpeditionCollectionEditor({ record, companies, onClose, onSaved
   onSaved: () => Promise<void>;
 }) {
   const edit = useServerFn(editCollection);
+  const removeCollection = useServerFn(deleteCollection);
   const [companyId, setCompanyId] = useState(() =>
     record.collectionCompanyId && companies.some(company => company.id === record.collectionCompanyId)
       ? record.collectionCompanyId
@@ -34,6 +39,7 @@ export function ExpeditionCollectionEditor({ record, companies, onClose, onSaved
   const [scheduledDate, setScheduledDate] = useState(record.scheduledDate ?? "");
   const [shift, setShift] = useState<ExpeditionShift | null>(record.expeditionShift ?? null);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
 
   const amount = value.trim() ? parseMoneyInput(value) : undefined;
@@ -52,6 +58,23 @@ export function ExpeditionCollectionEditor({ record, companies, onClose, onSaved
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível salvar a coleta.");
     } finally { setSaving(false); }
+  }
+
+  async function remove() {
+    if (saving || record.status !== "nao_iniciada") return;
+    setSaving(true);
+    setError("");
+    try {
+      await removeCollection({ data: { id: record.id } });
+      await onSaved();
+      setConfirmDelete(false);
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível excluir a coleta.");
+      setConfirmDelete(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}>
@@ -114,11 +137,37 @@ export function ExpeditionCollectionEditor({ record, companies, onClose, onSaved
           </p>
         </fieldset>
         {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="outline" disabled={saving} onClick={onClose}>Cancelar</Button>
-          <Button type="button" disabled={saving || !valid} onClick={() => { void save(); }}>{saving ? "Salvando..." : "Salvar alterações"}</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+          <Button type="button" variant="destructive" className="gap-1.5"
+            disabled={saving || record.status !== "nao_iniciada"}
+            onClick={() => { setError(""); setConfirmDelete(true); }}>
+            <Trash2 className="h-4 w-4" /> Excluir coleta
+          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>Cancelar</Button>
+            <Button type="button" disabled={saving || !valid} onClick={() => { void save(); }}>{saving ? "Processando..." : "Salvar alterações"}</Button>
+          </div>
         </div>
       </div>
+      <AlertDialog open={confirmDelete} onOpenChange={open => { if (!saving) setConfirmDelete(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta coleta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A coleta de {record.company} será removida da Expedição e da fila do entregador.
+              Esta ação não pode ser desfeita. Apenas coletas não iniciadas podem ser excluídas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Voltar</AlertDialogCancel>
+            <Button type="button" variant="destructive" disabled={saving}
+              onClick={() => { void remove(); }}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {saving ? "Excluindo..." : "Confirmar exclusão"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DialogContent>
   </Dialog>;
 }
