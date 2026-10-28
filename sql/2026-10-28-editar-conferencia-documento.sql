@@ -26,10 +26,11 @@ DECLARE
   v_has_delivery boolean;
   v_has_pickup boolean;
   v_original_kind text;
+  v_desired_kind text;
   v_created_at timestamptz;
   v_payload jsonb;
 BEGIN
-  IF p_logistics_kind IS NULL OR p_logistics_kind NOT IN ('deliveries', 'pickups', 'none') THEN
+  IF p_logistics_kind IS NULL OR p_logistics_kind NOT IN ('deliveries', 'pickups', 'none', 'keep') THEN
     RAISE EXCEPTION 'CONFERENCIA_DESTINO_INVALIDO';
   END IF;
   IF p_verification IS NULL OR jsonb_typeof(p_verification) IS DISTINCT FROM 'object'
@@ -86,12 +87,16 @@ BEGIN
 
   v_original_kind := CASE WHEN v_has_delivery THEN 'deliveries'
     WHEN v_has_pickup THEN 'pickups' ELSE 'none' END;
+  -- "keep" preserva a decisão operacional de transferir Entrega / Retira
+  -- quando o operador modifica só cliente, valor, itens ou conferência.
+  v_desired_kind := CASE WHEN p_logistics_kind = 'keep' THEN v_original_kind
+    ELSE p_logistics_kind END;
   v_created_at := CASE WHEN v_has_delivery THEN v_delivery.created_at
     WHEN v_has_pickup THEN v_pickup.created_at ELSE v_record.created_at END;
 
   -- Quando o destino permanece o mesmo, preserva turno, posição, situação
   -- e demais propriedades já adicionadas na Expedição.
-  IF p_logistics_kind = v_original_kind AND p_logistics_kind = 'deliveries' THEN
+  IF v_desired_kind = v_original_kind AND v_desired_kind = 'deliveries' THEN
     UPDATE public.deliveries
       SET payload = v_delivery.payload || jsonb_build_object(
         'document', p_verification->>'document',
@@ -100,7 +105,7 @@ BEGIN
         'value', p_verification->'value',
         'channel', p_verification->>'channel')
       WHERE id = p_record_id;
-  ELSIF p_logistics_kind = v_original_kind AND p_logistics_kind = 'pickups' THEN
+  ELSIF v_desired_kind = v_original_kind AND v_desired_kind = 'pickups' THEN
     UPDATE public.pickups
       SET payload = v_pickup.payload || jsonb_build_object(
         'document', p_verification->>'document',
@@ -114,11 +119,11 @@ BEGIN
     -- Exclusão/entrada dos vínculos ocorre na mesma transação.
     IF v_has_delivery THEN DELETE FROM public.deliveries WHERE id = p_record_id; END IF;
     IF v_has_pickup THEN DELETE FROM public.pickups WHERE id = p_record_id; END IF;
-    IF p_logistics_kind = 'deliveries' THEN
+    IF v_desired_kind = 'deliveries' THEN
       v_payload := p_logistics || jsonb_build_object('status', 'nao_iniciada');
       INSERT INTO public.deliveries(id, created_at, position, payload)
         VALUES(p_record_id, v_created_at, extract(epoch FROM clock_timestamp()), v_payload);
-    ELSIF p_logistics_kind = 'pickups' THEN
+    ELSIF v_desired_kind = 'pickups' THEN
       v_payload := p_logistics || jsonb_build_object('status', 'pendente');
       INSERT INTO public.pickups(id, created_at, payload)
         VALUES(p_record_id, v_created_at, v_payload);
