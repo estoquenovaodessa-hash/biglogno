@@ -52,12 +52,12 @@ export function Entregas({ role }: { role: AccessRole }) {
         onMove={direction => move(index, direction)}
         onAction={action}
         onArrive={async () => {
-          if (await action({ action: 'arrive', id: order.id })) {
+          if (await action({ action: 'arrive', id: order.id }) && order.source !== 'coleta') {
             setReceiver('');
             setArrived(group);
           }
         }}
-        onSign={() => { setReceiver(''); setArrived(group); }}
+        onSign={() => { if (order.source !== 'coleta') { setReceiver(''); setArrived(group); } }}
       />;
     })}
     {!groups.length && <div className="rounded-xl border border-dashed border-[#315887] bg-[#102039] px-5 py-10 text-center">
