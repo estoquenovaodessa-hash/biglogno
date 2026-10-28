@@ -156,7 +156,17 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
       </p>}
       <fieldset disabled={!canOperate} className="contents">
       <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
-        <Field label="Nº do documento" id="sales-document"><Input ref={documentInput} id="sales-document" inputMode="numeric" required pattern="[0-9]{4,20}" maxLength={20} value={document} onChange={e => { setDocument(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /></Field>
+        <Field label="Nº do documento" id="sales-document"><Input ref={documentInput} id="sales-document" inputMode="numeric"
+          required pattern="[0-9]{4,20}" maxLength={20} value={document} readOnly={!!editing}
+          onChange={e => {
+            const value = e.target.value.replace(/\D/g, "");
+            currentDocument.current = value;
+            lookupSerial.current++;
+            setDocument(value); setDuplicate(null); setError("");
+            requestId.current = null;
+          }}
+          onBlur={() => { if (!editing && !duplicate && /^\d{4,20}$/.test(document)) void checkExisting(document); }}
+          className="h-11 text-xl font-semibold md:text-xl" /></Field>
         <Field label="Qtd. itens" id="sales-items"><Input id="sales-items" type="number" required min={1} max={100000} value={items} onChange={e => { setItems(e.target.value); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /></Field>
       </div>
       <Field label="Código do cliente" id="sales-client"><Input id="sales-client" inputMode="numeric" required maxLength={12} value={clientCode} onChange={e => { setClientCode(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${client ? "text-success" : "text-muted-foreground"}`}>{client?.name ?? (clientCode ? "Cliente não encontrado" : "—")}</p></Field>
@@ -190,12 +200,40 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
         </p>
       </fieldset>}
       {verifier?.expedition && <Button type="button" variant={forDelivery ? "default" : "outline"} aria-pressed={forDelivery} className="h-11 w-full text-lg font-bold" onClick={() => { setForDelivery(v => !v); requestId.current = null; }}>{forDelivery ? <Check className="h-5 w-5" /> : <Truck className="h-5 w-5" />}Para entrega</Button>}
-      {error && <p role="alert" className="text-destructive">{error}</p>}
+      {editing && <div role="status" className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm font-semibold">
+        Editando documento {editing.record?.document}. As alterações serão refletidas nos setores vinculados.
+        <Button type="button" variant="link" className="ml-1 h-auto p-0 text-sm" disabled={busy}
+          onClick={() => { setEditing(null); setDuplicate(null); requestId.current = null; setMessage(""); currentDocument.current = ""; lookupSerial.current++; setDocument(""); documentInput.current?.focus(); }}>
+          Cancelar edição
+        </Button>
+      </div>}
+      {checking && <p role="status" className="text-sm text-muted-foreground">Verificando documento...</p>}
+      {error && <p role="alert" className="text-destructive">{error}</p>
       {message && <p role="status" className="text-success">{message}</p>}
-      <Button type="submit" disabled={busy || !canOperate || !clients.length || !employee} className="h-12 w-full text-lg font-bold"><ClipboardCheck className="h-5 w-5" />{busy ? "Registrando…" : "Registrar"}</Button>
+      <Button type="submit" disabled={busy || checking || !!duplicate || !canOperate || !clients.length || !employee} className="h-12 w-full text-lg font-bold">
+        <ClipboardCheck className="h-5 w-5" />
+        {busy ? (editing ? "Salvando…" : "Registrando…") : editing ? "Salvar" : "Registrar"}
+      </Button>
       {!clients.length && <p className="text-sm text-muted-foreground">Aguardando importação dos clientes pelo gestor.</p>}
       </fieldset>
     </form>
+    <Dialog open={!!duplicate} onOpenChange={open => { if (!open && duplicate) declineEdit(); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Documento já registrado</DialogTitle></DialogHeader>
+        <p className="text-sm text-foreground">
+          O documento <strong>{duplicate?.record?.document ?? document}</strong> já foi lançado anteriormente.
+          Deseja <strong>editar o registro</strong>?
+        </p>
+        {!duplicate?.record && <p role="alert" className="text-sm text-destructive">
+          O registro anterior é histórico ou não possui dados completos para edição pelo operador.
+          Solicite ao gestor uma revisão.
+        </p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" onClick={declineEdit}>NÃO</Button>
+          <Button type="button" disabled={!duplicate?.record} onClick={acceptEdit}>SIM — Editar registro</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </section>;
 }
 
