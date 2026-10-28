@@ -33,7 +33,30 @@ describe("programação de turnos da Expedição", () => {
       .toEqual([["1", "3"], ["2"], ["4"]]);
     expect(shiftOf(order(4))).toBe("indefinido");
     expect(shiftLabel("manha")).toBe("MANHÃ");
-    expect(scheduledDateLabel("2026-10-29")).toBe("29/10/2026");
+    expect(scheduledDateLabel("2026-10-29", new Date("2026-10-27T12:00:00Z"))).toBe("29/10/2026");
+  });
+  test("destaca HOJE e AMANHÃ conforme o dia civil em São Paulo", () => {
+    const now = new Date("2026-10-28T12:00:00Z");
+    expect(scheduledDateLabel("2026-10-28", now)).toBe("HOJE");
+    expect(scheduledDateLabel("2026-10-29", now)).toBe("AMANHÃ");
+    expect(scheduledDateLabel("2026-10-30", now)).toBe("30/10/2026");
+    expect(scheduledDateLabel("2026-10-27", now)).toBe("27/10/2026");
+    expect(scheduledDateLabel("", now)).toBe("");
+  });
+  test("meia-noite em São Paulo não depende do horário UTC nem do aparelho", () => {
+    // 02:30 UTC de 28/10 ainda é 27/10 às 23:30 em São Paulo.
+    const beforeLocalMidnight = new Date("2026-10-28T02:30:00Z");
+    expect(scheduledDateLabel("2026-10-27", beforeLocalMidnight)).toBe("HOJE");
+    expect(scheduledDateLabel("2026-10-28", beforeLocalMidnight)).toBe("AMANHÃ");
+    const afterLocalMidnight = new Date("2026-10-28T03:30:00Z");
+    expect(scheduledDateLabel("2026-10-28", afterLocalMidnight)).toBe("HOJE");
+    expect(scheduledDateLabel("2026-10-29", afterLocalMidnight)).toBe("AMANHÃ");
+  });
+  test("AMANHÃ funciona na mudança de mês e de ano", () => {
+    const now = new Date("2026-12-31T15:00:00Z");
+    expect(scheduledDateLabel("2026-12-31", now)).toBe("HOJE");
+    expect(scheduledDateLabel("2027-01-01", now)).toBe("AMANHÃ");
+    expect(scheduledDateLabel("2027-01-02", now)).toBe("02/01/2027");
   });
   test("organiza MANHÃ, TARDE, INDEFINIDO e coletas agendadas antes das entregas", () => {
     const all = [
