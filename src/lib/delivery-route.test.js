@@ -54,6 +54,36 @@ describe("sequência de paradas do gestor", () => {
     expect(stops.map(stop => stop.deliveries.map(row => row.document))).toEqual([["501"], ["502"]]);
     expect(stops.every(stop => stop.address?.client_code === "100")).toBe(true);
   });
+  test("coleta finalizada participa da mesma rota do entregador e usa o endereço informado", () => {
+    const first = done("1", "Cliente normal", "2026-10-26T13:00:00Z");
+    const collected = done("coleta-1", "Fornecedor", "2026-10-26T13:20:00Z", {
+      source: "coleta", document: "", companyCode: undefined,
+      collectionAddress: "Rua Primavera, 55, Nova Odessa, SP",
+      collectionContact: "Mariana", receiver: undefined,
+    });
+    const last = done("2", "Cliente final", "2026-10-26T14:00:00Z");
+    const records = [last, collected, first];
+    const routes = listDeliveryRoutes(records);
+    expect(routes).toHaveLength(1);
+    expect(routes[0].count).toBe(3);
+    const stops = getRouteStops(records, first, [address("1"), address("2")]);
+    expect(stops.map(stop => stop.company)).toEqual(["Cliente normal", "Fornecedor", "Cliente final"]);
+    expect(stops[1].address?.address).toBe("Rua Primavera, 55, Nova Odessa, SP");
+    expect(stops[1].clientCode).toBe("");
+    expect(stops[1].deliveries[0].source).toBe("coleta");
+    expect(googleRouteSegments(stops)).toHaveLength(1);
+  });
+  test("duas coletas ao mesmo fornecedor não viram uma parada", () => {
+    const a = done("col-a", "Fornecedor", "2026-10-26T13:20:00Z", {
+      source: "coleta", collectionAddress: "Rua A, 10, Nova Odessa, SP",
+      companyCode: undefined, arrivedAt: "2026-10-26T13:00:00Z",
+    });
+    const b = done("col-b", "Fornecedor", "2026-10-26T13:20:00Z", {
+      source: "coleta", collectionAddress: "Rua A, 10, Nova Odessa, SP",
+      companyCode: undefined, arrivedAt: "2026-10-26T13:00:00Z",
+    });
+    expect(getRouteStops([a,b],a,[])).toHaveLength(2);
+  });
   test("não confunde duas visitas ao mesmo cliente no mesmo dia", () => {
     const first = done("1", "Cliente X", "2026-10-26T13:20:00Z", { companyCode: "519", arrivedAt: "2026-10-26T13:15:00Z" });
     const second = done("2", "Cliente X", "2026-10-26T16:10:00Z", { companyCode: "519", arrivedAt: "2026-10-26T16:00:00Z" });
