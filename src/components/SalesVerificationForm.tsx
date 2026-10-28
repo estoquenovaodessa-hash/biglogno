@@ -208,7 +208,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
         </Button>
       </div>}
       {checking && <p role="status" className="text-sm text-muted-foreground">Verificando documento...</p>}
-      {error && <p role="alert" className="text-destructive">{error}</p>
+      {error && <p role="alert" className="text-destructive">{error}</p>}
       {message && <p role="status" className="text-success">{message}</p>}
       <Button type="submit" disabled={busy || checking || !!duplicate || !canOperate || !clients.length || !employee} className="h-12 w-full text-lg font-bold">
         <ClipboardCheck className="h-5 w-5" />
