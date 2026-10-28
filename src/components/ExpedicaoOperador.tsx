@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Pickup } from "@/lib/pickups";
 import { ExpeditionCompletedHistory } from "./ExpeditionCompletedHistory";
+import { ExpeditionCollections } from "./ExpeditionCollections";
 import { pendingExpeditionPickups } from "@/lib/expedition-history";
 
 type Origin = "BALCÃO" | "EXPEDIÇÃO";
@@ -310,7 +311,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
 
     {/* Os dois painéis crescem com os pedidos: sem largura mínima de tabela,
         rolagem horizontal ou barras de rolagem independentes. */}
-    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2">
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
       <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Entrega da Conferência">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Truck className="h-5 w-5 shrink-0 text-primary" />
@@ -343,6 +344,11 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
           </p>}
         </div>
       </section>
+      <ExpeditionCollections records={deliveriesQuery.data ?? []} canManage={canTransfer} readOnly={readOnly}
+        onCreated={async () => {
+          await deliveriesQuery.refetch();
+          await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+        }} />
     </div>
 
     {(deliveriesQuery.isError || pickupsQuery.isError) &&
