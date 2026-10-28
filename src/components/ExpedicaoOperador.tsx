@@ -76,9 +76,10 @@ function Summary({ title, value, icon: Icon }: {
   </div>;
 }
 
-function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
+function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer }: {
   orders: Delivery[];
   canTransfer: boolean;
+  readOnly: boolean;
   busy: boolean;
   onTransfer: (target: TransferTarget) => void;
 }) {
@@ -131,7 +132,7 @@ function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
         </div>
       </div>)}
     </div>
-    {transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
+    {!readOnly && transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
       <Button type="button" variant="outline" size="sm" className="h-10 gap-2 text-sm font-bold"
         disabled={busy || !canTransfer} onClick={() => onTransfer({
           kind: "toPickup",
@@ -148,9 +149,10 @@ function DeliveryGroupCard({ orders, canTransfer, busy, onTransfer }: {
   </article>;
 }
 
-function PickupCard({ order, canTransfer, busy, onTransfer }: {
+function PickupCard({ order, canTransfer, readOnly, busy, onTransfer }: {
   order: Pickup;
   canTransfer: boolean;
+  readOnly: boolean;
   busy: boolean;
   onTransfer: (target: TransferTarget) => void;
 }) {
@@ -170,7 +172,7 @@ function PickupCard({ order, canTransfer, busy, onTransfer }: {
       <Detail label="Quem retirou">{order.receiver || "—"}</Detail>
       <Detail label="Entregue por">{order.handedBy || "—"}</Detail>
     </div>
-    {order.status === "pendente" &&
+    {!readOnly && order.status === "pendente" &&
       <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
         <Button type="button" variant="outline" size="sm" disabled={busy || !canTransfer} className="h-10 gap-2 text-sm font-bold"
           onClick={() => onTransfer({
@@ -184,8 +186,9 @@ function PickupCard({ order, canTransfer, busy, onTransfer }: {
   </article>;
 }
 
-export function ExpedicaoOperador() {
-  // A consulta é permitida a todos; a transferência exige direito individual.
+export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } = {}) {
+  // A mesma tela atende operador e gestor; no gestor, somente consulta.
+  // A transferência exige direito individual e permanece protegida no servidor.
   // Mesmo quando visível, a API verifica a permissão novamente no servidor.
   const { employee } = useActiveEmployee();
   const queryClient = useQueryClient();
@@ -202,12 +205,12 @@ export function ExpedicaoOperador() {
   const permission = useQuery({
     queryKey: ["expedition-transfer-permission", employee?.id],
     queryFn: () => readPermission(),
-    enabled: !!employee?.id,
+    enabled: !readOnly && !!employee?.id,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchInterval: 10000,
   });
-  const canTransfer = permission.data?.allowed === true;
+  const canTransfer = !readOnly && permission.data?.allowed === true;
 
   const deliveriesQuery = useQuery({
     queryKey: ["expedition-deliveries"],
@@ -241,6 +244,7 @@ export function ExpedicaoOperador() {
   const pickupsDone = allPickups.filter(p => p.status === "finalizada").length;
 
   function openTransfer(next: TransferTarget) {
+    if (readOnly) return;
     setTarget(next);
     setTransferMode("selected");
     setSelectedIds([]);
@@ -254,7 +258,7 @@ export function ExpedicaoOperador() {
     : target.orders.filter(order => selectedIds.includes(order.id));
 
   async function confirmTransfer() {
-    if (!target || !canTransfer || busy || !chosenOrders.length) return;
+    if (readOnly || !target || !canTransfer || busy || !chosenOrders.length) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await transferOrders({ data: {
@@ -291,7 +295,9 @@ export function ExpedicaoOperador() {
       </div>
     </header>
 
-    {!canTransfer && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Expedição. Os botões de transferência estão bloqueados.</p>}
+    {readOnly
+      ? <p role="status" className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-sm font-semibold text-primary">Visualização do gestor: somente consulta. Pedidos, informações e históricos podem ser acompanhados, mas não é possível realizar transferências ou alterações nesta tela.</p>
+      : !canTransfer && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Expedição. Os botões de transferência estão bloqueados.</p>}
 
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
       <Summary icon={CheckCheck} title="Entregas separadas" value={deliveriesReady} />
@@ -316,7 +322,7 @@ export function ExpedicaoOperador() {
         <div className="space-y-2 p-3">
           {groups.map(orders => {
             const first = orders[0];
-            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} busy={busy} onTransfer={openTransfer} /> : null;
+            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} /> : null;
           })}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa vinda da Conferência."}
@@ -331,7 +337,7 @@ export function ExpedicaoOperador() {
           <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{pickups.length}</span>
         </header>
         <div className="space-y-2 p-3">
-          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} busy={busy} onTransfer={openTransfer} />)}
+          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} />)}
           {!pickups.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {pickupsQuery.isLoading ? "Carregando retiradas…" : "Nenhuma retirada vinda da Conferência."}
           </p>}
@@ -345,7 +351,7 @@ export function ExpedicaoOperador() {
       </p>}
     {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold text-success">{notice}</p>}
     {error && !target && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-    <Dialog open={!!target} onOpenChange={open => {
+    {!readOnly && <Dialog open={!!target} onOpenChange={open => {
       if (!open && !busy) { setTarget(null); setSelectedIds([]); setError(""); }
     }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
@@ -419,6 +425,6 @@ export function ExpedicaoOperador() {
           </Button>
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog>}
   </section>;
 }
