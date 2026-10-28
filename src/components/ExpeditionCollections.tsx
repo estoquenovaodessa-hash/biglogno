@@ -61,7 +61,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated 
   }
 
   async function saveCollection() {
-    if (!canWrite || !companyId || address.trim().length < 8 || !validValue || busy) return;
+    if (!canWrite || !companyId || !validValue || busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
       if (!requestId.current) requestId.current = crypto.randomUUID();
@@ -142,9 +142,9 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated 
           </label>
           {companies.isError && <p role="alert" className="text-xs text-destructive">Não foi possível consultar as empresas cadastradas.</p>}
           {!companies.isError && !(companies.data ?? []).length && <p className="text-xs text-muted-foreground">Cadastre primeiro uma empresa usando “Adicionar empresa de coleta”.</p>}
-          <label className="space-y-1.5 text-sm font-semibold">Endereço completo da coleta
+          <label className="space-y-1.5 text-sm font-semibold">Endereço da coleta (opcional)
             <Input value={address} maxLength={400} onChange={event => setAddress(event.target.value)}
-              placeholder="Rua, número, bairro, cidade e UF" />
+              placeholder="Rua, número, bairro, cidade e UF (se souber)" />
           </label>
           <label className="space-y-1.5 text-sm font-semibold">Valor da coleta (R$)
             <Input inputMode="decimal" value={value} onChange={event => setValue(event.target.value)}
@@ -155,7 +155,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated 
               placeholder="Nome ou referência" />
           </label>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button type="button" disabled={busy || !canWrite || !companyId || address.trim().length < 8 || !validValue}
+          <Button type="button" disabled={busy || !canWrite || !companyId || !validValue}
             onClick={() => { void saveCollection(); }}>
             {busy ? "Salvando..." : "Adicionar coleta à fila"}
           </Button>
