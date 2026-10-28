@@ -73,6 +73,17 @@ describe("sequência de paradas do gestor", () => {
     expect(stops[1].deliveries[0].source).toBe("coleta");
     expect(googleRouteSegments(stops)).toHaveLength(1);
   });
+  test("coleta sem endereço permanece na rota histórica sem marcador inventado", () => {
+    const delivery = done("1", "Cliente", "2026-10-26T13:00:00Z");
+    const collection = done("coleta-sem-endereco", "Fornecedor", "2026-10-26T14:00:00Z", {
+      source: "coleta", companyCode: undefined, collectionAddress: "",
+      document: "", receiver: undefined,
+    });
+    const stops = getRouteStops([delivery, collection], delivery, [address("1")]);
+    expect(stops.map(stop => stop.company)).toEqual(["Cliente", "Fornecedor"]);
+    expect(stops[1].address).toBeUndefined();
+    expect(googleRouteSegments(stops)).toHaveLength(0);
+  });
   test("duas coletas ao mesmo fornecedor não viram uma parada", () => {
     const a = done("col-a", "Fornecedor", "2026-10-26T13:20:00Z", {
       source: "coleta", collectionAddress: "Rua A, 10, Nova Odessa, SP",
