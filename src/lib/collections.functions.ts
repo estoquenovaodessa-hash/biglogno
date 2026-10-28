@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, collectionCompanySchema } from "./collections";
 import { z } from "zod";
-import { collectionEditCommitPayload, type LogisticsSnapshotRow } from "./collection-edit-commit";
 
 const CATALOG_KEY = "collection-companies";
 
@@ -78,20 +77,12 @@ export const editCollection = createServerFn({ method: "POST" })
     const company = (await getCatalog()).find(row => row.id === data.companyId);
     if (!company) throw new Error("Selecione uma empresa de coleta cadastrada.");
     const { logisticsClient } = await import("./logistics.server");
-    const { logisticsCommitError } = await import("./logistics-commit-error");
     const db = await logisticsClient();
-    // O RPC confere a contagem e o payload de TODA a fila de Entregas.
-    // A consulta por id isolado gerava falsos conflitos quando havia 2+ pedidos.
-    const rows: LogisticsSnapshotRow[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data: batch, error } = await db.from("deliveries")
-        .select("id,payload,position").order("position").order("id")
-        .range(offset, offset + 999);
-      if (error) throw new Error("Não foi possível carregar a fila de Entregas para editar a coleta.");
-      rows.push(...(batch ?? []));
-      if (!batch || batch.length < 1000) break;
-    }
-    const row = rows.find(item => item.id === data.id);
+    // Um único registro: a edição não pode depender de outras entregas
+    // movimentadas enquanto o funcionário edita esta coleta.
+    const { data: row, error } = await db.from("deliveries")
+      .select("id,payload").eq("id", data.id).maybeSingle();
+    if (error) throw new Error("Não foi possível consultar a coleta.");
     if (!row) throw new Error("Coleta não encontrada. Atualize a Expedição.");
     const payload = row.payload as Record<string, unknown>;
     if (payload.source !== "coleta") throw new Error("Este registro não é uma coleta.");
@@ -111,9 +102,32 @@ export const editCollection = createServerFn({ method: "POST" })
       expeditionShift: data.shift ?? undefined,
     };
     const { data: saved, error: saveError } = await db.rpc(
-      "commit_logistics_changes", collectionEditCommitPayload(rows, row.id, next),
+      "update_expedition_collection", {
+        p_id: row.id,
+        p_expected_payload: row.payload,
+        p_next_payload: JSON.parse(JSON.stringify(next)),
+      },
     );
-    if (saveError) throw logisticsCommitError("editar a coleta", saveError);
-    if (saved !== true) throw new Error("A edição não foi confirmada pelo Supabase. Atualize e tente novamente.");
+    if (saveError) {
+      console.error("[Coletas] Erro ao editar", {
+        code: saveError.code, message: saveError.message,
+        details: saveError.details, hint: saveError.hint,
+      });
+      // Não confundir conflito real com outros erros de RPC/instalação.
+      if (saveError.code === "PGRST202" || saveError.code === "42883")
+        throw new Error("É necessário instalar a rotina SQL de edição de coletas no Supabase (arquivo sql/2026-10-28-edicao-coleta-isolada.sql no GitHub).");
+      if (saveError.message.includes("COLETA_CONFLITO"))
+        throw new Error("Esta coleta foi alterada enquanto você editava. Atualize a Expedição e revise os dados.");
+      if (saveError.message.includes("COLETA_JA_INICIADA"))
+        throw new Error("A coleta já foi iniciada e não pode mais ser editada.");
+      if (saveError.message.includes("COLETA_NAO_ENCONTRADA"))
+        throw new Error("Coleta não encontrada. Atualize a Expedição.");
+      if (saveError.message.includes("COLETA_TIPO_INVALIDO"))
+        throw new Error("O pedido selecionado não é uma coleta.");
+      if (saveError.message.includes("COLETA_CAMPOS_PROTEGIDOS") || saveError.message.includes("COLETA_DADOS_INVALIDOS"))
+        throw new Error("A edição contém dados incompatíveis com as regras de coletas. Atualize e confira os campos.");
+      throw new Error(`Não foi possível editar a coleta (erro ${saveError.code || "desconhecido"}). Informe este código ao gestor.`);
+    }
+    if (saved !== true) throw new Error("O Supabase não confirmou a edição da coleta. Tente novamente.");
     return { ok: true };
   });
