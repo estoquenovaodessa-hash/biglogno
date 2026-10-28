@@ -172,7 +172,7 @@ function PickupCard({ order, canTransfer, readOnly, busy, onEdit }: {
         disabled={busy || !canTransfer || order.status !== "pendente"} onClick={() => onEdit(order)}>
         <Pencil className="h-4 w-4" /> Editar
       </Button>
-    </div>
+    </div>}
   </article>;
 }
 
