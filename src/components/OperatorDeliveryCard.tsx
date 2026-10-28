@@ -78,12 +78,14 @@ export function OperatorDeliveryCard({
       <div className="flex items-center gap-3">
         <CircleDollarSign className="h-7 w-7 shrink-0 text-[#ffb914]" aria-hidden="true" />
         <p className="text-[1.65rem] font-extrabold leading-tight tracking-tight tabular-nums">
-          {allOnlyDelivery ? "SOMENTE ENTREGA" : currency(totalValue)}
+          {collection && order.collectionValueProvided === false ? "VALOR NÃO INFORMADO" : allOnlyDelivery ? "SOMENTE ENTREGA" : currency(totalValue)}
         </p>
       </div>
 
       {collection && <div className="mt-3 space-y-1.5 rounded-lg border border-orange-400/25 bg-orange-400/10 p-3 text-sm text-orange-100">
-        <p className="flex items-start gap-2"><MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Endereço:</strong> {order.collectionAddress || "—"}</span></p>
+        <p className="flex items-center gap-2 font-bold"><span className="text-xl" aria-hidden="true">{order.collectionTransport === "moto" ? "🏍️" : order.collectionTransport === "carro" ? "🚗" : "🚚"}</span>
+          <span>Transporte: {order.collectionTransport === "moto" ? "MOTO" : order.collectionTransport === "carro" ? "CARRO" : "Não informado"}</span></p>
+        <p className="flex items-start gap-2"><MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Endereço:</strong> {order.collectionAddress || "Não informado"}</span></p>
         <p className="flex items-start gap-2"><ContactRound className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Falar com:</strong> {order.collectionContact || "Não informado"}</span></p>
       </div>}
       {!collection && <div className="mt-3 space-y-2.5">
