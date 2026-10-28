@@ -205,7 +205,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       <Summary icon={CheckCircle2} label="Finalizadas" value={finished.length} hint={scoped.length ? `${(100 * finished.length / scoped.length).toFixed(1).replace(".", ",")}% do total` : "Sem entregas"} tone="success" />
     </div>
 
-    <form className="rounded-xl border border-border bg-card p-4" onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); }}>
+    <form className="rounded-xl border border-border bg-card p-4" onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); setTab("todas"); }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-bold"><CalendarDays className="h-4 w-4 text-primary" /> Filtros de entregas e coletas</h3>
         {applied && <span className="text-xs text-primary">Filtros aplicados</span>}
