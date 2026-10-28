@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { addCollection, addCollectionCompany, listCollectionCompanies } from "@/lib/collections.functions";
 import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
+import { parseMoneyInput } from "@/lib/sales-verification";
 
 const money = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 function collectionLabel(order: Delivery): string {
@@ -42,7 +43,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated 
     .sort((a, b) => a.status === "finalizada" && b.status !== "finalizada" ? 1
       : b.status === "finalizada" && a.status !== "finalizada" ? -1
         : b.createdAt.localeCompare(a.createdAt));
-  const moneyNumber = Number(value.replace(/\s/g, "").replace(",", "."));
+  const moneyNumber = parseMoneyInput(value);
   const validValue = value.trim() !== "" && Number.isFinite(moneyNumber) && moneyNumber >= 0 && moneyNumber <= 100000000;
   const canWrite = canManage && !readOnly;
 
