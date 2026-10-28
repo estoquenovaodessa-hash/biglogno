@@ -17,7 +17,9 @@ export const createCollectionSchema = z.object({
   companyId: z.string().uuid(),
   /** Endereço opcional: sem ele, a coleta continua operacional mas não gera marcador no mapa. */
   address: z.string().trim().max(400).optional().default(""),
-  value: z.number().finite().min(0).max(100000000),
+  /** Em branco significa não informado, diferente de uma coleta de R$ 0,00. */
+  value: z.number().finite().min(0).max(100000000).optional(),
+  vehicle: z.enum(["moto", "carro"]),
   contact: z.string().trim().max(150).optional().default(""),
   payment: z.enum(["dinheiro", "faturado"]).default("dinheiro"),
   scheduledDate: z.union([scheduledDateSchema, z.literal("")]).optional().default(""),
