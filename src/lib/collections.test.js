@@ -12,10 +12,17 @@ describe("cadastro de coletas da Expedição", () => {
     expect(result.contact).toBe("");
     expect(result.value).toBe(0);
   });
-  test("recusa endereço ausente, valor negativo e IDs inválidos", () => {
+  test("endereço é opcional e texto vazio é aceito, sem perder o restante da coleta", () => {
+    const base = { requestId, companyId, value: 10 };
+    expect(createCollectionSchema.parse(base).address).toBe("");
+    expect(createCollectionSchema.parse({ ...base, address: "" }).address).toBe("");
+    expect(createCollectionSchema.parse({ ...base, address: "  " }).address).toBe("");
+    expect(createCollectionSchema.parse({ ...base, address: "Rua A" }).address).toBe("Rua A");
+    expect(createCollectionSchema.safeParse({ ...base, address: "x".repeat(401) }).success).toBe(false);
+  });
+  test("recusa valores inválidos e IDs inválidos", () => {
     const base = { requestId, companyId, address: "Rua ABC, 123", value: 10 };
     expect(createCollectionSchema.safeParse(base).success).toBe(true);
-    expect(createCollectionSchema.safeParse({ ...base, address: "rua" }).success).toBe(false);
     expect(createCollectionSchema.safeParse({ ...base, value: -1 }).success).toBe(false);
     expect(createCollectionSchema.safeParse({ ...base, value: Infinity }).success).toBe(false);
     expect(createCollectionSchema.safeParse({ ...base, companyId: "100" }).success).toBe(false);
