@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Delivery } from "./deliveries";
+import { expeditionLocalDay } from "./expedition-history";
 
 export const expeditionShiftSchema = z.enum(["manha", "tarde"]);
 export type ExpeditionShift = z.infer<typeof expeditionShiftSchema>;
@@ -25,10 +26,20 @@ export function shiftOf(record: Pick<Delivery, "expeditionShift">): ShiftSection
 export const shiftLabel = (shift: ShiftSection) =>
   shift === "manha" ? "MANHÃ" : shift === "tarde" ? "TARDE" : "TURNO INDEFINIDO";
 
-export function scheduledDateLabel(date?: string): string {
+/** Data civil de São Paulo, independente do fuso do aparelho.
+ * Formata apenas a apresentação: o valor persistido continua AAAA-MM-DD. */
+export function scheduledDateLabel(date?: string, now: Date = new Date()): string {
   if (!date) return "";
-  const parts = date.split("-");
-  return parts.length === 3 ? parts[2] + "/" + parts[1] + "/" + parts[0] : date;
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return date;
+  const today = expeditionLocalDay(now.toISOString());
+  if (today && date === today) return "HOJE";
+  if (today) {
+    const tomorrow = new Date(today + "T12:00:00Z");
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    if (date === tomorrow.toISOString().slice(0, 10)) return "AMANHÃ";
+  }
+  const [year, month, day] = date.split("-");
+  return day + "/" + month + "/" + year;
 }
 
 export function operatorShiftSections(groups: Delivery[][]) {
