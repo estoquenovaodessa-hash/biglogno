@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { collectionCompanySchema, createCollectionCompanySchema, createCollectionSchema, editCollectionSchema } from "./collections";
+import { collectionCompanySchema, createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, deleteCollectionSchema } from "./collections";
 
 describe("cadastro de coletas da Expedição", () => {
   const requestId = "00000000-0000-4000-8000-000000000001";
@@ -71,6 +71,11 @@ describe("cadastro de coletas da Expedição", () => {
     expect(editCollectionSchema.safeParse({ ...body, vehicle: "caminhao" }).success).toBe(false);
     expect(editCollectionSchema.safeParse({ ...body, value: -20 }).success).toBe(false);
     expect(editCollectionSchema.safeParse({ ...body, scheduledDate: "2026-02-31" }).success).toBe(false);
+  });
+  test("exclusão exige identificador válido de coleta", () => {
+    expect(deleteCollectionSchema.parse({ id: requestId })).toEqual({ id: requestId });
+    expect(deleteCollectionSchema.safeParse({ id: "invalido" }).success).toBe(false);
+    expect(deleteCollectionSchema.safeParse({}).success).toBe(false);
   });
   test("cadastro de empresa independente de clientes das entregas", () => {
     expect(createCollectionCompanySchema.safeParse({ id: companyId, name: "Transportadora ABC" }).success).toBe(true);
