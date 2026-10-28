@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fmtBrasilia, fmtDuration, travelMs, waitMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
+import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
 
 type Period = "all" | "today" | "7d" | "month" | "previous";
 type StatusFilter = "all" | DeliveryStatus;
@@ -61,7 +62,7 @@ function statusBadge(d: Delivery) {
 
 function exportCsv(rows: Delivery[]) {
   // Exportação local, sem alterar pedidos no banco.
-  const headers = ["Tipo", "Documento", "Cliente", "Código cliente", "Valor (R$)", "Entregador", "Situação", "Recebedor", "Endereço coleta", "Falar com", "Criado em", "Iniciado em", "Chegou em", "Finalizado em", "Origem"];
+  const headers = ["Tipo", "Documento", "Cliente", "Código cliente", "Valor (R$)", "Entregador", "Situação", "Recebedor", "Endereço coleta", "Falar com", "Pagamento", "Data programada", "Turno", "Criado em", "Iniciado em", "Chegou em", "Finalizado em", "Origem"];
   const escapeCell = (value: unknown) => {
     const str = String(value ?? "");
     const safe = /^[=+@\-\t\r]/.test(str) ? "'" + str : str;
@@ -75,6 +76,7 @@ function exportCsv(rows: Delivery[]) {
       d.company, d.companyCode ?? "", Number(d.value || 0).toFixed(2).replace(".", ","),
       d.driver ?? "", d.source === "coleta" ? (d.status === "finalizada" ? "Coletado" : "Coletando") : statusInfo[d.status]?.label ?? d.status,
       d.source === "coleta" ? "" : d.receiver ?? "", d.collectionAddress ?? "", d.collectionContact ?? "",
+      d.collectionPayment ?? "", d.scheduledDate ?? "", shiftLabel(shiftOf(d)),
       fmtBrasilia(d.createdAt), fmtBrasilia(d.startedAt), fmtBrasilia(d.arrivedAt),
       fmtBrasilia(d.finishedAt), d.source,
     ].map(escapeCell).join(";")),
@@ -256,6 +258,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
               <h4 className="min-w-0 break-words text-sm font-bold text-foreground sm:text-base">{d.company}</h4>
               <span className="flex shrink-0 items-center gap-1">{statusBadge(d)}<ChevronRight className="h-4 w-4 text-muted-foreground" /></span>
             </div>
+            <p className="mt-2 text-xs font-bold text-muted-foreground">{d.scheduledDate && d.source === "coleta" ? scheduledDateLabel(d.scheduledDate) + " • " : ""}{shiftLabel(shiftOf(d))}</p>
             <div className="mt-3 grid gap-x-3 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-2 sm:text-sm">
               <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> {d.source === "coleta" ? "COLETA" : d.onlyDelivery ? "Somente entrega" : `Doc. ${d.document || "—"}`}</span>
               <span className="font-semibold text-foreground">{d.onlyDelivery ? "Sem cobrança" : currency(d.value)}</span>
@@ -278,6 +281,9 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             <div><p className="text-xs text-muted-foreground">Valor</p><p className="mt-1 font-semibold">{selected.onlyDelivery ? "Sem cobrança" : currency(selected.value)}</p></div>
             <div><p className="text-xs text-muted-foreground">Entregador</p><p className="mt-1 break-words font-semibold">{selected.driver || "Não atribuído"}</p></div>
             {selected.source === "coleta" ? <div><p className="text-xs text-muted-foreground">Falar com</p><p className="mt-1 break-words font-semibold">{selected.collectionContact || "Não informado"}</p></div> : <div><p className="text-xs text-muted-foreground">Recebedor</p><p className="mt-1 break-words font-semibold">{selected.receiver || "Não informado"}</p></div>}
+            {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Pagamento</p><p className="mt-1 font-semibold">{selected.collectionPayment === "dinheiro" ? "Dinheiro" : selected.collectionPayment === "faturado" ? "Faturado" : "Não informado"}</p></div>}
+            <div><p className="text-xs text-muted-foreground">Turno</p><p className="mt-1 font-semibold">{shiftLabel(shiftOf(selected))}</p></div>
+            {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Data programada</p><p className="mt-1 font-semibold">{selected.scheduledDate ? scheduledDateLabel(selected.scheduledDate) : "Não definida"}</p></div>}
             <div><p className="text-xs text-muted-foreground">Tempo de trajeto</p><p className="mt-1 font-semibold">{fmtDuration(travelMs(selected))}</p></div>
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
           </div>
