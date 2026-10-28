@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { percentageTone, canManageSales, sellerMetrics, sellerCountKey, sellerSalesSchema, canonicalCode, documentPrefix, errorComment, lastVerificationFields, parseClients, salesMetrics, verificationSchema } from "./sales-verification";
+import { percentageTone, canManageSales, sellerMetrics, sellerCountKey, sellerSalesSchema, canonicalCode, documentPrefix, errorComment, lastVerificationFields, parseClients, salesMetrics, verificationDestination, verificationEditKind, verificationSchema } from "./sales-verification";
 
 describe("conferência de materiais vendidos", () => {
   test("percentuais abaixo de 70 são vermelhos", () => { expect(percentageTone(69.9)).toBe("destructive"); });
@@ -12,6 +12,21 @@ describe("conferência de materiais vendidos", () => {
   });
   test("sem vendas não inventa cobertura e vendas não podem ser negativas", () => { expect(sellerMetrics([], "José", 0).coverage).toBeNull(); expect(sellerSalesSchema.safeParse({ period: "all", seller: "José", count: -1 }).success).toBe(false); expect(sellerCountKey("all", "José")).not.toBe(sellerCountKey("all", "Daniel")); });
   const input = { requestId: "123e4567-e89b-42d3-a456-426614174000", document: "2287466", items: 2, clientCode: "100", verifierCode: "101", value: 19.81, correct: false, seller: "José", durationSeconds: 60 };
+  test("encaminhamento da Conferência suporta Balcão e Expedição", () => {
+    expect(verificationDestination({ verifierCode: "101" })).toBe("none");
+    expect(verificationDestination({ verifierCode: "101", balcaoDestination: "entrega" })).toBe("deliveries");
+    expect(verificationDestination({ verifierCode: "101", balcaoDestination: "retira" })).toBe("pickups");
+    expect(verificationDestination({ verifierCode: "102", forDelivery: true })).toBe("deliveries");
+    expect(verificationDestination({ verifierCode: "102", forDelivery: false })).toBe("pickups");
+  });
+  test("edição não desfaz transferências entre Retira e Entrega sem trocar o destino", () => {
+    const old = { verifierCode: "101", balcaoDestination: "retira" };
+    expect(verificationEditKind(old, old)).toBe("keep");
+    expect(verificationEditKind(old, { ...old, balcaoDestination: "entrega" })).toBe("deliveries");
+    expect(verificationEditKind(old, { ...old, balcaoDestination: undefined })).toBe("none");
+    expect(verificationEditKind({ verifierCode: "102", forDelivery: true },
+      { verifierCode: "102", forDelivery: true })).toBe("keep");
+  });
   test("cliente permanece preenchido exatamente como no último registro", () => {
     expect(lastVerificationFields({ ...input, clientCode: "00024711" }).clientCode).toBe("00024711");
     expect(lastVerificationFields().clientCode).toBe("");
