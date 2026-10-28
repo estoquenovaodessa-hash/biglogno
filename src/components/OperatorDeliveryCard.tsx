@@ -34,7 +34,9 @@ export function OperatorDeliveryCard({
 
   const inProgress = ["em_rota", "no_destino"].includes(order.status);
   const paused = order.status === "pausada";
-  const statusColors = inProgress
+  const statusColors = collection
+    ? "border-orange-400/55 bg-orange-500/20 text-orange-200"
+    : inProgress
     ? "border-[#5ca9ff]/45 bg-[#1b4e88]/65 text-[#a4d0ff]"
     : paused
       ? "border-[#ffbf31]/50 bg-[#805616]/35 text-[#ffcb52]"
@@ -131,12 +133,12 @@ export function OperatorDeliveryCard({
               <MapPin className="h-5 w-5" /> Cheguei ao destino
             </Button>
             <Button type="button" className={actionSecondary} disabled={controlsDisabled}
-              onClick={() => { void onAction({ action: "pause", id: order.id }); }}><Pause className="h-4 w-4" /> Pausar entrega</Button>
+              onClick={() => { void onAction({ action: "pause", id: order.id }); }}><Pause className="h-4 w-4" /> {collection ? "Pausar coleta" : "Pausar entrega"}</Button>
           </>
         )}
         {order.status === "pausada" && (
           <Button type="button" className={actionPrimary} disabled={controlsDisabled || isLocked(order, all)}
-            onClick={() => { void onAction({ action: "resume", id: order.id }); }}><Play className="h-5 w-5" /> Retomar entrega</Button>
+            onClick={() => { void onAction({ action: "resume", id: order.id }); }}><Play className="h-5 w-5" /> {collection ? "Retomar coleta" : "Retomar entrega"}</Button>
         )}
         {(order.status === "em_rota" || order.status === "pausada") && (
           <Button type="button" variant="ghost" className="h-10 w-full gap-2 text-xs font-bold text-[#ff9191] hover:bg-[#512d38] hover:text-[#ffbaba]"
