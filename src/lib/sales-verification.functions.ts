@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { historicalKey, parseHistoricalSales } from "./sales-import";
-import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
+import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verificationEditKind, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
 
 export const readSalesVerification = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
@@ -186,16 +186,15 @@ export const editSalesVerification = createServerFn({ method: "POST" })
       updatedAt: new Date().toISOString(),
       updatedBy: operator.name,
     };
-    const previousChoice = verificationDestination({
+    const chosenKind = verificationDestination(data.record);
+    // Se o funcionário não mudou o destino, não desfaz movimentações feitas
+    // posteriormente pela Expedição (ex.: Retira já transferida para Entrega).
+    const kind = verificationEditKind({
       verifierCode: String(original.verifierCode ?? ""),
       forDelivery: original.forDelivery === true,
       balcaoDestination: original.balcaoDestination === "entrega" || original.balcaoDestination === "retira"
         ? original.balcaoDestination : undefined,
-    });
-    const chosenKind = verificationDestination(data.record);
-    // Se o funcionário não mudou o destino, não desfaz movimentações feitas
-    // posteriormente pela Expedição (ex.: Retira já transferida para Entrega).
-    const kind = chosenKind === previousChoice ? "keep" : chosenKind;
+    }, data.record);
     const logistics = {
       document: data.record.document,
       company: client.name,
