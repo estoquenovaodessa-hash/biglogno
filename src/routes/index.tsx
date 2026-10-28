@@ -105,6 +105,7 @@ const TABS = [
   { key: "Histórico", icon: CalendarClock },
   { key: "Contagem", icon: ScanLine },
   { key: "Conferência", icon: ClipboardCheck },
+  { key: "Expedição", icon: PackageCheck },
   { key: "Entregas", icon: Truck },
   { key: "Apuração Geral", icon: ChartColumnIncreasing },
   { key: "Cadastro de Funcionários", icon: UsersRound },
@@ -112,7 +113,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-// Seis páginas sob Estoque e cinco opções principais, nesta ordem.
+// Seis páginas sob Estoque e seis opções principais, nesta ordem.
 const ESTOQUE_SUBTABS = TABS.slice(0, 6);
 const MENU_PRINCIPAL = TABS.slice(6);
 type ViewMode = "mobile" | "desktop";
@@ -170,6 +171,8 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
         return <AnalisesOperacoes />;
       case "Conferência":
         return <SalesVerification role={role} />;
+      case "Expedição":
+        return role === "gestor" ? <ExpedicaoOperador readOnly /> : null;
       case "Entregas":
         return <Entregas role={role} />;
       case "Apuração Geral":
@@ -193,6 +196,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     "Importação",
     "Contagem",
     "Conferência",
+    "Expedição",
     "Entregas",
     "Apuração Geral",
     "Cadastro de Funcionários",
