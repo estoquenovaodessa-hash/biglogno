@@ -45,6 +45,15 @@ describe("sequência de paradas do gestor", () => {
     expect(stops[0].deliveries.map(d => d.id)).toEqual(["1", "2"]);
     expect(stops[0].address?.client_code).toBe("519");
   });
+  test("rota do CONSUMIDOR 100 preserva notas separadas mesmo com horário idêntico", () => {
+    const a = done("nota-a", "CONSUMIDOR", "2026-10-26T13:20:00Z",
+      { companyCode: "100", document: "501", arrivedAt: "2026-10-26T13:15:00Z" });
+    const b = done("nota-b", "CONSUMIDOR", "2026-10-26T13:20:00Z",
+      { companyCode: "00100", document: "502", arrivedAt: "2026-10-26T13:15:00Z" });
+    const stops = getRouteStops([a, b], a, [address("100")]);
+    expect(stops.map(stop => stop.deliveries.map(row => row.document))).toEqual([["501"], ["502"]]);
+    expect(stops.every(stop => stop.address?.client_code === "100")).toBe(true);
+  });
   test("não confunde duas visitas ao mesmo cliente no mesmo dia", () => {
     const first = done("1", "Cliente X", "2026-10-26T13:20:00Z", { companyCode: "519", arrivedAt: "2026-10-26T13:15:00Z" });
     const second = done("2", "Cliente X", "2026-10-26T16:10:00Z", { companyCode: "519", arrivedAt: "2026-10-26T16:00:00Z" });
