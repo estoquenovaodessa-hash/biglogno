@@ -3,10 +3,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, ClipboardCheck, PackageCheck, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient } from "@/lib/sales-verification";
-import { registerSalesVerification } from "@/lib/sales-verification.functions";
+import { canonicalCode, formatMoneyInput, parseMoneyInput, ERROR_REASONS, SELLERS, verificationSchema, type ErrorReason, type SalesClient, type VerificationInput } from "@/lib/sales-verification";
+import { registerSalesVerification, editSalesVerification, findRegisteredVerification } from "@/lib/sales-verification.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useActiveEmployee } from "./EmployeeGate";
 import { useOperatorRights } from "./useOperatorRights";
+
+type ExistingVerification = { id: string; snapshot: string; record: VerificationInput | null };
 
 export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVerifierCode, onRegistered }: { clients: SalesClient[]; prefix: string; lastClientCode: string; lastVerifierCode: string; onRegistered: () => void }) {
   const { employee } = useActiveEmployee();
@@ -23,14 +26,78 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
   const [forDelivery, setForDelivery] = useState(false);
   const [balcaoDestination, setBalcaoDestination] = useState<"entrega" | "retira" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [duplicate, setDuplicate] = useState<ExistingVerification | null>(null);
+  const [editing, setEditing] = useState<ExistingVerification | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const started = useRef(Date.now());
   const requestId = useRef<string | null>(null);
   const documentInput = useRef<HTMLInputElement>(null);
+  const currentDocument = useRef(prefix);
+  const lookupSerial = useRef(0);
   const register = useServerFn(registerSalesVerification);
+  const edit = useServerFn(editSalesVerification);
+  const findExisting = useServerFn(findRegisteredVerification);
   const client = clients.find(c => canonicalCode(c.code) === canonicalCode(clientCode));
   const verifier = { code: verifierCode, expedition: verifierCode === "102", name: employee?.name ?? "" };
+
+  async function checkExisting(number: string): Promise<boolean> {
+    if (!canOperate || editing || !/^\d{4,20}$/.test(number)) return false;
+    const serial = ++lookupSerial.current;
+    setChecking(true);
+    try {
+      const found = await findExisting({ data: { document: number } });
+      if (serial !== lookupSerial.current || currentDocument.current !== number) return true;
+      if (found) {
+        setDuplicate(found);
+        setError("");
+        return true;
+      }
+      return false;
+    } catch (cause) {
+      if (serial === lookupSerial.current) {
+        setError(cause instanceof Error ? cause.message : "Falha ao procurar o documento.");
+      }
+      return true; // Falha fechada: não registra antes de validar duplicidade.
+    } finally {
+      if (serial === lookupSerial.current) setChecking(false);
+    }
+  }
+
+  function declineEdit() {
+    setDuplicate(null);
+    setEditing(null);
+    currentDocument.current = "";
+    lookupSerial.current++;
+    setDocument("");
+    setError("");
+    requestId.current = null;
+    documentInput.current?.focus();
+  }
+
+  function acceptEdit() {
+    const found = duplicate;
+    if (!found?.record) return;
+    const r = found.record;
+    setEditing(found);
+    setDuplicate(null);
+    currentDocument.current = r.document;
+    setDocument(r.document);
+    setItems(String(r.items));
+    setClientCode(r.clientCode);
+    setVerifierCode(canonicalCode(r.verifierCode) === "102" ? "102" : "101");
+    setValue(formatMoneyInput(String(r.value).replace(".", ",")));
+    setCorrect(r.correct);
+    setErrorReasons(r.correct ? [] : (r.errorReasons?.length ? r.errorReasons : r.errorReason ? [r.errorReason] : []));
+    setSeller(r.seller);
+    setForDelivery(r.forDelivery === true);
+    setBalcaoDestination(r.balcaoDestination ?? null);
+    setMessage("Registro carregado para edição. Revise os dados e clique em Salvar.");
+    setError("");
+    requestId.current = r.requestId;
+  }
+
   return <section className="mx-auto w-full max-w-md py-2">
     <div className="mb-3 flex items-center gap-3"><ClipboardCheck className="h-7 w-7 text-primary" /><h1 className="text-2xl font-bold">Conferência</h1></div>
     <form className="sales-entry-form space-y-3 rounded-lg border border-border border-t-4 border-t-primary bg-card p-3 text-lg shadow-brand sm:p-4" onKeyDown={e => {
