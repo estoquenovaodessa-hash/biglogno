@@ -1,6 +1,6 @@
 import {
   ArrowDown, ArrowUp, Building2, CheckCircle2, CircleDollarSign,
-  Clock3, FileText, Layers, MapPin, Pause, Play, Unlink, UserRound, X,
+  Clock3, FileText, Layers, MapPin, Pause, Play, Unlink, UserRound, X, PackageCheck, MapPinned, ContactRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,7 @@ export function OperatorDeliveryCard({
 }: OperatorDeliveryCardProps) {
   const order = orders[0];
   if (!order) return null;
+  const collection = order.source === "coleta";
 
   const inProgress = ["em_rota", "no_destino"].includes(order.status);
   const paused = order.status === "pausada";
@@ -45,13 +46,14 @@ export function OperatorDeliveryCard({
   const actionSecondary = "h-11 w-full gap-2 rounded-lg border border-[#5483bd]/65 bg-[#111f34] text-sm font-semibold text-[#a6ceff] hover:bg-[#1b3454] hover:text-white";
 
   return (
-    <article className={`relative overflow-hidden rounded-xl border bg-[#101c2e] p-4 text-[#f5f8ff] shadow-[0_7px_24px_rgba(0,0,0,0.18)] sm:p-5 ${inProgress ? "border-[#459bff] shadow-[0_0_0_1px_rgba(69,155,255,0.18)]" : "border-[#365a88]"}`}>
+    <article className={`relative overflow-hidden rounded-xl border p-4 text-[#f5f8ff] shadow-[0_7px_24px_rgba(0,0,0,0.18)] sm:p-5 ${collection ? "border-orange-400/70 bg-orange-600/15 shadow-[0_0_0_1px_rgba(251,146,60,0.15)]" : inProgress ? "border-[#459bff] bg-[#101c2e] shadow-[0_0_0_1px_rgba(69,155,255,0.18)]" : "border-[#365a88] bg-[#101c2e]"}`}>
       <div className="flex items-start gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#3166aa] bg-[#143b72] text-[#82baff]">
-          <Building2 className="h-6 w-6" aria-hidden="true" />
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${collection ? "border-orange-400/60 bg-orange-400/20 text-orange-300" : "border-[#3166aa] bg-[#143b72] text-[#82baff]"}`}>
+          {collection ? <PackageCheck className="h-6 w-6" aria-hidden="true" /> : <Building2 className="h-6 w-6" aria-hidden="true" />}
         </span>
         <h3 className="min-w-0 flex-1 break-words pt-1 text-base font-extrabold leading-snug tracking-[0.01em] sm:text-lg">
           {order.company}
+          {collection && <span className="mt-1 block text-xs font-extrabold uppercase tracking-wider text-orange-300">Coleta</span>}
         </h3>
         <div className="flex shrink-0 flex-col gap-1" aria-label="Ordem da fila">
           <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-lg border border-[#365a88] bg-[#172a43] text-[#b4d4ff] hover:bg-[#24466d] hover:text-white"
@@ -63,7 +65,7 @@ export function OperatorDeliveryCard({
         </div>
       </div>
 
-      <div className="my-3 h-px bg-[#294160]" />
+      <div className={`my-3 h-px ${collection ? "bg-orange-400/30" : "bg-[#294160]"}`} />
 
       <div className="flex items-center gap-3">
         <CircleDollarSign className="h-7 w-7 shrink-0 text-[#ffb914]" aria-hidden="true" />
@@ -72,7 +74,11 @@ export function OperatorDeliveryCard({
         </p>
       </div>
 
-      <div className="mt-3 space-y-2.5">
+      {collection && <div className="mt-3 space-y-1.5 rounded-lg border border-orange-400/25 bg-orange-400/10 p-3 text-sm text-orange-100">
+        <p className="flex items-start gap-2"><MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Endereço:</strong> {order.collectionAddress || "—"}</span></p>
+        <p className="flex items-start gap-2"><ContactRound className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Falar com:</strong> {order.collectionContact || "Não informado"}</span></p>
+      </div>}
+      {!collection && <div className="mt-3 space-y-2.5">
         {orders.map(row => (
           <div key={row.id} className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:text-base">
@@ -90,12 +96,12 @@ export function OperatorDeliveryCard({
             )}
           </div>
         ))}
-      </div>
+      </div>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#294160] pt-3">
+      <div className={`mt-3 flex flex-wrap items-center gap-2 border-t pt-3 ${collection ? "border-orange-400/30" : "border-[#294160]"}`}>
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-extrabold ${statusColors}`}>
           <span className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
-          {statusLabel(order, all)}
+          {collection ? (order.status === "finalizada" ? "Coletado" : order.status === "no_destino" ? "No destino" : order.status === "nao_iniciada" ? "Aguardando coleta" : order.status === "pausada" ? "Coleta pausada" : "Coletando") : statusLabel(order, all)}
         </span>
         {orders.length > 1 && (
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#c3d1e6]">
@@ -116,7 +122,7 @@ export function OperatorDeliveryCard({
         {order.status === "nao_iniciada" && (
           <Button type="button" className={actionPrimary} disabled={controlsDisabled || isLocked(order, all)}
             onClick={() => { void onAction({ action: "start", id: order.id, driver }); }}>
-            <Play className="h-5 w-5" /> Iniciar entrega
+            <Play className="h-5 w-5" /> {collection ? "Iniciar coleta" : "Iniciar entrega"}
           </Button>
         )}
         {order.status === "em_rota" && (
@@ -137,8 +143,9 @@ export function OperatorDeliveryCard({
             disabled={controlsDisabled} onClick={() => { void onAction({ action: "cancel", id: order.id }); }}><X className="h-4 w-4" /> Cancelar início</Button>
         )}
         {order.status === "no_destino" && (
-          <Button type="button" className={actionPrimary} disabled={controlsDisabled} onClick={onSign}>
-            <CheckCircle2 className="h-5 w-5" /> Assinar notinhas
+          <Button type="button" className={actionPrimary} disabled={controlsDisabled}
+            onClick={collection ? () => { void onAction({ action: "finish_collection", id: order.id }); } : onSign}>
+            <CheckCircle2 className="h-5 w-5" /> {collection ? "Coletado" : "Assinar notinhas"}
           </Button>
         )}
       </div>
