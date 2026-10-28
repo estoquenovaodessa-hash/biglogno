@@ -29,3 +29,6 @@ export const createCollectionSchema = z.object({
 /** Edição pela Expedição: usa o mesmo formulário da criação, trocando requestId pelo registro. */
 export const editCollectionSchema = createCollectionSchema.omit({ requestId: true })
   .extend({ id: z.string().uuid() });
+
+/** Exclusão de uma coleta pendente pelo botão Editar. */
+export const deleteCollectionSchema = z.object({ id: z.string().uuid() });
