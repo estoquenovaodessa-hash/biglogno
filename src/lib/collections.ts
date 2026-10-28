@@ -14,7 +14,8 @@ export const createCollectionCompanySchema = z.object({
 export const createCollectionSchema = z.object({
   requestId: z.string().uuid(),
   companyId: z.string().uuid(),
-  address: z.string().trim().min(8, "Informe um endereço completo para a coleta.").max(400),
+  /** Endereço opcional: sem ele, a coleta continua operacional mas não gera marcador no mapa. */
+  address: z.string().trim().max(400).optional().default(""),
   value: z.number().finite().min(0).max(100000000),
   contact: z.string().trim().max(150).optional().default(""),
 });
