@@ -5,6 +5,11 @@ describe("permissões por função", () => {
   test("gestor acessa todas as opções operacionais", () => {
     for (const tab of ["Importação", "Análises e Operações", "Contagem", "Conferência", "Entregas", "Roteiro de Apuração", "Zona Segura", "Estoque", "Endereçamento", "Histórico"]) expect(canAccessTab("gestor", tab)).toBe(true);
   });
+  test("gestor pode abrir Expedição, mas operador não recebe essa página no menu do gestor", () => {
+    expect(canAccessTab("gestor", "Expedição")).toBe(true);
+    expect(canAccessTab("operador", "Expedição")).toBe(false);
+    expect(canAccessTab(null, "Expedição")).toBe(false);
+  });
   test("operador acessa somente Contagem, Conferência e Entregas", () => {
     expect(canAccessTab("operador", "Contagem")).toBe(true);
     expect(canAccessTab("operador", "Conferência")).toBe(true);
