@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  fmtBrasilia, isLocked, statusLabel,
+  fmtBrasilia, isConsumerDelivery, isLocked, statusLabel,
   type Delivery, type DeliveryAction,
 } from "@/lib/deliveries";
 
@@ -81,7 +81,7 @@ export function OperatorDeliveryCard({
                 {row.onlyDelivery ? "Somente entrega" : <>Nº documento: <span className="text-white">{row.document}</span></>}
               </span>
             </div>
-            {row.status === "nao_iniciada" && (orders.length > 1 || row.separate) && (
+            {row.status === "nao_iniciada" && !isConsumerDelivery(row) && (orders.length > 1 || row.separate) && (
               <Button type="button" variant="outline" size="sm"
                 className="h-9 shrink-0 gap-1.5 rounded-lg border-[#3a648f] bg-[#14253b] px-2.5 text-xs font-bold text-[#9ccfff] hover:bg-[#203c5c] hover:text-white"
                 disabled={controlsDisabled} onClick={() => { void onAction({ action: row.separate ? "unify" : "separate", id: row.id }); }}>
