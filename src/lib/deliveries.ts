@@ -54,11 +54,20 @@ const ACTIVE: DeliveryStatus[] = ["em_rota", "no_destino"];
 export const isActive = (d: Delivery) => ACTIVE.includes(d.status);
 
 const companyKey = (d: Delivery) => d.company.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ");
+
+/** Cliente CONSUMIDOR: cada nota é um pedido independente, mesmo quando
+ * o cadastro tem zeros à esquerda (100, 0100, 00100). */
+export function isConsumerDelivery(d: Pick<Delivery, "companyCode">): boolean {
+  return /^0*100$/.test(String(d.companyCode ?? "").trim());
+}
+
 /** Agrupa apenas pedidos na mesma etapa/viagem, nunca inclui um novo pedido em uma viagem já iniciada. */
 export function deliveryGroups(all: Delivery[]): Delivery[][] {
   const groups = new Map<string, Delivery[]>();
   for (const d of all) {
-    const key = d.separate || d.status === "finalizada" ? d.id : `${companyKey(d)}|${d.status}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
+    const key = isConsumerDelivery(d) || d.separate || d.status === "finalizada"
+      ? d.id
+      : `${companyKey(d)}|${d.status}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
     const group = groups.get(key) ?? []; group.push(d); groups.set(key, group);
   }
   return [...groups.values()];
@@ -102,6 +111,7 @@ export function applyDeliveryAction(d: Delivery, all: Delivery[], a: DeliveryAct
       return { ...d, status: "finalizada", receiver: a.receiver, finishedAt: iso };
     case "separate":
     case "unify":
+      if (isConsumerDelivery(d)) throw new Error("Notas do cliente CONSUMIDOR (100) devem permanecer separadas.");
       if (d.status !== "nao_iniciada") throw new Error("Unifique ou desunifique antes de iniciar a entrega.");
       return { ...d, separate: a.action === "separate" };
   }
