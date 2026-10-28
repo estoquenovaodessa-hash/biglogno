@@ -25,3 +25,7 @@ export const createCollectionSchema = z.object({
   scheduledDate: z.union([scheduledDateSchema, z.literal("")]).optional().default(""),
   shift: expeditionShiftSchema.nullable().optional().default(null),
 });
+
+/** Edição pela Expedição: usa o mesmo formulário da criação, trocando requestId pelo registro. */
+export const editCollectionSchema = createCollectionSchema.omit({ requestId: true })
+  .extend({ id: z.string().uuid() });
