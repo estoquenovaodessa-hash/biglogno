@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { historicalKey, parseHistoricalSales } from "./sales-import";
-import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
+import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
 
 export const readSalesVerification = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
@@ -172,6 +172,11 @@ export const editSalesVerification = createServerFn({ method: "POST" })
 
     const next = {
       ...original,
+      // Evita manter motivos antigos quando a conferência passa de Errado a Certo.
+      errorReason: undefined,
+      errorReasons: undefined,
+      balcaoDestination: undefined,
+      forDelivery: undefined,
       ...data.record,
       verifierCode: code,
       clientName: client.name,
@@ -181,17 +186,23 @@ export const editSalesVerification = createServerFn({ method: "POST" })
       updatedAt: new Date().toISOString(),
       updatedBy: operator.name,
     };
-    const kind = expedition
-      ? (data.record.forDelivery ? "deliveries" : "pickups")
-      : data.record.balcaoDestination === "entrega" ? "deliveries"
-        : data.record.balcaoDestination === "retira" ? "pickups" : "none";
+    const previousChoice = verificationDestination({
+      verifierCode: String(original.verifierCode ?? ""),
+      forDelivery: original.forDelivery === true,
+      balcaoDestination: original.balcaoDestination === "entrega" || original.balcaoDestination === "retira"
+        ? original.balcaoDestination : undefined,
+    });
+    const chosenKind = verificationDestination(data.record);
+    // Se o funcionário não mudou o destino, não desfaz movimentações feitas
+    // posteriormente pela Expedição (ex.: Retira já transferida para Entrega).
+    const kind = chosenKind === previousChoice ? "keep" : chosenKind;
     const logistics = {
       document: data.record.document,
       company: client.name,
       companyCode: client.code,
       value: data.record.value,
       source: "conferencia", channel: expedition ? "expedicao" : "balcao",
-      status: kind === "deliveries" ? "nao_iniciada" : "pendente",
+      status: chosenKind === "deliveries" ? "nao_iniciada" : "pendente",
     };
     const { data: saved, error: updateError } = await supabaseAdmin.rpc("edit_verification_logistics", {
       p_record_id: data.record.requestId,
