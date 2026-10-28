@@ -131,7 +131,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           disabled={!canWrite || order.status !== "nao_iniciada"}
           onSetShift={onUpdateSchedule} />
         <div className="mt-3 border-t border-orange-400/20 pt-3">
-          <ExpeditionCollectionDate date={order.scheduledDate} readOnly={readOnly}
+          <ExpeditionCollectionDate key={order.scheduledDate ?? "sem-data"} date={order.scheduledDate} readOnly={readOnly}
             disabled={!canWrite || order.status !== "nao_iniciada"}
             onSave={date => onUpdateSchedule([order.id], order.expeditionShift ?? null, date)} />
         </div>
