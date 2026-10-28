@@ -52,7 +52,9 @@ export const addCollection = createServerFn({ method: "POST" })
     const payload = {
       source: "coleta", company: company.name, document: "", value: data.value,
       status: "nao_iniciada", collectionAddress: data.address,
-      collectionContact: data.contact, onlyDelivery: false,
+      collectionContact: data.contact, collectionPayment: data.payment,
+      expeditionShift: data.shift ?? undefined,
+      scheduledDate: data.scheduledDate || undefined, onlyDelivery: false,
     };
     const { error } = await db.from("deliveries").upsert({
       id: data.requestId, payload, position: Date.now() / 1000,
