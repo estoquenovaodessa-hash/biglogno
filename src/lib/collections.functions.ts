@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, collectionCompanySchema } from "./collections";
 import { z } from "zod";
+import { collectionEditCommitPayload, type LogisticsSnapshotRow } from "./collection-edit-commit";
 
 const CATALOG_KEY = "collection-companies";
 
@@ -79,9 +80,18 @@ export const editCollection = createServerFn({ method: "POST" })
     const { logisticsClient } = await import("./logistics.server");
     const { logisticsCommitError } = await import("./logistics-commit-error");
     const db = await logisticsClient();
-    const { data: row, error } = await db.from("deliveries")
-      .select("id,payload,position").eq("id", data.id).maybeSingle();
-    if (error) throw new Error("Não foi possível consultar a coleta.");
+    // O RPC confere a contagem e o payload de TODA a fila de Entregas.
+    // A consulta por id isolado gerava falsos conflitos quando havia 2+ pedidos.
+    const rows: LogisticsSnapshotRow[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data: batch, error } = await db.from("deliveries")
+        .select("id,payload,position").order("position").order("id")
+        .range(offset, offset + 999);
+      if (error) throw new Error("Não foi possível carregar a fila de Entregas para editar a coleta.");
+      rows.push(...(batch ?? []));
+      if (!batch || batch.length < 1000) break;
+    }
+    const row = rows.find(item => item.id === data.id);
     if (!row) throw new Error("Coleta não encontrada. Atualize a Expedição.");
     const payload = row.payload as Record<string, unknown>;
     if (payload.source !== "coleta") throw new Error("Este registro não é uma coleta.");
@@ -100,11 +110,9 @@ export const editCollection = createServerFn({ method: "POST" })
       scheduledDate: data.scheduledDate || undefined,
       expeditionShift: data.shift ?? undefined,
     };
-    const { data: saved, error: saveError } = await db.rpc("commit_logistics_changes", {
-      kind: "deliveries",
-      expected: [{ id: row.id, payload: row.payload }],
-      changes: [{ id: row.id, payload: JSON.parse(JSON.stringify(next)), position: row.position }],
-    });
+    const { data: saved, error: saveError } = await db.rpc(
+      "commit_logistics_changes", collectionEditCommitPayload(rows, row.id, next),
+    );
     if (saveError) throw logisticsCommitError("editar a coleta", saveError);
     if (saved !== true) throw new Error("A edição não foi confirmada pelo Supabase. Atualize e tente novamente.");
     return { ok: true };
