@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight } from "lucide-react";
+import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight, Pencil } from "lucide-react";
 import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { listDeliveries, setExpeditionSchedule } from "@/lib/deliveries.functions";
-import { shiftOf, type ExpeditionShift } from "@/lib/expedition-schedule";
+import { shiftOf, shiftLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
 import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
 import { listExpeditionPickups, transferExpeditionOrders } from "@/lib/pickups.functions";
 import { canTransferExpedition } from "@/lib/employees.functions";
@@ -19,6 +19,7 @@ import { pendingExpeditionPickups } from "@/lib/expedition-history";
 type Origin = "BALCÃO" | "EXPEDIÇÃO";
 type DisplayStatus = { text: string; theme: string; detail?: string };
 type TransferNote = { id: string; document: string; value: number; separatedAt: string };
+type EditTarget = { kind: "delivery"; ids: string[] } | { kind: "pickup"; id: string };
 type TransferTarget = {
   kind: "toPickup" | "toDelivery";
   company: string;
@@ -79,13 +80,12 @@ function Summary({ title, value, icon: Icon }: {
   </div>;
 }
 
-function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer, onSetShift }: {
+function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onEdit }: {
   orders: Delivery[];
   canTransfer: boolean;
   readOnly: boolean;
   busy: boolean;
-  onTransfer: (target: TransferTarget) => void;
-  onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
+  onEdit: (orders: Delivery[]) => void;
 }) {
   const first = orders[0];
   if (!first) return null;
@@ -94,11 +94,6 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer, on
   const origins = [...new Set(orders.map(originOf))];
   const differentOrigins = origins.length > 1;
   const driver = first.driver || orders.find(item => item.driver)?.driver;
-  // Notas sem documento ("Somente entrega") não podem ir para Retira.
-  const transferable = orders.filter(order =>
-    order.source === "conferencia" && order.status === "nao_iniciada" && !order.onlyDelivery && !!order.document &&
-    typeof order.value === "number" && Number.isFinite(order.value));
-
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
@@ -136,32 +131,25 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer, on
         </div>
       </div>)}
     </div>
-    <ExpeditionShiftPicker ids={orders.map(order => order.id)} shift={shiftOf(first)} readOnly={readOnly}
-      disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
-      onSetShift={onSetShift} />
-    {!readOnly && transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
-      <Button type="button" variant="outline" size="sm" className="h-10 gap-2 text-sm font-bold"
-        disabled={busy || !canTransfer} onClick={() => onTransfer({
-          kind: "toPickup",
-          company: first.company,
-          orders: transferable.map(order => ({
-            id: order.id, document: order.document,
-            value: order.value, separatedAt: order.createdAt,
-          })),
-        })}>
-        <ArrowLeftRight className="h-4 w-4" />
-        Ir para Retira {transferable.length > 1 ? `(${transferable.length} notas)` : ""}
-      </Button>
-    </div>}
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
+      <span className="rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-xs font-bold text-foreground">
+        Turno: {shiftLabel(shiftOf(first))}
+      </span>
+      {!readOnly && <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5"
+        disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
+        onClick={() => onEdit(orders)}>
+        <Pencil className="h-4 w-4" /> Editar
+      </Button>}
+    </div>
   </article>;
 }
 
-function PickupCard({ order, canTransfer, readOnly, busy, onTransfer }: {
+function PickupCard({ order, canTransfer, readOnly, busy, onEdit }: {
   order: Pickup;
   canTransfer: boolean;
   readOnly: boolean;
   busy: boolean;
-  onTransfer: (target: TransferTarget) => void;
+  onEdit: (order: Pickup) => void;
 }) {
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -179,17 +167,12 @@ function PickupCard({ order, canTransfer, readOnly, busy, onTransfer }: {
       <Detail label="Quem retirou">{order.receiver || "—"}</Detail>
       <Detail label="Entregue por">{order.handedBy || "—"}</Detail>
     </div>
-    {!readOnly && order.status === "pendente" &&
-      <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
-        <Button type="button" variant="outline" size="sm" disabled={busy || !canTransfer} className="h-10 gap-2 text-sm font-bold"
-          onClick={() => onTransfer({
-            kind: "toDelivery", company: order.company,
-            orders: [{ id: order.id, document: order.document || "—",
-              value: Number(order.value) || 0, separatedAt: order.createdAt }],
-          })}>
-          <Truck className="h-4 w-4" /> Ir para Entrega
-        </Button>
-      </div>}
+    {!readOnly && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
+      <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5"
+        disabled={busy || !canTransfer || order.status !== "pendente"} onClick={() => onEdit(order)}>
+        <Pencil className="h-4 w-4" /> Editar
+      </Button>
+    </div>
   </article>;
 }
 
@@ -205,6 +188,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const transferOrders = useServerFn(transferExpeditionOrders);
   const assignSchedule = useServerFn(setExpeditionSchedule);
   const [target, setTarget] = useState<TransferTarget | null>(null);
+  const [editing, setEditing] = useState<EditTarget | null>(null);
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -252,7 +236,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const pickupsDone = allPickups.filter(p => p.status === "finalizada").length;
 
   function openTransfer(next: TransferTarget) {
-    if (readOnly) return;
+    if (readOnly || !canTransfer || busy) return;
+    setEditing(null);
     setTarget(next);
     setTransferMode("selected");
     setSelectedIds([]);
@@ -342,7 +327,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         <div className="space-y-2 p-3">
           {groups.map(orders => {
             const first = orders[0];
-            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} onSetShift={updateSchedule} /> : null;
+            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onEdit={list => { setError(""); setEditing({ kind: "delivery", ids: list.map(order => order.id) }); }} /> : null;
           })}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa cadastrada."}
@@ -357,14 +342,13 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
           <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{pickups.length}</span>
         </header>
         <div className="space-y-2 p-3">
-          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} />)}
+          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onEdit={order => { setError(""); setEditing({ kind: "pickup", id: order.id }); }} />)}
           {!pickups.length && <p className="p-5 text-center text-sm text-muted-foreground">
             {pickupsQuery.isLoading ? "Carregando retiradas…" : "Nenhuma retirada vinda da Conferência."}
           </p>}
         </div>
       </section>
       <ExpeditionCollections records={deliveriesQuery.data ?? []} canManage={canTransfer} readOnly={readOnly}
-        onUpdateSchedule={updateSchedule}
         onCreated={async () => {
           await deliveriesQuery.refetch();
           await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
