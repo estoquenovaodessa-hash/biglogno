@@ -1,4 +1,4 @@
-import type { Delivery } from "./deliveries";
+import { isConsumerDelivery, type Delivery } from "./deliveries";
 import { normalizeDeliveryClientCode, type DeliveryClientAddress } from "./delivery-addresses";
 
 export interface RouteStop {
@@ -52,7 +52,10 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
   const stops: RouteStop[] = [];
   for (const delivery of matches) {
     const code = normalizeDeliveryClientCode(delivery.companyCode ?? "");
-    const companyKey = code ? "codigo:" + code : "empresa:" + normalizeName(delivery.company);
+    // CONSUMIDOR (100) mantém cada nota individual também na visualização da rota.
+    const companyKey = isConsumerDelivery(delivery)
+      ? "nota:" + delivery.id
+      : code ? "codigo:" + code : "empresa:" + normalizeName(delivery.company);
     const previous = stops[stops.length - 1];
     const firstPrevious = previous?.deliveries[0];
     const sameVisit = firstPrevious && (
