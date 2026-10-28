@@ -53,7 +53,9 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
   for (const delivery of matches) {
     const code = normalizeDeliveryClientCode(delivery.companyCode ?? "");
     // CONSUMIDOR (100) mantém cada nota individual também na visualização da rota.
-    const companyKey = isConsumerDelivery(delivery)
+    const companyKey = delivery.source === "coleta"
+      ? "coleta:" + delivery.id
+      : isConsumerDelivery(delivery)
       ? "nota:" + delivery.id
       : code ? "codigo:" + code : "empresa:" + normalizeName(delivery.company);
     const previous = stops[stops.length - 1];
@@ -68,10 +70,12 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
       stops.push({
         key: companyKey,
         company: delivery.company,
-        clientCode: code,
+        clientCode: delivery.source === "coleta" ? "" : code,
         at: deliveryVisitTime(delivery),
         deliveries: [delivery],
-        address: code ? known.get(code) : undefined,
+        address: delivery.source === "coleta" && delivery.collectionAddress
+          ? { client_code: "", address: delivery.collectionAddress, neighborhood: "", city: "", state: "" }
+          : code ? known.get(code) : undefined,
       });
     }
   }
