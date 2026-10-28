@@ -234,6 +234,15 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const deliveriesRoute = deliveries.length - deliveriesReady;
   const pickupsReady = pickups.length;
   const pickupsDone = allPickups.filter(p => p.status === "finalizada").length;
+  // A edição sempre consulta a versão mais recente, inclusive após atualizar a fila.
+  const editingDeliveries = editing?.kind === "delivery"
+    ? editing.ids.map(id => deliveriesQuery.data?.find(row => row.id === id)).filter((item): item is Delivery => !!item)
+    : [];
+  const editingPickup = editing?.kind === "pickup" ? pickups.find(row => row.id === editing.id) : undefined;
+  const editTransferable = editingDeliveries.filter(order =>
+    order.source === "conferencia" && order.status === "nao_iniciada"
+    && !order.onlyDelivery && !!order.document && Number.isFinite(order.value));
+
 
   function openTransfer(next: TransferTarget) {
     if (readOnly || !canTransfer || busy) return;
@@ -257,6 +266,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       await assignSchedule({ data: { ids, shift, ...(scheduledDate === undefined ? {} : { scheduledDate }) } });
       await deliveriesQuery.refetch();
       await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      setEditing(null);
       setNotice("Programação atualizada na Expedição e na fila do entregador.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a programação.");
@@ -361,6 +371,68 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       </p>}
     {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold text-success">{notice}</p>}
     {error && !target && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+    {!readOnly && <Dialog open={!!editing} onOpenChange={open => {
+      if (!open && !busy) { setEditing(null); setError(""); }
+    }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar {editing?.kind === "delivery" ? "entrega" : "retira"}</DialogTitle>
+        </DialogHeader>
+        {editing?.kind === "delivery" && editingDeliveries.length > 0 && <>
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="font-extrabold">{editingDeliveries[0].company}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {editingDeliveries.map(row => row.document || "Somente entrega").join(" · ")}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Escolha o turno da entrega. A alteração será aplicada às notas deste grupo.
+          </p>
+          <ExpeditionShiftPicker ids={editingDeliveries.map(row => row.id)}
+            shift={shiftOf(editingDeliveries[0])} readOnly={false}
+            disabled={busy || !canTransfer || editingDeliveries.some(row => row.status !== "nao_iniciada")}
+            onSetShift={updateSchedule} />
+          {editTransferable.length > 0 && <div className="border-t border-border pt-3">
+            <Button type="button" variant="outline" className="w-full gap-2" disabled={busy || !canTransfer}
+              onClick={() => openTransfer({
+                kind: "toPickup",
+                company: editingDeliveries[0].company,
+                orders: editTransferable.map(row => ({
+                  id: row.id, document: row.document,
+                  value: row.value, separatedAt: row.createdAt,
+                })),
+              })}>
+              <ArrowLeftRight className="h-4 w-4" />
+              Transferir para Retira {editTransferable.length > 1 ? `(${editTransferable.length} notas)` : ""}
+            </Button>
+          </div>}
+        </>}
+        {editing?.kind === "pickup" && editingPickup && <>
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="font-extrabold">{editingPickup.company}</p>
+            <p className="text-xs text-muted-foreground">Nota: {editingPickup.document || "—"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Situação: {pickupStatus(editingPickup).text}</p>
+          </div>
+          <Button type="button" variant="outline" className="w-full gap-2"
+            disabled={busy || !canTransfer || editingPickup.status !== "pendente"}
+            onClick={() => openTransfer({
+              kind: "toDelivery", company: editingPickup.company,
+              orders: [{
+                id: editingPickup.id, document: editingPickup.document || "—",
+                value: Number(editingPickup.value) || 0, separatedAt: editingPickup.createdAt,
+              }],
+            })}>
+            <Truck className="h-4 w-4" /> Transferir para Entrega
+          </Button>
+        </>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => { setEditing(null); setError(""); }}>
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>}
     {!readOnly && <Dialog open={!!target} onOpenChange={open => {
       if (!open && !busy) { setTarget(null); setSelectedIds([]); setError(""); }
     }}>
