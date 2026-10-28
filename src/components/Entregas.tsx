@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
-import { Package, Plus, Truck } from 'lucide-react';
+import { CalendarDays, Clock3, Package, Plus, Sun, Sunset, Truck } from 'lucide-react';
 import { useActiveEmployee } from './EmployeeGate';
 import { useOperatorRights } from './useOperatorRights';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { LogisticsOrderFields } from './LogisticsOrderFields';
 import { Retira } from './Retira';
 import { ManagerDeliveries } from './ManagerDeliveries';
 import { OperatorDeliveryCard } from './OperatorDeliveryCard';
+import { operatorShiftSections, shiftLabel, type ShiftSection } from '@/lib/expedition-schedule';
 const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function Entregas({ role }: { role: AccessRole }) {
@@ -34,35 +35,59 @@ export function Entregas({ role }: { role: AccessRole }) {
   async function run(fn: () => Promise<unknown>) { setBusy(true); setError(''); try { await fn(); await q.refetch(); return true; } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível concluir.'); return false; } finally { setBusy(false); } }
   const action = (a: DeliveryAction) => run(() => act({ data: a }));
   const all = q.data ?? [], open = all.filter(d => d.status !== 'finalizada'), groups = deliveryGroups(open);
+  const sections = operatorShiftSections(groups);
   const done = all.filter(d => d.status === 'finalizada').sort((a,b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
   const clients = sales.data?.clients ?? [];
-  function move(i: number, direction: -1 | 1) { const next = [...groups]; const j = i + direction; if (j < 0 || j >= next.length) return; [next[i], next[j]] = [next[j], next[i]]; void run(() => reorder({ data: { ids: next.flatMap(g => g.map(d => d.id)) } })); }
+  // Permite reorganizar somente dentro do mesmo turno; jamais transfere pedidos
+  // entre MANHÃ/TARDE/INDEFINIDO ao usar as setas da fila.
+  function move(shift: ShiftSection, index: number, direction: -1 | 1) {
+    const section = sections.find(entry => entry.shift === shift);
+    const other = index + direction;
+    if (!section || other < 0 || other >= section.groups.length) return;
+    const arranged = sections.map(entry => ({
+      shift: entry.shift, groups: [...entry.groups],
+    }));
+    const target = arranged.find(entry => entry.shift === shift)!;
+    [target.groups[index], target.groups[other]] = [target.groups[other], target.groups[index]];
+    const ids = arranged.flatMap(entry => entry.groups.flatMap(group => group.map(item => item.id)));
+    void run(() => reorder({ data: { ids } }));
+  }
   const controlsDisabled = busy || !driver || q.isError || !canOperate;
-  const queue = <div className="grid grid-cols-1 gap-4">
-    {groups.map((group, index) => {
-      const order = group[0];
-      if (!order) return null;
-      return <OperatorDeliveryCard key={order.id}
-        orders={group}
-        all={all}
-        index={index}
-        totalGroups={groups.length}
-        controlsDisabled={controlsDisabled}
-        driver={driver}
-        onMove={direction => move(index, direction)}
-        onAction={action}
-        onArrive={async () => {
-          if (await action({ action: 'arrive', id: order.id }) && order.source !== 'coleta') {
-            setReceiver('');
-            setArrived(group);
-          }
-        }}
-        onSign={() => { if (order.source !== 'coleta') { setReceiver(''); setArrived(group); } }}
-      />;
-    })}
-    {!groups.length && <div className="rounded-xl border border-dashed border-[#315887] bg-[#102039] px-5 py-10 text-center">
-      <Truck className="mx-auto h-10 w-10 text-[#6daaff]" />
-      <p className="mt-3 text-sm font-semibold text-[#c4d8f4]">Nenhuma entrega pendente.</p>
+  const queue = <div className="space-y-6">
+    {sections.map(({ shift, groups: shiftGroups }) => <section key={shift} className="space-y-3" aria-label={shiftLabel(shift)}>
+      <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${shift === "manha"
+        ? "border-sky-400/40 bg-sky-600/15 text-sky-200"
+        : shift === "tarde" ? "border-orange-400/40 bg-orange-500/15 text-orange-200"
+        : "border-[#365a88] bg-[#18304d] text-[#c2d4ef]"}`}>
+        {shift === "manha" ? <Sun className="h-5 w-5" /> : shift === "tarde" ? <Sunset className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}
+        <h2 className="text-base font-extrabold tracking-widest">{shiftLabel(shift)}</h2>
+        <span className="ml-auto rounded-full border border-current/25 px-2.5 py-0.5 text-xs font-bold">{shiftGroups.length}</span>
+      </div>
+      {shiftGroups.map((group, index) => {
+        const order = group[0];
+        if (!order) return null;
+        return <OperatorDeliveryCard key={order.id}
+          orders={group}
+          all={all}
+          index={index}
+          totalGroups={shiftGroups.length}
+          controlsDisabled={controlsDisabled}
+          driver={driver}
+          onMove={direction => move(shift, index, direction)}
+          onAction={action}
+          onArrive={async () => {
+            if (await action({ action: 'arrive', id: order.id }) && order.source !== 'coleta') {
+              setReceiver('');
+              setArrived(group);
+            }
+          }}
+          onSign={() => { if (order.source !== 'coleta') { setReceiver(''); setArrived(group); } }}
+        />;
+      })}
+      {!shiftGroups.length && <p className="rounded-lg border border-dashed border-[#365a88] bg-[#101c2e] px-3 py-4 text-center text-xs text-[#9db6d8]">Nenhuma operação neste turno.</p>}
+    </section>)}
+    {!groups.length && <div className="rounded-xl border border-dashed border-[#315887] bg-[#102039] px-5 py-6 text-center text-sm text-[#c4d8f4]">
+      Nenhuma entrega ou coleta pendente.
     </div>}
   </div>;
   return <section className={`mx-auto min-w-0 space-y-5 ${role === 'operador' ? 'w-full max-w-[560px]' : ''}`}>
