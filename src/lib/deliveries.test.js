@@ -78,6 +78,32 @@ describe("entregas", () => {
   test("novo pedido não entra em entrega já iniciada", () => {
     expect(deliveryGroups([base("a", { status: "em_rota", startedAt: t(0).toISOString() }), base("b")])).toHaveLength(2);
   });
+  test("coleta é individual e não unifica com entrega nem com outra coleta do mesmo nome", () => {
+    const a = base("coleta-1", { company: "Fornecedor X", source: "coleta", collectionAddress: "Rua 1, 100", document: "" });
+    const b = base("coleta-2", { company: "Fornecedor X", source: "coleta", collectionAddress: "Rua 1, 100", document: "" });
+    const c = base("entrega", { company: "Fornecedor X" });
+    expect(deliveryGroups([a, b, c]).map(rows => rows.map(item => item.id)))
+      .toEqual([["coleta-1"], ["coleta-2"], ["entrega"]]);
+    expect(() => applyDeliveryGroupAction([a], { action: "unify", id: "coleta-1" }, t(0)))
+      .toThrow(/Coletas não podem ser unificadas/);
+  });
+  test("coleta mede trajeto e espera, finaliza sem recebedor e não altera outra nota", () => {
+    const a = base("coleta-1", { company: "Fornecedor X", source: "coleta", collectionAddress: "Rua Teste 55", document: "" });
+    const b = base("coleta-2", { company: "Fornecedor X", source: "coleta", collectionAddress: "Rua Teste 55", document: "" });
+    let all = applyDeliveryGroupAction([a, b], { action: "start", id: "coleta-1", driver: "Ana" }, t(0));
+    all = applyDeliveryGroupAction(all, { action: "arrive", id: "coleta-1" }, t(15));
+    expect(() => applyDeliveryGroupAction(all, { action: "finish", id: "coleta-1", receiver: "Fulano" }, t(20)))
+      .toThrow(/Coleta não exige recebedor/);
+    all = applyDeliveryGroupAction(all, { action: "finish_collection", id: "coleta-1" }, t(25));
+    expect(all.map(item => item.status)).toEqual(["finalizada", "nao_iniciada"]);
+    expect(all[0].receiver).toBeUndefined();
+    expect(travelMs(all[0])).toBe(15 * 60 * 1000);
+    expect(waitMs(all[0])).toBe(10 * 60 * 1000);
+    expect(() => applyDeliveryGroupAction([b], { action: "finish_collection", id: "coleta-2" }, t(30)))
+      .toThrow(/Cheguei ao destino/);
+    expect(() => applyDeliveryGroupAction([base("normal")], { action: "finish_collection", id: "normal" }, t(30)))
+      .toThrow(/somente para coletas/);
+  });
   test("Somente entrega dispensa valor e documento", () => {
     const data = { requestId: "00000000-0000-4000-8000-000000000001", companyCode: "1", onlyDelivery: true };
     expect(manualDeliverySchema.safeParse(data).success).toBe(true);
