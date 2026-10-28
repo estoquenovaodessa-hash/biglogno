@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardPlus, MapPin, PackageCheck, Plus, UserRound } from "lucide-react";
+import { ClipboardPlus, MapPin, PackageCheck, Pencil, Plus, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
 import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
-import { ExpeditionCollectionDate, ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
+import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
 import { Sun, Sunset, CalendarDays } from "lucide-react";
 
 const money = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -21,9 +21,8 @@ function collectionLabel(order: Delivery): string {
   return "COLETANDO";
 }
 
-export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onUpdateSchedule }: {
+export function ExpeditionCollections({ records, canManage, readOnly, onCreated }: {
   records: Delivery[]; canManage: boolean; readOnly: boolean; onCreated: () => Promise<void>;
-  onUpdateSchedule: (ids: string[], shift: ExpeditionShift | null, date?: string | null) => Promise<void>;
 }) {
   const client = useQueryClient();
   const list = useServerFn(listCollectionCompanies);
@@ -34,6 +33,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   });
   const [companyDialog, setCompanyDialog] = useState(false);
   const [collectionDialog, setCollectionDialog] = useState(false);
+  const [editing, setEditing] = useState<Delivery | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [address, setAddress] = useState("");
@@ -96,9 +96,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
         <h2 className="text-lg font-extrabold sm:text-xl">COLETAS</h2>
         <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-700 dark:text-orange-300">{collections.length}</span>
       </div>
-    </header>
-    <div className="space-y-2 p-3">
-      {!readOnly && <div className="flex flex-wrap gap-2">
+      {!readOnly && <div className="flex flex-wrap gap-1.5">
         <Button type="button" size="sm" className="gap-1.5 bg-orange-600 text-white hover:bg-orange-700"
           disabled={!canWrite} onClick={() => { setError(""); setCollectionDialog(true); }}>
           <ClipboardPlus className="h-4 w-4" /> Adicionar coleta
@@ -108,6 +106,8 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           <Plus className="h-4 w-4" /> Adicionar empresa de coleta
         </Button>
       </div>}
+    </header>
+    <div className="space-y-2 p-3">
       {notice && <p role="status" className="text-xs font-medium text-emerald-600">{notice}</p>}
       {error && !companyDialog && !collectionDialog && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {collections.map(order => <article key={order.id} className="rounded-lg border border-orange-400/40 bg-orange-500/[0.10] p-3">
@@ -130,18 +130,21 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           <p className="text-muted-foreground"><strong>Início:</strong> {fmtBrasilia(order.startedAt)} · <strong>Chegada:</strong> {fmtBrasilia(order.arrivedAt)}</p>
           {order.finishedAt && <p className="text-xs font-bold text-orange-700 dark:text-orange-300">Coletado em: {fmtBrasilia(order.finishedAt)}</p>}
         </div>
-        <ExpeditionShiftPicker ids={[order.id]} shift={shiftOf(order)} readOnly={readOnly}
-          disabled={!canWrite || order.status !== "nao_iniciada"}
-          onSetShift={onUpdateSchedule} />
-        <div className="mt-3 border-t border-orange-400/20 pt-3">
-          <ExpeditionCollectionDate key={order.scheduledDate ?? "sem-data"} date={order.scheduledDate} readOnly={readOnly}
+        {!readOnly && <div className="mt-3 flex justify-end border-t border-orange-400/20 pt-3">
+          <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5 border-orange-400/40"
             disabled={!canWrite || order.status !== "nao_iniciada"}
-            onSave={date => onUpdateSchedule([order.id], order.expeditionShift ?? null, date)} />
-        </div>
+            title={order.status !== "nao_iniciada" ? "Coleta iniciada ou finalizada não pode ser editada" : undefined}
+            onClick={() => { setError(""); setEditing(order); }}>
+            <Pencil className="h-4 w-4" /> Editar
+          </Button>
+        </div>}
       </article>)}
       {!collections.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma coleta cadastrada.</p>}
     </div>
     {!readOnly && <>
+      {editing && <ExpeditionCollectionEditor key={editing.id} record={editing}
+        companies={companies.data ?? []} onClose={() => setEditing(null)}
+        onSaved={onCreated} />}
       <Dialog open={companyDialog} onOpenChange={open => { if (!busy) { setCompanyDialog(open); setError(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Adicionar empresa de coleta</DialogTitle></DialogHeader>
