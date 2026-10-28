@@ -12,6 +12,8 @@ export interface Delivery {
   /** Coleta avulsa: endereço e contato não dependem da base de clientes. */
   collectionAddress?: string;
   collectionContact?: string;
+  /** Empresa cadastrada para permitir edição do vínculo de coleta. */
+  collectionCompanyId?: string;
   /** Veículo informado pela Expedição; coletas anteriores podem não ter o campo. */
   collectionTransport?: "moto" | "carro";
   /** False indica valor não informado; zero informado continua sendo um valor válido. */
