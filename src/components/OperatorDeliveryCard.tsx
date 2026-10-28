@@ -46,7 +46,7 @@ export function OperatorDeliveryCard({
   const actionSecondary = "h-11 w-full gap-2 rounded-lg border border-[#5483bd]/65 bg-[#111f34] text-sm font-semibold text-[#a6ceff] hover:bg-[#1b3454] hover:text-white";
 
   return (
-    <article className={`relative overflow-hidden rounded-xl border p-4 text-[#f5f8ff] shadow-[0_7px_24px_rgba(0,0,0,0.18)] sm:p-5 ${collection ? "border-orange-400/70 bg-orange-600/15 shadow-[0_0_0_1px_rgba(251,146,60,0.15)]" : inProgress ? "border-[#459bff] bg-[#101c2e] shadow-[0_0_0_1px_rgba(69,155,255,0.18)]" : "border-[#365a88] bg-[#101c2e]"}`}>
+    <article className={`relative overflow-hidden rounded-xl border p-4 text-[#f5f8ff] shadow-[0_7px_24px_rgba(0,0,0,0.18)] sm:p-5 ${collection ? "border-orange-400/70 bg-gradient-to-br from-orange-900/95 via-[#392718]/95 to-[#101c2e] shadow-[0_0_0_1px_rgba(251,146,60,0.20)]" : inProgress ? "border-[#459bff] bg-[#101c2e] shadow-[0_0_0_1px_rgba(69,155,255,0.18)]" : "border-[#365a88] bg-[#101c2e]"}`}>
       <div className="flex items-start gap-3">
         <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${collection ? "border-orange-400/60 bg-orange-400/20 text-orange-300" : "border-[#3166aa] bg-[#143b72] text-[#82baff]"}`}>
           {collection ? <PackageCheck className="h-6 w-6" aria-hidden="true" /> : <Building2 className="h-6 w-6" aria-hidden="true" />}
