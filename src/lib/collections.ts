@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { expeditionShiftSchema, scheduledDateSchema } from "./expedition-schedule";
 
 export const collectionCompanySchema = z.object({
   id: z.string().uuid(),
@@ -18,4 +19,7 @@ export const createCollectionSchema = z.object({
   address: z.string().trim().max(400).optional().default(""),
   value: z.number().finite().min(0).max(100000000),
   contact: z.string().trim().max(150).optional().default(""),
+  payment: z.enum(["dinheiro", "faturado"]).default("dinheiro"),
+  scheduledDate: z.union([scheduledDateSchema, z.literal("")]).optional().default(""),
+  shift: expeditionShiftSchema.nullable().optional().default(null),
 });
