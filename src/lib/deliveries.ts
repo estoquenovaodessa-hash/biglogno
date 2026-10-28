@@ -8,7 +8,10 @@ export interface Delivery {
   document: string;
   company: string;
   value: number;
-  source: "conferencia" | "manual";
+  source: "conferencia" | "manual" | "coleta";
+  /** Coleta avulsa: endereço e contato não dependem da base de clientes. */
+  collectionAddress?: string;
+  collectionContact?: string;
   status: DeliveryStatus;
   driver?: string;
   driverEmployeeId?: string;
@@ -45,6 +48,7 @@ export const deliveryActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("resume"), id: z.string().uuid() }),
   z.object({ action: z.literal("arrive"), id: z.string().uuid() }),
   z.object({ action: z.literal("finish"), id: z.string().uuid(), receiver: z.string().trim().min(1, "Informe o nome do recebedor.").max(150) }),
+  z.object({ action: z.literal("finish_collection"), id: z.string().uuid() }),
   z.object({ action: z.literal("separate"), id: z.string().uuid() }),
   z.object({ action: z.literal("unify"), id: z.string().uuid() }),
 ]);
@@ -65,7 +69,7 @@ export function isConsumerDelivery(d: Pick<Delivery, "companyCode">): boolean {
 export function deliveryGroups(all: Delivery[]): Delivery[][] {
   const groups = new Map<string, Delivery[]>();
   for (const d of all) {
-    const key = isConsumerDelivery(d) || d.separate || d.status === "finalizada"
+    const key = d.source === "coleta" || isConsumerDelivery(d) || d.separate || d.status === "finalizada"
       ? d.id
       : `${companyKey(d)}|${d.status}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
     const group = groups.get(key) ?? []; group.push(d); groups.set(key, group);
@@ -107,10 +111,16 @@ export function applyDeliveryAction(d: Delivery, all: Delivery[], a: DeliveryAct
       if (d.status !== "em_rota") throw new Error("Entrega não está em rota.");
       return { ...d, status: "no_destino", arrivedAt: iso };
     case "finish":
+      if (d.source === "coleta") throw new Error("Coleta não exige recebedor; use a confirmação de coleta.");
       if (d.status !== "no_destino") throw new Error("Pressione \"Cheguei\" antes de informar o recebedor.");
       return { ...d, status: "finalizada", receiver: a.receiver, finishedAt: iso };
+    case "finish_collection":
+      if (d.source !== "coleta") throw new Error("Ação permitida somente para coletas.");
+      if (d.status !== "no_destino") throw new Error("Pressione \"Cheguei ao destino\" antes de confirmar a coleta.");
+      return { ...d, status: "finalizada", finishedAt: iso };
     case "separate":
     case "unify":
+      if (d.source === "coleta") throw new Error("Coletas não podem ser unificadas.");
       if (isConsumerDelivery(d)) throw new Error("Notas do cliente CONSUMIDOR (100) devem permanecer separadas.");
       if (d.status !== "nao_iniciada") throw new Error("Unifique ou desunifique antes de iniciar a entrega.");
       return { ...d, separate: a.action === "separate" };
