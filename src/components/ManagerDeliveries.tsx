@@ -2,6 +2,11 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { readDeliveryAddresses, saveDeliveryAddresses, confirmDeliveryAddressLocation } from "@/lib/delivery-addresses.functions";
+import { listEmployees } from "@/lib/employees.functions";
+import {
+  managerDeliveryDrivers, managerDeliveryInPeriod, managerMatchesDriver,
+  type ManagerDeliveryPeriod,
+} from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
@@ -16,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { fmtBrasilia, fmtDuration, travelMs, waitMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
 import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
 
-type Period = "all" | "today" | "7d" | "month" | "previous";
+type Period = ManagerDeliveryPeriod;
 type StatusFilter = "all" | DeliveryStatus;
 type Filters = { period: Period; driver: string; status: StatusFilter; search: string };
 type ListTab = "pendentes" | "finalizadas" | "todas";
@@ -37,19 +42,6 @@ function dateBR(date: Date | string) {
   }).formatToParts(new Date(date));
   const part = (type: string) => parts.find(p => p.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
-}
-function inPeriod(record: Delivery, period: Period, now: Date) {
-  if (period === "all") return true;
-  const created = new Date(record.createdAt);
-  if (!Number.isFinite(created.getTime())) return false;
-  const today = dateBR(now);
-  const day = dateBR(created);
-  if (period === "today") return day === today;
-  if (period === "7d") return created.getTime() >= now.getTime() - 7 * 86400000;
-  if (period === "month") return day.slice(0, 7) === today.slice(0, 7);
-  const previous = new Date(`${today.slice(0, 7)}-15T12:00:00Z`);
-  previous.setUTCMonth(previous.getUTCMonth() - 1);
-  return day.slice(0, 7) === previous.toISOString().slice(0, 7);
 }
 function statusBadge(d: Delivery) {
   if (d.source === "coleta") {
@@ -127,6 +119,11 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const readAddresses = useServerFn(readDeliveryAddresses);
   const saveAddresses = useServerFn(saveDeliveryAddresses);
   const confirmLocation = useServerFn(confirmDeliveryAddressLocation);
+  const fetchEmployees = useServerFn(listEmployees);
+  const employeesQuery = useQuery({
+    queryKey: ["employees-available", "gestor"],
+    queryFn: () => fetchEmployees(), staleTime: 30000,
+  });
   const addressQuery = useQuery({ queryKey: ["delivery-addresses"], queryFn: () => readAddresses(), staleTime: 60000 });
   const queryClient = useQueryClient();
   const [importing, setImporting] = useState(false);
@@ -135,12 +132,14 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const [filters, setFilters] = useState<Filters>(initial);
   const [tab, setTab] = useState<ListTab>("pendentes");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [now] = useState(() => new Date());
-  const drivers = [...new Set(deliveries.map(d => d.driver?.trim()).filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  // Usar horário atualizado, não a data congelada da primeira abertura da aba.
+  const now = new Date();
+  const employees = employeesQuery.data ?? [];
+  const drivers = managerDeliveryDrivers(employees);
   const term = filters.search.trim().toLocaleLowerCase("pt-BR");
   const scoped = deliveries.filter(d =>
-    inPeriod(d, filters.period, now) &&
-    (filters.driver === "all" || d.driver === filters.driver) &&
+    managerDeliveryInPeriod(d, filters.period, now) &&
+    managerMatchesDriver(d, filters.driver, employees) &&
     (filters.status === "all" || d.status === filters.status) &&
     (!term || [d.company, d.companyCode, d.document, d.driver, d.receiver, d.collectionAddress, d.collectionContact].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(term)))
   );
@@ -216,8 +215,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
           <option value="all">Todo o período</option><option value="today">Hoje</option><option value="7d">Últimos 7 dias</option><option value="month">Mês atual</option><option value="previous">Mês anterior</option>
         </select></label>
         <label><span className={label}>Entregador</span><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.driver} onChange={e => setDraft(p => ({ ...p, driver: e.target.value }))}>
-          <option value="all">Todos</option>{drivers.map(d => <option key={d} value={d}>{d}</option>)}
-        </select></label>
+          <option value="all">Todos</option>{drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>{employeesQuery.isError && <span className="mt-1 block text-xs text-destructive">Não foi possível carregar os entregadores cadastrados.</span>}</label>
         <label><span className={label}>Situação</span><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.status} onChange={e => setDraft(p => ({ ...p, status: e.target.value as StatusFilter }))}>
           <option value="all">Todas</option>{(Object.keys(statusInfo) as DeliveryStatus[]).map(k => <option key={k} value={k}>{statusInfo[k].label}</option>)}
         </select></label>
