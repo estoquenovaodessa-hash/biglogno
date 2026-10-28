@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight } from "lucide-react";
 import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
-import { listDeliveries } from "@/lib/deliveries.functions";
+import { listDeliveries, setExpeditionSchedule } from "@/lib/deliveries.functions";
+import { shiftOf, type ExpeditionShift } from "@/lib/expedition-schedule";
+import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
 import { listExpeditionPickups, transferExpeditionOrders } from "@/lib/pickups.functions";
 import { canTransferExpedition } from "@/lib/employees.functions";
 import { useActiveEmployee } from "./EmployeeGate";
@@ -77,12 +79,13 @@ function Summary({ title, value, icon: Icon }: {
   </div>;
 }
 
-function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer }: {
+function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer, onSetShift }: {
   orders: Delivery[];
   canTransfer: boolean;
   readOnly: boolean;
   busy: boolean;
   onTransfer: (target: TransferTarget) => void;
+  onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
 }) {
   const first = orders[0];
   if (!first) return null;
@@ -93,7 +96,7 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer }: 
   const driver = first.driver || orders.find(item => item.driver)?.driver;
   // Notas sem documento ("Somente entrega") não podem ir para Retira.
   const transferable = orders.filter(order =>
-    order.status === "nao_iniciada" && !order.onlyDelivery && !!order.document &&
+    order.source === "conferencia" && order.status === "nao_iniciada" && !order.onlyDelivery && !!order.document &&
     typeof order.value === "number" && Number.isFinite(order.value));
 
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
@@ -133,6 +136,9 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onTransfer }: 
         </div>
       </div>)}
     </div>
+    <ExpeditionShiftPicker ids={orders.map(order => order.id)} shift={shiftOf(first)} readOnly={readOnly}
+      disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
+      onSetShift={onSetShift} />
     {!readOnly && transferable.length > 0 && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
       <Button type="button" variant="outline" size="sm" className="h-10 gap-2 text-sm font-bold"
         disabled={busy || !canTransfer} onClick={() => onTransfer({
@@ -197,6 +203,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const fetchPickups = useServerFn(listExpeditionPickups);
   const readPermission = useServerFn(canTransferExpedition);
   const transferOrders = useServerFn(transferExpeditionOrders);
+  const assignSchedule = useServerFn(setExpeditionSchedule);
   const [target, setTarget] = useState<TransferTarget | null>(null);
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -227,7 +234,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   });
 
   const deliveries = (deliveriesQuery.data ?? [])
-    .filter(d => d.source === "conferencia" && d.status !== "finalizada")
+    .filter(d => d.source !== "coleta" && d.status !== "finalizada")
     .slice().sort((a, b) => a.position - b.position);
 
   // Reutiliza exatamente a regra de agrupamento da tela do entregador:
@@ -257,6 +264,19 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const chosenOrders = !target ? [] : target.orders.length === 1 || transferMode === "all"
     ? target.orders
     : target.orders.filter(order => selectedIds.includes(order.id));
+
+  async function updateSchedule(ids: string[], shift: ExpeditionShift | null, scheduledDate?: string | null) {
+    if (readOnly || !canTransfer || busy || !ids.length) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await assignSchedule({ data: { ids, shift, ...(scheduledDate === undefined ? {} : { scheduledDate }) } });
+      await deliveriesQuery.refetch();
+      await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      setNotice("Programação atualizada na Expedição e na fila do entregador.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a programação.");
+    } finally { setBusy(false); }
+  }
 
   async function confirmTransfer() {
     if (readOnly || !target || !canTransfer || busy || !chosenOrders.length) return;
@@ -291,7 +311,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       <div className="min-w-0">
         <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Central de Expedição</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pedidos da Conferência • Entregas e Retiras • Atualização automática a cada 10 segundos
+          Entregas, Retiras e Coletas • Programação por turno • Atualização automática a cada 10 segundos
         </p>
       </div>
     </header>
@@ -309,10 +329,9 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
 
     <ExpeditionCompletedHistory deliveries={deliveriesQuery.data ?? []} />
 
-    {/* Os dois painéis crescem com os pedidos: sem largura mínima de tabela,
-        rolagem horizontal ou barras de rolagem independentes. */}
+    {/* Três colunas responsivas, cada uma com seu próprio fluxo operacional. */}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
-      <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Entrega da Conferência">
+      <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Entrega da Expedição">
         <header className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Truck className="h-5 w-5 shrink-0 text-primary" />
           <h2 className="text-lg font-extrabold sm:text-xl">ENTREGAS</h2>
@@ -323,10 +342,10 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         <div className="space-y-2 p-3">
           {groups.map(orders => {
             const first = orders[0];
-            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} /> : null;
+            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onTransfer={openTransfer} onSetShift={updateSchedule} /> : null;
           })}
           {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
-            {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa vinda da Conferência."}
+            {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa cadastrada."}
           </p>}
         </div>
       </section>
@@ -345,6 +364,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         </div>
       </section>
       <ExpeditionCollections records={deliveriesQuery.data ?? []} canManage={canTransfer} readOnly={readOnly}
+        onUpdateSchedule={updateSchedule}
         onCreated={async () => {
           await deliveriesQuery.refetch();
           await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
