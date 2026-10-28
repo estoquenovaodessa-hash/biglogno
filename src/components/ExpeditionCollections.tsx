@@ -11,6 +11,7 @@ import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
 import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
 import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
+import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
 import { Sun, Sunset, CalendarDays } from "lucide-react";
 
 const money = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -21,8 +22,13 @@ function collectionLabel(order: Delivery): string {
   return "COLETANDO";
 }
 
-export function ExpeditionCollections({ records, canManage, readOnly, onCreated }: {
-  records: Delivery[]; canManage: boolean; readOnly: boolean; onCreated: () => Promise<void>;
+export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy }: {
+  records: Delivery[];
+  canManage: boolean;
+  readOnly: boolean;
+  onCreated: () => Promise<void>;
+  onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
+  scheduleBusy: boolean;
 }) {
   const client = useQueryClient();
   const list = useServerFn(listCollectionCompanies);
@@ -111,10 +117,12 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated 
       {notice && <p role="status" className="text-xs font-medium text-emerald-600">{notice}</p>}
       {error && !companyDialog && !collectionDialog && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {collections.map(order => <article key={order.id} className="rounded-lg border border-orange-400/40 bg-orange-500/[0.10] p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-1.5 border-b border-orange-400/20 pb-2 text-xs font-extrabold text-orange-800 dark:text-orange-200">
-          <CalendarDays className="h-4 w-4" />
-          {order.scheduledDate ? scheduledDateLabel(order.scheduledDate) + " • " : ""}{shiftLabel(shiftOf(order))}
-        </div>
+        <ExpeditionShiftPicker placement="top" ids={[order.id]} shift={shiftOf(order)}
+          readOnly={readOnly} disabled={!canWrite || busy || scheduleBusy || order.status !== "nao_iniciada"}
+          onSetShift={onSetShift} />
+        {order.scheduledDate && <div className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-orange-800 dark:text-orange-200">
+          <CalendarDays className="h-4 w-4" /> {scheduledDateLabel(order.scheduledDate)}
+        </div>}
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className="min-w-0 flex-1 break-words text-sm font-extrabold">{order.company}</h3>
           <span className="rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-1 text-[11px] font-extrabold text-orange-700 dark:text-orange-300">{collectionLabel(order)}</span>
