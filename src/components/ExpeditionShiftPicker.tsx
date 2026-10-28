@@ -3,14 +3,18 @@ import { CalendarDays, Sun, Sunset, Clock3, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shiftLabel, scheduledDateLabel, type ExpeditionShift, type ShiftSection } from "@/lib/expedition-schedule";
 
-export function ExpeditionShiftPicker({ ids, shift, readOnly, disabled, onSetShift }: {
+export function ExpeditionShiftPicker({ ids, shift, readOnly, disabled, onSetShift, placement = "section" }: {
   ids: string[];
   shift: ShiftSection;
   readOnly: boolean;
   disabled: boolean;
   onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
+  /** Topo dos cards na Expedição; a edição existente mantém o layout anterior. */
+  placement?: "section" | "top";
 }) {
-  return <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+  return <div className={placement === "top"
+    ? "mb-3 space-y-2 border-b border-border/60 pb-3"
+    : "mt-3 space-y-2 border-t border-border/60 pt-3"}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
         <Clock3 className="h-3.5 w-3.5" /> Turno programado
