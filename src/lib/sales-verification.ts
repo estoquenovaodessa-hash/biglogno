@@ -32,6 +32,14 @@ export function verificationDestination(record: Pick<VerificationInput, "verifie
   return record.balcaoDestination === "entrega" ? "deliveries"
     : record.balcaoDestination === "retira" ? "pickups" : "none";
 }
+export function verificationEditKind(
+  previous: Pick<VerificationInput, "verifierCode" | "forDelivery" | "balcaoDestination">,
+  next: Pick<VerificationInput, "verifierCode" | "forDelivery" | "balcaoDestination">,
+) {
+  const oldKind = verificationDestination(previous);
+  const newKind = verificationDestination(next);
+  return oldKind === newKind ? "keep" : newKind;
+}
 
 export type VerificationRecord = Omit<VerificationInput, "seller" | "durationSeconds"> & { seller: VerificationInput["seller"] | "NÃO INFORMADO"; durationSeconds: number | null; id: string; createdAt: string; clientName: string; verifierName: string; employeeId?: string; channel?: "balcao" | "expedicao"; observation?: string; source?: "csv" };
 export function verificationChannel(record: Pick<VerificationRecord, "seller" | "channel">) { return record.channel ?? (record.seller === "EXPEDIÇÃO" ? "expedicao" : "balcao"); }
