@@ -39,12 +39,6 @@ export function ExpeditionCollectionDate({ date, readOnly, disabled, onSave }: {
   onSave: (date: string | null) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(date ?? "");
-  const [lastDate, setLastDate] = useState(date ?? "");
-  // Sincronizar após a confirmação de gravação pelo servidor.
-  if ((date ?? "") !== lastDate) {
-    setLastDate(date ?? "");
-    setDraft(date ?? "");
-  }
   return <div className="space-y-2">
     <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
       <CalendarDays className="h-3.5 w-3.5" /> Data específica: <strong className="text-foreground">{date ? scheduledDateLabel(date) : "Não definida"}</strong>
