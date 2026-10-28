@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createCollectionCompanySchema, createCollectionSchema, collectionCompanySchema } from "./collections";
+import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, collectionCompanySchema } from "./collections";
 import { z } from "zod";
 
 const CATALOG_KEY = "collection-companies";
@@ -53,6 +53,7 @@ export const addCollection = createServerFn({ method: "POST" })
       source: "coleta", company: company.name, document: "", value: data.value ?? 0,
       collectionValueProvided: data.value !== undefined,
       collectionTransport: data.vehicle,
+      collectionCompanyId: company.id,
       status: "nao_iniciada", collectionAddress: data.address,
       collectionContact: data.contact, collectionPayment: data.payment,
       expeditionShift: data.shift ?? undefined,
@@ -62,5 +63,49 @@ export const addCollection = createServerFn({ method: "POST" })
       id: data.requestId, payload, position: Date.now() / 1000,
     }, { onConflict: "id", ignoreDuplicates: true });
     if (error) throw new Error("Não foi possível adicionar a coleta.");
+    return { ok: true };
+  });
+
+/** Editar coleta pendente pela Expedição, sem modificar eventos de trajeto.
+ * A operação verifica a permissão novamente e preserva a concorrência usando
+ * o procedimento atômico já existente no Supabase. */
+export const editCollection = createServerFn({ method: "POST" })
+  .inputValidator(editCollectionSchema)
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import("./employees.functions");
+    await requireOperatorPermission("expedicao");
+    const company = (await getCatalog()).find(row => row.id === data.companyId);
+    if (!company) throw new Error("Selecione uma empresa de coleta cadastrada.");
+    const { logisticsClient } = await import("./logistics.server");
+    const { logisticsCommitError } = await import("./logistics-commit-error");
+    const db = await logisticsClient();
+    const { data: row, error } = await db.from("deliveries")
+      .select("id,payload,position").eq("id", data.id).maybeSingle();
+    if (error) throw new Error("Não foi possível consultar a coleta.");
+    if (!row) throw new Error("Coleta não encontrada. Atualize a Expedição.");
+    const payload = row.payload as Record<string, unknown>;
+    if (payload.source !== "coleta") throw new Error("Este registro não é uma coleta.");
+    if (payload.status !== "nao_iniciada")
+      throw new Error("Coletas já iniciadas não podem ser editadas na Expedição.");
+    const next = {
+      ...payload,
+      company: company.name,
+      collectionCompanyId: company.id,
+      collectionAddress: data.address,
+      collectionContact: data.contact,
+      value: data.value ?? 0,
+      collectionValueProvided: data.value !== undefined,
+      collectionTransport: data.vehicle,
+      collectionPayment: data.payment,
+      scheduledDate: data.scheduledDate || undefined,
+      expeditionShift: data.shift ?? undefined,
+    };
+    const { data: saved, error: saveError } = await db.rpc("commit_logistics_changes", {
+      kind: "deliveries",
+      expected: [{ id: row.id, payload: row.payload }],
+      changes: [{ id: row.id, payload: JSON.parse(JSON.stringify(next)), position: row.position }],
+    });
+    if (saveError) throw logisticsCommitError("editar a coleta", saveError);
+    if (saved !== true) throw new Error("A edição não foi confirmada pelo Supabase. Atualize e tente novamente.");
     return { ok: true };
   });
