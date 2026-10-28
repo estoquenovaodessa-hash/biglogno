@@ -121,6 +121,10 @@ export type Database = {
         Args: { changes: Json; expected: Json; kind: string }
         Returns: boolean
       }
+      update_expedition_collection: {
+        Args: { p_id: string; p_expected_payload: Json; p_next_payload: Json }
+        Returns: boolean
+      }
       register_verification_logistics: {
         Args: {
           logistics: Json
