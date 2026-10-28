@@ -107,6 +107,122 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
   return { prefix: documentPrefix(data.document) };
 });
 
+/** Busca apenas um documento na Conferência ao sair do campo numérico.
+ * Não envia listas privadas inteiras ao operador, somente o próprio registro. */
+export const findRegisteredVerification = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ document: z.string().regex(/^\d{4,20}$/) }))
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import("./employees.functions");
+    await requireOperatorPermission("conferencia");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin.from("sales_verification_records")
+      .select("id,payload").eq("payload->>document", data.document).limit(2);
+    if (error) throw new Error("Não foi possível verificar o número do documento.");
+    if (!rows?.length) return null;
+    if (rows.length > 1) throw new Error("Existem registros duplicados desse documento. Solicite a análise do gestor.");
+    const row = rows[0];
+    const payload = row.payload as Record<string, unknown>;
+    const editable = payload.source !== "csv"
+      ? verificationSchema.safeParse({ ...payload, requestId: row.id }) : null;
+    return {
+      id: row.id,
+      snapshot: JSON.stringify(payload),
+      record: editable?.success ? editable.data : null,
+    };
+  });
+
+/** Salva o mesmo documento sem criar nova conferência. A atualização dos
+ * pedidos ligados é confirmada por uma única transação SQL, com o mesmo ID. */
+export const editSalesVerification = createServerFn({ method: "POST" })
+  .inputValidator(z.object({
+    snapshot: z.string().min(2).max(50000),
+    record: verificationSchema,
+  }))
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import("./employees.functions");
+    const operator = await requireOperatorPermission("conferencia");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let original: Record<string, unknown>;
+    try {
+      original = z.record(z.unknown()).parse(JSON.parse(data.snapshot));
+    } catch {
+      throw new Error("Os dados originais da conferência são inválidos. Reabra o documento.");
+    }
+    if (original.source === "csv")
+      throw new Error("Esse registro foi importado do histórico e não pode ser editado pelo operador.");
+    if (original.document !== data.record.document)
+      throw new Error("O número do documento não pode ser alterado durante a edição.");
+
+    const { data: state, error } = await supabaseAdmin.from("app_state")
+      .select("value").eq("key", "sales-clients").maybeSingle();
+    if (error) throw new Error("Não foi possível validar o cliente da conferência.");
+    const clients = z.array(clientSchema).parse(state?.value ?? []);
+    const client = clients.find(c => canonicalCode(c.code) === canonicalCode(data.record.clientCode));
+    if (!client) throw new Error("Cliente não encontrado na base importada.");
+    const code = canonicalCode(data.record.verifierCode);
+    if (code !== "101" && code !== "102")
+      throw new Error("Selecione o setor Balcão (101) ou Expedição (102).");
+    const expedition = code === "102";
+    if (expedition !== (data.record.seller === "EXPEDIÇÃO"))
+      throw new Error("Vendedor incompatível com o setor.");
+    if (data.record.forDelivery && !expedition)
+      throw new Error("A opção 'Para entrega' é exclusiva da Expedição.");
+    if (expedition && data.record.balcaoDestination)
+      throw new Error("As opções Entrega e Retira são exclusivas do Balcão.");
+
+    const next = {
+      ...original,
+      ...data.record,
+      verifierCode: code,
+      clientName: client.name,
+      verifierName: operator.name,
+      employeeId: operator.id,
+      channel: expedition ? "expedicao" : "balcao",
+      updatedAt: new Date().toISOString(),
+      updatedBy: operator.name,
+    };
+    const kind = expedition
+      ? (data.record.forDelivery ? "deliveries" : "pickups")
+      : data.record.balcaoDestination === "entrega" ? "deliveries"
+        : data.record.balcaoDestination === "retira" ? "pickups" : "none";
+    const logistics = {
+      document: data.record.document,
+      company: client.name,
+      companyCode: client.code,
+      value: data.record.value,
+      source: "conferencia", channel: expedition ? "expedicao" : "balcao",
+      status: kind === "deliveries" ? "nao_iniciada" : "pendente",
+    };
+    const { data: saved, error: updateError } = await supabaseAdmin.rpc("edit_verification_logistics", {
+      p_record_id: data.record.requestId,
+      p_expected_verification: original as never,
+      p_verification: JSON.parse(JSON.stringify(next)),
+      p_logistics_kind: kind,
+      p_logistics: logistics,
+    });
+    if (updateError) {
+      console.error("[Conferência] Falha na edição vinculada", {
+        code: updateError.code, message: updateError.message, details: updateError.details,
+      });
+      const msg = updateError.message || "";
+      if (updateError.code === "PGRST202" || updateError.code === "42883")
+        throw new Error("A rotina SQL de edição da Conferência não está instalada. Execute sql/2026-10-28-editar-conferencia-documento.sql no Supabase.");
+      if (msg.includes("CONFERENCIA_MODIFICADA"))
+        throw new Error("Esse registro mudou desde que foi aberto. Atualize a Conferência e tente novamente.");
+      if (msg.includes("CONFERENCIA_OPERACAO_INICIADA"))
+        throw new Error("A nota já iniciou uma Entrega ou Retira. Não é possível modificar os dados operacionais.");
+      if (msg.includes("CONFERENCIA_DOCUMENTO_DUPLICADO"))
+        throw new Error("Já existe outra conferência com este número de documento.");
+      if (msg.includes("CONFERENCIA_NAO_ENCONTRADA"))
+        throw new Error("Documento não encontrado. Atualize a Conferência.");
+      if (msg.includes("CONFERENCIA_IMPORTADA"))
+        throw new Error("Este registro foi importado do histórico e não pode ser editado aqui.");
+      throw new Error(`Não foi possível salvar a conferência (erro ${updateError.code || "desconhecido"}). Nenhuma alteração foi confirmada.`);
+    }
+    if (saved !== true) throw new Error("O Supabase não confirmou a edição da Conferência.");
+    return { prefix: documentPrefix(data.record.document) };
+  });
+
 export const saveSalesPeriodCount = createServerFn({ method: "POST" }).inputValidator(z.object({ period: z.string().regex(/^(all|\d{4}-\d{2}(?:-\d{2})?)$/), count: z.number().int().min(0).max(100000000) })).handler(async ({ data }) => {
   const { requireAccess } = await import("./access.server");
   if (await requireAccess() !== "gestor") throw new Error("Sem permissão.");
