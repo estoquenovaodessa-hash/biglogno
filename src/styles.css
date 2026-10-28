@@ -267,6 +267,62 @@
   background-color: var(--card);
   border-color: var(--primary);
 }
+
+/* Conferência do operador: foco do teclado bem visível com TAB / SHIFT+TAB.
+   O azul contrasta com botões selecionados amarelos, verdes ou escuros.
+   Apenas outline e sombra EXTERNOS: não há camada sobre o texto digitado. */
+.sales-entry-form {
+  --conference-keyboard-focus: #075fce;
+  --conference-keyboard-glow: rgb(7 95 206 / 36%);
+}
+.dark .sales-entry-form {
+  --conference-keyboard-focus: #55d9ff;
+  --conference-keyboard-glow: rgb(85 217 255 / 44%);
+}
+
+/* O foco indica onde o TAB está, independentemente da opção selecionada.
+   O destaque persiste enquanto o elemento estiver focado. */
+.sales-entry-form :is(button, input, select, textarea):focus-visible {
+  position: relative;
+  outline: 3px solid var(--conference-keyboard-focus);
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 2px var(--color-card),
+    0 0 0 5px var(--conference-keyboard-focus),
+    0 0 15px 2px var(--conference-keyboard-glow);
+  animation: conference-keyboard-focus-glow 630ms ease-out 1;
+}
+
+/* Ao chegar a cada novo botão, um brilho curto chama atenção para o foco,
+   sem piscar continuamente, movimentar o layout ou cobrir os campos. */
+@keyframes conference-keyboard-focus-glow {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--color-card),
+      0 0 0 5px var(--conference-keyboard-focus),
+      0 0 5px 0 var(--conference-keyboard-glow);
+  }
+  45% {
+    box-shadow:
+      0 0 0 2px var(--color-card),
+      0 0 0 7px var(--conference-keyboard-focus),
+      0 0 23px 5px var(--conference-keyboard-glow);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--color-card),
+      0 0 0 5px var(--conference-keyboard-focus),
+      0 0 15px 2px var(--conference-keyboard-glow);
+  }
+}
+
+/* Campos continuam legíveis: fundo e texto originais, brilho só na borda.
+   Para quem prefere menos movimento, mantém foco forte mas sem animação. */
+@media (prefers-reduced-motion: reduce) {
+  .sales-entry-form :is(button, input, select, textarea):focus-visible {
+    animation: none;
+  }
+}
 .logistics-content h2 { font-size: 1.25rem; font-weight: 700; }
 .logistics-content .rounded-xl { border-radius: var(--radius); }
 .logistics-content .tracking-tight { letter-spacing: 0; }
