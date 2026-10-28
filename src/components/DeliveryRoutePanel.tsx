@@ -26,6 +26,7 @@ function StopCard({
   onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const receiver = [...new Set(stop.deliveries.map(d => d.receiver?.trim()).filter((v): v is string => !!v))];
+  const isCollection = stop.deliveries[0]?.source === "coleta";
   const value = stop.deliveries.reduce((total, d) => total + (d.onlyDelivery ? 0 : Number(d.value) || 0), 0);
   return <div className="relative flex gap-3 pb-4 last:pb-0">
     <div className="absolute left-[17px] top-9 bottom-[-1px] w-[3px] rounded-full bg-[#bad3f0] last:hidden" aria-hidden="true" />
@@ -43,16 +44,17 @@ function StopCard({
         ? <p className="mt-2 break-words text-xs text-muted-foreground">{fullDeliveryAddress(stop.address)}</p>
         : <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Endereço sem cadastro — parada preservada na sequência.</p>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {stop.deliveries.map(delivery => <span key={delivery.id} className="rounded-md border border-border bg-muted/40 px-2 py-1 text-xs font-medium">
-          {delivery.onlyDelivery ? "Somente entrega" : "Nota " + (delivery.document || "—")}
+        {stop.deliveries.map(delivery => <span key={delivery.id} className={`rounded-md border px-2 py-1 text-xs font-medium ${delivery.source === "coleta" ? "border-orange-400/40 bg-orange-400/15 text-orange-700 dark:text-orange-300" : "border-border bg-muted/40"}`}>
+          {delivery.source === "coleta" ? "COLETA" : delivery.onlyDelivery ? "Somente entrega" : "Nota " + (delivery.document || "—") }
         </span>)}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {receiver.length > 0 && <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" /> {receiver.join(", ")}</span>}
+        {isCollection && stop.deliveries[0]?.collectionContact && <span>Falar com: {stop.deliveries[0].collectionContact}</span>}
         <span className="font-semibold">{reais(value)}</span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
-        <Button size="sm" variant="outline" disabled={!stop.clientCode} onClick={openEdit}>{stop.address ? "Editar endereço" : "Cadastrar endereço"}</Button>
+        {!isCollection && <Button size="sm" variant="outline" disabled={!stop.clientCode} onClick={openEdit}>{stop.address ? "Editar endereço" : "Cadastrar endereço"}</Button>}
         {stop.address && <a className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
           href={"https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(fullDeliveryAddress(stop.address))}
           target="_blank" rel="noopener noreferrer"><MapPin className="h-3.5 w-3.5" /> Abrir local <ExternalLink className="h-3 w-3" /></a>}
@@ -71,8 +73,8 @@ function StopCard({
           <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={closeEdit}>Cancelar</Button>
         </div>
       </form>}
-      <GoogleMapsAddressConfirm stop={stop} unresolved={unresolved}
-        onSave={point => onConfirmLocation(stop.clientCode, point)} />
+      {!isCollection && <GoogleMapsAddressConfirm stop={stop} unresolved={unresolved}
+        onSave={point => onConfirmLocation(stop.clientCode, point)} />}
     </article>
   </div>;
 }
@@ -143,7 +145,7 @@ export function DeliveryRoutePanel({
         <span>Selecionar entregador e dia</span>
         <select aria-label="Rota finalizada por entregador e data" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); }}
           className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground">
-          {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {route.count} {route.count === 1 ? "entrega" : "entregas"} finalizadas</option>)}
+          {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {route.count} {route.count === 1 ? "operação" : "operações"} finalizadas</option>)}
         </select>
       </label>}
       {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved} />}
@@ -162,7 +164,7 @@ export function DeliveryRoutePanel({
       </div>}
       {routeSegments.length > 0 && <p className="text-xs text-muted-foreground">O Google Maps calcula as vias atuais entre as paradas, na ordem registrada. O caminho não é um histórico GPS.</p>}
       <div className="rounded-xl bg-[#e9f2ff] px-3 py-2 text-xs font-semibold text-[#315d93] dark:bg-[#183251] dark:text-[#b8d6f5]">
-        Sequência de entregas confirmadas · {stops.length} {stops.length === 1 ? "visita" : "visitas"} · {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0)} {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0) === 1 ? "documento" : "documentos"}
+        Sequência de entregas e coletas confirmadas · {stops.length} {stops.length === 1 ? "visita" : "visitas"} · {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0)} {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0) === 1 ? "operação" : "operações"}
       </div>
       <div className="relative">
         {stops.map((stop, index) => <StopCard key={stop.key + ":" + stop.at + ":" + index} stop={stop} index={index}
