@@ -50,7 +50,9 @@ export const addCollection = createServerFn({ method: "POST" })
     const { logisticsClient } = await import("./logistics.server");
     const db = await logisticsClient();
     const payload = {
-      source: "coleta", company: company.name, document: "", value: data.value,
+      source: "coleta", company: company.name, document: "", value: data.value ?? 0,
+      collectionValueProvided: data.value !== undefined,
+      collectionTransport: data.vehicle,
       status: "nao_iniciada", collectionAddress: data.address,
       collectionContact: data.contact, collectionPayment: data.payment,
       expeditionShift: data.shift ?? undefined,
