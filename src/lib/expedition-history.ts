@@ -33,7 +33,7 @@ const byFinishedDesc = (a: { finishedAt?: string; createdAt: string; id: string 
   || a.id.localeCompare(b.id);
 
 export function completedDeliveryHistory(records: Delivery[], range: ExpeditionDateRange): Delivery[] {
-  return records.filter(item => item.status === "finalizada" && expeditionWithinPeriod(item.finishedAt, range))
+  return records.filter(item => item.source !== "coleta" && item.status === "finalizada" && expeditionWithinPeriod(item.finishedAt, range))
     .slice().sort(byFinishedDesc);
 }
 
