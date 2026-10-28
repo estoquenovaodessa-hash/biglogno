@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { logisticsCommitError } from './logistics-commit-error';
+import { expeditionScheduleInputSchema } from './expedition-schedule';
 import { applyDeliveryGroupAction, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
 
 type Row = { id: string; created_at: string; position: number; payload: unknown };
@@ -46,6 +47,38 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   if (saved !== true) throw new Error('A atualização das entregas não foi confirmada pelo Supabase. Atualize e tente novamente.');
   return { ok: true };
 });
+/** A Expedição define o turno dos pedidos ainda não iniciados. Em coletas,
+ * também pode ajustar a data. O gestor consulta mas não modifica. */
+export const setExpeditionSchedule = createServerFn({ method: 'POST' })
+  .inputValidator(expeditionScheduleInputSchema).handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import('./employees.functions');
+    await requireOperatorPermission('expedicao');
+    const { db, rows, list } = await loadAll();
+    if (new Set(data.ids).size !== data.ids.length) throw new Error('Não repita pedidos na mesma alteração.');
+    const targets = list.filter(row => data.ids.includes(row.id));
+    if (targets.length !== data.ids.length) throw new Error('Pedido não encontrado. Atualize a Expedição.');
+    if (targets.some(row => row.status !== 'nao_iniciada'))
+      throw new Error('O turno não pode ser alterado depois que a operação começou.');
+    if (data.scheduledDate !== undefined && targets.some(row => row.source !== 'coleta'))
+      throw new Error('Data específica é permitida somente para coletas.');
+    const changes = targets.map(row => ({
+      id: row.id, position: row.position,
+      payload: payloadOf({
+        ...row,
+        expeditionShift: data.shift ?? undefined,
+        ...(data.scheduledDate === undefined ? {} : { scheduledDate: data.scheduledDate ?? undefined }),
+      }),
+    }));
+    const { data: saved, error } = await db.rpc('commit_logistics_changes', {
+      kind: 'deliveries',
+      expected: rows.map(row => ({ id: row.id, payload: row.payload })) as never,
+      changes,
+    });
+    if (error) throw logisticsCommitError('agendar o turno da Expedição', error);
+    if (saved !== true) throw new Error('Não foi possível confirmar o agendamento. Atualize e tente novamente.');
+    return { ok: true };
+  });
+
 export const reorderDeliveries = createServerFn({ method: 'POST' }).inputValidator(z.object({ ids: z.array(z.string().uuid()).min(1).max(10000) })).handler(async ({ data }) => {
   const { operatorAccess } = await import('./logistics.server'); await operatorAccess();
   const { requireOperatorPermission } = await import('./employees.functions'); await requireOperatorPermission('entregas');
