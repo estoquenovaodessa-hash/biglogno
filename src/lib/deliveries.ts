@@ -12,6 +12,12 @@ export interface Delivery {
   /** Coleta avulsa: endereço e contato não dependem da base de clientes. */
   collectionAddress?: string;
   collectionContact?: string;
+  /** Programação definida pelo responsável da Expedição. */
+  expeditionShift?: "manha" | "tarde";
+  /** Data local AAAA-MM-DD, exclusiva de coletas agendadas. */
+  scheduledDate?: string;
+  /** Forma de pagamento da coleta, independente da entrega. */
+  collectionPayment?: "dinheiro" | "faturado";
   status: DeliveryStatus;
   driver?: string;
   driverEmployeeId?: string;
@@ -71,7 +77,7 @@ export function deliveryGroups(all: Delivery[]): Delivery[][] {
   for (const d of all) {
     const key = d.source === "coleta" || isConsumerDelivery(d) || d.separate || d.status === "finalizada"
       ? d.id
-      : `${companyKey(d)}|${d.status}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
+      : `${companyKey(d)}|${d.status}|${d.expeditionShift ?? ""}|${d.scheduledDate ?? ""}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
     const group = groups.get(key) ?? []; group.push(d); groups.set(key, group);
   }
   return [...groups.values()];
