@@ -38,6 +38,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const [companyId, setCompanyId] = useState("");
   const [address, setAddress] = useState("");
   const [value, setValue] = useState("");
+  const [vehicle, setVehicle] = useState<"moto" | "carro" | null>(null);
   const [contact, setContact] = useState("");
   const [payment, setPayment] = useState<"dinheiro" | "faturado">("dinheiro");
   const [scheduledDate, setScheduledDate] = useState("");
@@ -50,8 +51,8 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
     .sort((a, b) => a.status === "finalizada" && b.status !== "finalizada" ? 1
       : b.status === "finalizada" && a.status !== "finalizada" ? -1
         : b.createdAt.localeCompare(a.createdAt));
-  const moneyNumber = parseMoneyInput(value);
-  const validValue = value.trim() !== "" && Number.isFinite(moneyNumber) && moneyNumber >= 0 && moneyNumber <= 100000000;
+  const moneyNumber = value.trim() ? parseMoneyInput(value) : undefined;
+  const validValue = moneyNumber === undefined || (Number.isFinite(moneyNumber) && moneyNumber >= 0 && moneyNumber <= 100000000);
   const canWrite = canManage && !readOnly;
 
   async function saveCompany() {
@@ -68,19 +69,19 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   }
 
   async function saveCollection() {
-    if (!canWrite || !companyId || !validValue || busy) return;
+    if (!canWrite || !companyId || !vehicle || !validValue || busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
       if (!requestId.current) requestId.current = crypto.randomUUID();
       await addOrder({ data: {
         requestId: requestId.current, companyId, address: address.trim(),
-        value: moneyNumber, contact: contact.trim(),
+        value: moneyNumber, vehicle, contact: contact.trim(),
         payment, scheduledDate, shift,
       } });
       requestId.current = null;
       await onCreated();
       setCollectionDialog(false);
-      setAddress(""); setValue(""); setContact(""); setCompanyId("");
+      setAddress(""); setValue(""); setVehicle(null); setContact(""); setCompanyId("");
       setPayment("dinheiro"); setScheduledDate(""); setShift(null);
       setNotice("Coleta adicionada à Expedição e à fila do entregador.");
     } catch (cause) {
@@ -120,7 +121,9 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
         </div>
         <div className="mt-3 space-y-1.5 border-t border-orange-400/20 pt-3 text-xs sm:text-sm">
           <p className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span className="break-words">{order.collectionAddress || "Endereço não informado"}</span></p>
-          <p><strong>Valor:</strong> {money(order.value)}</p>
+          <p><strong>Valor:</strong> {order.collectionValueProvided === false ? "Não informado" : money(order.value)}</p>
+          <p className="flex items-center gap-2"><span aria-hidden="true" className="text-lg">{order.collectionTransport === "moto" ? "🏍️" : order.collectionTransport === "carro" ? "🚗" : "🚚"}</span>
+            <span><strong>Transporte:</strong> {order.collectionTransport === "moto" ? "MOTO" : order.collectionTransport === "carro" ? "CARRO" : "Não informado"}</span></p>
           <p><strong>Pagamento:</strong> {order.collectionPayment === "faturado" ? "Faturado" : order.collectionPayment === "dinheiro" ? "Dinheiro" : "Não informado"}</p>
           <p className="flex gap-2"><UserRound className="h-4 w-4 shrink-0 text-orange-500" /><span><strong>Falar com:</strong> {order.collectionContact || "Não informado"}</span></p>
           <p><strong>Entregador:</strong> {order.driver || "Não atribuído"}</p>
@@ -168,10 +171,22 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
             <Input value={address} maxLength={400} onChange={event => setAddress(event.target.value)}
               placeholder="Rua, número, bairro, cidade e UF (se souber)" />
           </label>
-          <label className="space-y-1.5 text-sm font-semibold">Valor da coleta (R$)
+          <label className="space-y-1.5 text-sm font-semibold">Valor da coleta (R$) — opcional
             <Input inputMode="decimal" value={value} onChange={event => setValue(event.target.value)}
-              placeholder="0,00" />
+              placeholder="Deixe em branco se não informado" />
           </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold">Meio de transporte</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {(["moto", "carro"] as const).map(option => <Button key={option} type="button"
+                variant={vehicle === option ? "default" : "outline"} aria-pressed={vehicle === option}
+                className="h-12 gap-2 text-sm font-extrabold" onClick={() => setVehicle(option)}>
+                <span aria-hidden="true" className="text-xl">{option === "moto" ? "🏍️" : "🚗"}</span>
+                {option === "moto" ? "MOTO" : "CARRO"}
+              </Button>)}
+            </div>
+            {!vehicle && <p className="text-xs text-muted-foreground">Selecione MOTO ou CARRO para continuar.</p>}
+          </fieldset>
           <label className="space-y-1.5 text-sm font-semibold">Forma de pagamento
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
               value={payment} onChange={event => setPayment(event.target.value as "dinheiro" | "faturado")}>
@@ -199,7 +214,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
               placeholder="Nome ou referência" />
           </label>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button type="button" disabled={busy || !canWrite || !companyId || !validValue}
+          <Button type="button" disabled={busy || !canWrite || !companyId || !vehicle || !validValue}
             onClick={() => { void saveCollection(); }}>
             {busy ? "Salvando..." : "Adicionar coleta à fila"}
           </Button>
