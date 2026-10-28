@@ -51,13 +51,17 @@ function inPeriod(record: Delivery, period: Period, now: Date) {
   return day.slice(0, 7) === previous.toISOString().slice(0, 7);
 }
 function statusBadge(d: Delivery) {
+  if (d.source === "coleta") {
+    const label = d.status === "finalizada" ? "Coletado" : d.status === "nao_iniciada" ? "Aguardando coleta" : d.status === "no_destino" ? "No destino" : "Coletando";
+    return <span className="inline-flex items-center rounded-md border border-orange-400/45 bg-orange-500/15 px-2.5 py-1 text-xs font-bold text-orange-700 dark:text-orange-300">{label}</span>;
+  }
   const status = statusInfo[d.status] ?? statusInfo.nao_iniciada;
   return <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold ${status.className}`}>{status.label}</span>;
 }
 
 function exportCsv(rows: Delivery[]) {
   // Exportação local, sem alterar pedidos no banco.
-  const headers = ["Documento", "Cliente", "Código cliente", "Valor (R$)", "Entregador", "Situação", "Recebedor", "Criado em", "Iniciado em", "Chegou em", "Finalizado em", "Origem"];
+  const headers = ["Tipo", "Documento", "Cliente", "Código cliente", "Valor (R$)", "Entregador", "Situação", "Recebedor", "Endereço coleta", "Falar com", "Criado em", "Iniciado em", "Chegou em", "Finalizado em", "Origem"];
   const escapeCell = (value: unknown) => {
     const str = String(value ?? "");
     const safe = /^[=+@\-\t\r]/.test(str) ? "'" + str : str;
@@ -66,9 +70,11 @@ function exportCsv(rows: Delivery[]) {
   const lines = [
     headers.map(escapeCell).join(";"),
     ...rows.map(d => [
+      d.source === "coleta" ? "COLETA" : "ENTREGA",
       d.document || (d.onlyDelivery ? "SOMENTE ENTREGA" : ""),
       d.company, d.companyCode ?? "", Number(d.value || 0).toFixed(2).replace(".", ","),
-      d.driver ?? "", statusInfo[d.status]?.label ?? d.status, d.receiver ?? "",
+      d.driver ?? "", d.source === "coleta" ? (d.status === "finalizada" ? "Coletado" : "Coletando") : statusInfo[d.status]?.label ?? d.status,
+      d.source === "coleta" ? "" : d.receiver ?? "", d.collectionAddress ?? "", d.collectionContact ?? "",
       fmtBrasilia(d.createdAt), fmtBrasilia(d.startedAt), fmtBrasilia(d.arrivedAt),
       fmtBrasilia(d.finishedAt), d.source,
     ].map(escapeCell).join(";")),
@@ -134,7 +140,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     inPeriod(d, filters.period, now) &&
     (filters.driver === "all" || d.driver === filters.driver) &&
     (filters.status === "all" || d.status === filters.status) &&
-    (!term || [d.company, d.companyCode, d.document, d.driver, d.receiver].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(term)))
+    (!term || [d.company, d.companyCode, d.document, d.driver, d.receiver, d.collectionAddress, d.collectionContact].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(term)))
   );
   const pending = scoped.filter(d => d.status !== "finalizada");
   const finished = scoped.filter(d => d.status === "finalizada");
@@ -145,9 +151,11 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       return a.position - b.position;
     });
   const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
-  const address = selected?.companyCode
-    ? addressQuery.data?.find(a => normalizeDeliveryClientCode(a.client_code) === normalizeDeliveryClientCode(selected.companyCode ?? ""))
-    : undefined;
+  const address = selected?.source === "coleta" && selected.collectionAddress
+    ? { client_code: "", address: selected.collectionAddress, neighborhood: "", city: "", state: "" }
+    : selected?.companyCode
+      ? addressQuery.data?.find(a => normalizeDeliveryClientCode(a.client_code) === normalizeDeliveryClientCode(selected.companyCode ?? ""))
+      : undefined;
   const addressText = address ? [address.address, address.neighborhood, address.city, address.state].filter(Boolean).join(", ") : "";
   const mapHref = addressText ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addressText + ", Brasil") : null;
   async function importAddressFile(file?: File) {
@@ -185,11 +193,11 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </div>
 
-    <DeliveryWhatsAppSettings deliveries={deliveries} />
+    <DeliveryWhatsAppSettings deliveries={deliveries.filter(d => d.source !== "coleta")} />
     {importMessage && <p role="status" className="rounded-md border border-border p-3 text-sm">{importMessage}</p>}
     {isError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <Summary icon={Package} label="Total de entregas" value={scoped.length} hint="Registros no filtro" />
+      <Summary icon={Package} label="Entregas e coletas" value={scoped.length} hint="Registros no filtro" />
       <Summary icon={Clock3} label="Pendentes" value={pending.length} hint="Ainda não finalizadas" tone="warning" />
       <Summary icon={Truck} label="Em rota / destino" value={scoped.filter(d => d.status === "em_rota" || d.status === "no_destino").length} hint="Operações em andamento" />
       <Summary icon={Pause} label="Pausadas" value={scoped.filter(d => d.status === "pausada").length} hint="Aguardando retomada" tone="warning" />
@@ -198,7 +206,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
 
     <form className="rounded-xl border border-border bg-card p-4" onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); }}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold"><CalendarDays className="h-4 w-4 text-primary" /> Filtros das entregas</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold"><CalendarDays className="h-4 w-4 text-primary" /> Filtros de entregas e coletas</h3>
         {applied && <span className="text-xs text-primary">Filtros aplicados</span>}
       </div>
       <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.8fr_auto_auto]">
@@ -243,13 +251,13 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         <p className="mb-3 text-xs text-muted-foreground">{isLoading ? "Carregando entregas…" : `${visible.length} pedido(s) nesta visualização`}</p>
         <div className="max-h-[690px] space-y-2 overflow-y-auto pr-1">
           {visible.map(d => <button key={d.id} type="button" onClick={() => setSelectedId(d.id)} aria-pressed={selected?.id === d.id}
-            className={`w-full rounded-lg border p-3 text-left transition-colors sm:p-4 ${selected?.id === d.id ? "border-primary bg-primary/10 ring-1 ring-primary/30" : "border-border bg-background/40 hover:border-primary/60"}`}>
+            className={`w-full rounded-lg border p-3 text-left transition-colors sm:p-4 ${d.source === "coleta" ? selected?.id === d.id ? "border-orange-500 bg-orange-400/20 ring-1 ring-orange-500/30" : "border-orange-400/35 bg-orange-500/[0.08] hover:border-orange-500" : selected?.id === d.id ? "border-primary bg-primary/10 ring-1 ring-primary/30" : "border-border bg-background/40 hover:border-primary/60"}`}>
             <div className="flex items-start justify-between gap-2">
               <h4 className="min-w-0 break-words text-sm font-bold text-foreground sm:text-base">{d.company}</h4>
               <span className="flex shrink-0 items-center gap-1">{statusBadge(d)}<ChevronRight className="h-4 w-4 text-muted-foreground" /></span>
             </div>
             <div className="mt-3 grid gap-x-3 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-2 sm:text-sm">
-              <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> {d.onlyDelivery ? "Somente entrega" : `Doc. ${d.document || "—"}`}</span>
+              <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> {d.source === "coleta" ? "COLETA" : d.onlyDelivery ? "Somente entrega" : `Doc. ${d.document || "—"}`}</span>
               <span className="font-semibold text-foreground">{d.onlyDelivery ? "Sem cobrança" : currency(d.value)}</span>
               <span className="flex items-center gap-1.5"><UserRound className="h-3.5 w-3.5" /> {d.driver || "Entregador não definido"}</span>
               <span className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" /> {fmtBrasilia(d.finishedAt ?? d.startedAt ?? d.createdAt)}</span>
@@ -262,14 +270,14 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Detalhes da entrega selecionada">
         {selected ? <>
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-            <div className="min-w-0 flex-1"><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalhes da entrega</p><h3 className="break-words text-lg font-bold">{selected.company}</h3></div>
+            <div className="min-w-0 flex-1"><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{selected.source === "coleta" ? "Detalhes da coleta" : "Detalhes da entrega"}</p><h3 className="break-words text-lg font-bold">{selected.company}</h3></div>
             {statusBadge(selected)}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-            <div><p className="text-xs text-muted-foreground">Documento</p><p className="mt-1 font-semibold">{selected.onlyDelivery ? "Somente entrega" : selected.document || "—"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Documento</p><p className="mt-1 font-semibold">{selected.source === "coleta" ? "Coleta (sem documento)" : selected.onlyDelivery ? "Somente entrega" : selected.document || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Valor</p><p className="mt-1 font-semibold">{selected.onlyDelivery ? "Sem cobrança" : currency(selected.value)}</p></div>
             <div><p className="text-xs text-muted-foreground">Entregador</p><p className="mt-1 break-words font-semibold">{selected.driver || "Não atribuído"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Recebedor</p><p className="mt-1 break-words font-semibold">{selected.receiver || "Não informado"}</p></div>
+            {selected.source === "coleta" ? <div><p className="text-xs text-muted-foreground">Falar com</p><p className="mt-1 break-words font-semibold">{selected.collectionContact || "Não informado"}</p></div> : <div><p className="text-xs text-muted-foreground">Recebedor</p><p className="mt-1 break-words font-semibold">{selected.receiver || "Não informado"}</p></div>}
             <div><p className="text-xs text-muted-foreground">Tempo de trajeto</p><p className="mt-1 font-semibold">{fmtDuration(travelMs(selected))}</p></div>
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
           </div>
@@ -286,10 +294,10 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
           <div className="mt-5 border-t border-border pt-4">
             <h4 className="mb-4 flex items-center gap-2 text-sm font-bold"><Clock3 className="h-4 w-4 text-primary" /> Linha do tempo</h4>
             <TimelineStep title="Pedido criado" at={selected.createdAt} completed />
-            <TimelineStep title="Saiu para entrega" at={selected.startedAt} completed={!!selected.startedAt} current={selected.status === "nao_iniciada"} />
+            <TimelineStep title={selected.source === "coleta" ? "Iniciou coleta" : "Saiu para entrega"} at={selected.startedAt} completed={!!selected.startedAt} current={selected.status === "nao_iniciada"} />
             {selected.pausedAt && <TimelineStep title="Entrega pausada" at={selected.pausedAt} current={selected.status === "pausada"} />}
             <TimelineStep title="Chegou ao destino" at={selected.arrivedAt} completed={!!selected.arrivedAt} current={selected.status === "em_rota"} />
-            <TimelineStep title="Recebimento confirmado" at={selected.finishedAt} completed={!!selected.finishedAt} current={selected.status === "no_destino"} />
+            <TimelineStep title={selected.source === "coleta" ? "Coletado" : "Recebimento confirmado"} at={selected.finishedAt} completed={!!selected.finishedAt} current={selected.status === "no_destino"} />
           </div>
         </> : <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground"><Truck className="h-9 w-9" /><p className="text-sm">Selecione uma entrega na lista para ver os detalhes.</p></div>}
       </section>
