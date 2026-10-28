@@ -51,7 +51,11 @@ function StopCard({
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {receiver.length > 0 && <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" /> {receiver.join(", ")}</span>}
         {isCollection && stop.deliveries[0]?.collectionContact && <span>Falar com: {stop.deliveries[0].collectionContact}</span>}
-        <span className="font-semibold">{reais(value)}</span>
+        {isCollection && <span className="inline-flex items-center gap-1 font-semibold">
+          <span aria-hidden="true">{stop.deliveries[0]?.collectionTransport === "moto" ? "🏍️" : stop.deliveries[0]?.collectionTransport === "carro" ? "🚗" : "🚚"}</span>
+          {stop.deliveries[0]?.collectionTransport === "moto" ? "MOTO" : stop.deliveries[0]?.collectionTransport === "carro" ? "CARRO" : "Transporte não informado"}
+        </span>}
+        <span className="font-semibold">{isCollection && stop.deliveries[0]?.collectionValueProvided === false ? "Valor não informado" : reais(value)}</span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
         {!isCollection && <Button size="sm" variant="outline" disabled={!stop.clientCode} onClick={openEdit}>{stop.address ? "Editar endereço" : "Cadastrar endereço"}</Button>}
