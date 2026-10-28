@@ -113,17 +113,42 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
         els[i + 1]?.focus();
       }, 0);
     }} onSubmit={async e => {
-      e.preventDefault(); if (busy || !canOperate) return; setError(""); setMessage("");
+      e.preventDefault();
+      if (busy || checking || !canOperate || duplicate) return;
+      setError(""); setMessage("");
+      // Consulta também no envio para prevenir duplicação sem sair do campo.
+      if (!editing && await checkExisting(document)) return;
       const numericValue = parseMoneyInput(value);
-      const parsed = verificationSchema.safeParse({ requestId: requestId.current ?? crypto.randomUUID(), document, items: Number(items), clientCode, verifierCode, value: numericValue, correct, errorReasons: correct === false ? errorReasons : [], seller: verifier?.expedition ? "EXPEDIÇÃO" : seller, forDelivery: verifier?.expedition ? forDelivery : false, balcaoDestination: verifier?.expedition ? undefined : (balcaoDestination ?? undefined), durationSeconds: Math.min(86400, Math.floor((Date.now() - started.current) / 1000)) });
-      if (!parsed.success || !value.trim()) { setError(parsed.success ? "Informe o valor." : parsed.error.issues[0]?.message ?? "Confira os campos."); return; }
-      if (!client || !employee) { setError(!client ? "Cliente não encontrado na base." : "Selecione o perfil do funcionário."); return; }
-      requestId.current = parsed.data.requestId; setBusy(true);
+      const parsed = verificationSchema.safeParse({
+        requestId: editing?.id ?? requestId.current ?? crypto.randomUUID(),
+        document, items: Number(items), clientCode, verifierCode, value: numericValue,
+        correct, errorReasons: correct === false ? errorReasons : [],
+        seller: verifier?.expedition ? "EXPEDIÇÃO" : seller,
+        forDelivery: verifier?.expedition ? forDelivery : false,
+        balcaoDestination: verifier?.expedition ? undefined : (balcaoDestination ?? undefined),
+        durationSeconds: editing?.record?.durationSeconds ?? Math.min(86400, Math.floor((Date.now() - started.current) / 1000)),
+      });
+      if (!parsed.success || !value.trim()) {
+        setError(parsed.success ? "Informe o valor." : parsed.error.issues[0]?.message ?? "Confira os campos."); return;
+      }
+      if (!client || !employee) {
+        setError(!client ? "Cliente não encontrado na base." : "Selecione o perfil do funcionário."); return;
+      }
+      requestId.current = parsed.data.requestId;
+      setBusy(true);
       try {
-        const result = await register({ data: parsed.data });
-        setDocument(result.prefix); setItems(""); setClientCode(parsed.data.clientCode); setVerifierCode(parsed.data.verifierCode); setValue(""); setCorrect(null); setErrorReasons([]); setSeller(""); setForDelivery(false); setBalcaoDestination(null);
-        setMessage(`Documento ${document} registrado com sucesso.`); requestId.current = null; started.current = Date.now(); onRegistered(); documentInput.current?.focus();
-      } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível registrar."); }
+        const wasEditing = !!editing;
+        const result = editing
+          ? await edit({ data: { record: parsed.data, snapshot: editing.snapshot } })
+          : await register({ data: parsed.data });
+        currentDocument.current = result.prefix;
+        lookupSerial.current++;
+        setDocument(result.prefix); setItems(""); setClientCode(parsed.data.clientCode);
+        setVerifierCode(parsed.data.verifierCode); setValue(""); setCorrect(null); setErrorReasons([]);
+        setSeller(""); setForDelivery(false); setBalcaoDestination(null); setEditing(null);
+        setMessage(`Documento ${document} ${wasEditing ? "atualizado" : "registrado"} com sucesso.`);
+        requestId.current = null; started.current = Date.now(); onRegistered(); documentInput.current?.focus();
+      } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível salvar a conferência."); }
       finally { setBusy(false); }
     }}>
       {!canOperate && <p role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">
