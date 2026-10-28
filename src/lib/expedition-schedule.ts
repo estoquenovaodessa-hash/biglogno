@@ -14,7 +14,7 @@ export const scheduledDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Info
 export const expeditionScheduleInputSchema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(1000),
   shift: expeditionShiftSchema.nullable(),
-  /** Null preserva a data existente; uma data só pode ser associada a uma coleta. */
+  /** Omitido preserva a data; null remove; uma data só pode ser associada a coleta. */
   scheduledDate: scheduledDateSchema.nullable().optional(),
 });
 
