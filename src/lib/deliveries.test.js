@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyDeliveryAction, applyDeliveryGroupAction, deliveryGroups, manualDeliverySchema, canOperateLogistics, isLocked, statusLabel, travelMs, waitMs } from "./deliveries";
+import { applyDeliveryAction, applyDeliveryGroupAction, deliveryGroups, isConsumerDelivery, manualDeliverySchema, canOperateLogistics, isLocked, statusLabel, travelMs, waitMs } from "./deliveries";
 
 const base = (id, extra = {}) => ({ id, position: 1, createdAt: "", document: "1", company: "X", value: 1, source: "manual", status: "nao_iniciada", ...extra });
 const t = (min) => new Date(Date.UTC(2026, 9, 21, 12, min));
@@ -30,6 +30,45 @@ describe("entregas", () => {
     expect(all.map(d => d.status)).toEqual(["finalizada", "finalizada"]);
     expect(all.map(d => d.receiver)).toEqual(["Maria", "Maria"]);
   });
+  test("CONSUMIDOR código 100 nunca unifica notas, inclusive com zeros à esquerda e mesma origem", () => {
+    const all = [
+      base("nota-a", { company: "CONSUMIDOR", companyCode: "100", document: "123" }),
+      base("nota-b", { company: "Consumidor", companyCode: "00100", document: "124", source: "conferencia" }),
+      base("nota-c", { company: "CONSUMIDOR", companyCode: "0100", document: "125", separate: false }),
+    ];
+    expect(deliveryGroups(all).map(group => group.map(note => note.document)))
+      .toEqual([["123"], ["124"], ["125"]]);
+    expect(isConsumerDelivery(all[0])).toBe(true);
+    expect(isConsumerDelivery(all[1])).toBe(true);
+    expect(isConsumerDelivery({ companyCode: "1000" })).toBe(false);
+    expect(isConsumerDelivery({ companyCode: undefined })).toBe(false);
+  });
+
+  test("a ação de entrega do CONSUMIDOR movimenta somente a nota selecionada", () => {
+    const all = [
+      base("n1", { company: "CONSUMIDOR", companyCode: "100", document: "222" }),
+      base("n2", { company: "CONSUMIDOR", companyCode: "100", document: "223" }),
+    ];
+    const started = applyDeliveryGroupAction(all, { action: "start", id: "n1", driver: "Ana" }, t(0));
+    expect(started.map(row => row.status)).toEqual(["em_rota", "nao_iniciada"]);
+    const arrived = applyDeliveryGroupAction(started, { action: "arrive", id: "n1" }, t(10));
+    expect(arrived.map(row => row.status)).toEqual(["no_destino", "nao_iniciada"]);
+    const finished = applyDeliveryGroupAction(arrived, { action: "finish", id: "n1", receiver: "José" }, t(12));
+    expect(finished.map(row => row.status)).toEqual(["finalizada", "nao_iniciada"]);
+    expect(finished[1].receiver).toBeUndefined();
+  });
+
+  test("CONSUMIDOR não pode ser unificado manualmente, mas outros clientes conservam a regra", () => {
+    const consumer = base("n1", { company: "CONSUMIDOR", companyCode: "100", separate: true });
+    expect(() => applyDeliveryGroupAction([consumer], { action: "unify", id: "n1" }, t(0))).toThrow(/devem permanecer separadas/);
+    expect(() => applyDeliveryGroupAction([consumer], { action: "separate", id: "n1" }, t(0))).toThrow(/devem permanecer separadas/);
+    const other = [
+      base("a", { company: "LOJA A", companyCode: "101", document: "400" }),
+      base("b", { company: "LOJA A", companyCode: "101", document: "401" }),
+    ];
+    expect(deliveryGroups(other).map(group => group.length)).toEqual([2]);
+  });
+
   test("desunificação persiste e pode ser revertida antes de iniciar", () => {
     const all = [base("a"), base("b")];
     const split = applyDeliveryGroupAction(all, { action: "separate", id: "a" }, t(0));
