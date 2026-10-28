@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { collectionCompanySchema, createCollectionCompanySchema, createCollectionSchema } from "./collections";
+import { collectionCompanySchema, createCollectionCompanySchema, createCollectionSchema, editCollectionSchema } from "./collections";
 
 describe("cadastro de coletas da Expedição", () => {
   const requestId = "00000000-0000-4000-8000-000000000001";
@@ -57,6 +57,20 @@ describe("cadastro de coletas da Expedição", () => {
     expect(createCollectionSchema.parse({ ...base, vehicle: "moto" }).vehicle).toBe("moto");
     expect(createCollectionSchema.parse({ ...base, vehicle: "carro" }).vehicle).toBe("carro");
     expect(createCollectionSchema.safeParse({ ...base, vehicle: "bicicleta" }).success).toBe(false);
+  });
+  test("edição da coleta usa validação do cadastro e identifica o registro existente", () => {
+    const body = {
+      id: requestId, companyId, vehicle: "carro", address: "",
+      payment: "faturado", scheduledDate: "2026-10-29", shift: "tarde",
+    };
+    const edited = editCollectionSchema.parse(body);
+    expect(edited.id).toBe(requestId);
+    expect(edited.value).toBeUndefined();
+    expect(edited.vehicle).toBe("carro");
+    expect(editCollectionSchema.safeParse({ ...body, id: "id-invalido" }).success).toBe(false);
+    expect(editCollectionSchema.safeParse({ ...body, vehicle: "caminhao" }).success).toBe(false);
+    expect(editCollectionSchema.safeParse({ ...body, value: -20 }).success).toBe(false);
+    expect(editCollectionSchema.safeParse({ ...body, scheduledDate: "2026-02-31" }).success).toBe(false);
   });
   test("cadastro de empresa independente de clientes das entregas", () => {
     expect(createCollectionCompanySchema.safeParse({ id: companyId, name: "Transportadora ABC" }).success).toBe(true);
