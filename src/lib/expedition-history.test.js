@@ -37,6 +37,13 @@ describe("histórico somente leitura da Expedição", () => {
     expect(all.map(d => d.id)).toEqual(["2", "4", "1"]);
     expect(deliveries.map(d => d.id)).toEqual(original);
   });
+  test("Coletas concluídas não duplicam o histórico Entregues", () => {
+    const collection = { id: "col", company: "Fornecedor", source: "coleta",
+      createdAt: "2026-10-27T10:00:00Z", status: "finalizada",
+      finishedAt: "2026-10-27T12:00:00Z", position: 10 };
+    expect(completedDeliveryHistory([...deliveries, collection], { from: "", to: "" })
+      .map(item => item.id)).toEqual(["2", "4", "1"]);
+  });
   test("filtra datas inicial e final inclusive", () => {
     const one = completedDeliveryHistory(deliveries, { from: "2026-10-27", to: "2026-10-27" });
     expect(one.map(d => d.id)).toEqual(["4"]);
