@@ -30,7 +30,7 @@ export const shiftLabel = (shift: ShiftSection) =>
  * Formata apenas a apresentação: o valor persistido continua AAAA-MM-DD. */
 export function scheduledDateLabel(date?: string, now: Date = new Date()): string {
   if (!date) return "";
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   const today = expeditionLocalDay(now.toISOString());
   if (today && date === today) return "HOJE";
   if (today) {
