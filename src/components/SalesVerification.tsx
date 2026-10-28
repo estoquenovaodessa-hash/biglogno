@@ -53,7 +53,13 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const data = query.data;
   if (!data) return <div className="py-8">{query.isError ? <><p role="alert" className="text-destructive">Não foi possível carregar a conferência.</p><Button variant="outline" onClick={() => query.refetch()}>Tentar novamente</Button></> : <p role="status">Carregando conferência…</p>}</div>;
-  if (role === "operador") return <div className="mx-auto grid max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><SalesVerificationForm clients={data.clients} prefix={data.prefix} lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode} onRegistered={() => { void query.refetch(); void queryClient.invalidateQueries({ queryKey: ['pickups'] }); void queryClient.invalidateQueries({ queryKey: ['deliveries'] }); }} /><Retira role={role} clients={data.clients} /></div>;
+  if (role === "operador") return <div className="mx-auto grid max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><SalesVerificationForm clients={data.clients} prefix={data.prefix} lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode} onRegistered={() => {
+    void query.refetch();
+    void queryClient.invalidateQueries({ queryKey: ["pickups"] });
+    void queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+    void queryClient.invalidateQueries({ queryKey: ["expedition-pickups"] });
+    void queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] });
+  }} /><Retira role={role} clients={data.clients} /></div>;
   // O período escolhido é a base dos relatórios e da quantidade total de vendas.
   const periodRecords = data.records.filter(r => period === "all" || (period === "today" ? salesDay(r.createdAt) === salesDay(new Date()) : salesDay(r.createdAt).startsWith(period)));
   const periodKey = period === "today" ? localDay(new Date()) : period;
