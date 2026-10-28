@@ -25,6 +25,14 @@ export const verificationSchema = z.object({
   if (record.correct && reasons) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["errorReasons"], message: "Uma conferência certa não pode ter motivo de erro." });
 });
 export type VerificationInput = z.infer<typeof verificationSchema>;
+/** Destino lógico da conferência, separado do destino atual na Expedição.
+ * Uma transferência posterior pode ter movido a nota sem alterar esta escolha. */
+export function verificationDestination(record: Pick<VerificationInput, "verifierCode" | "forDelivery" | "balcaoDestination">) {
+  if (canonicalCode(record.verifierCode) === "102") return record.forDelivery ? "deliveries" : "pickups";
+  return record.balcaoDestination === "entrega" ? "deliveries"
+    : record.balcaoDestination === "retira" ? "pickups" : "none";
+}
+
 export type VerificationRecord = Omit<VerificationInput, "seller" | "durationSeconds"> & { seller: VerificationInput["seller"] | "NÃO INFORMADO"; durationSeconds: number | null; id: string; createdAt: string; clientName: string; verifierName: string; employeeId?: string; channel?: "balcao" | "expedicao"; observation?: string; source?: "csv" };
 export function verificationChannel(record: Pick<VerificationRecord, "seller" | "channel">) { return record.channel ?? (record.seller === "EXPEDIÇÃO" ? "expedicao" : "balcao"); }
 export function canonicalCode(code: string) { return code.replace(/^0+(?=\d)/, ""); }
