@@ -12,6 +12,10 @@ export interface Delivery {
   /** Coleta avulsa: endereço e contato não dependem da base de clientes. */
   collectionAddress?: string;
   collectionContact?: string;
+  /** Veículo informado pela Expedição; coletas anteriores podem não ter o campo. */
+  collectionTransport?: "moto" | "carro";
+  /** False indica valor não informado; zero informado continua sendo um valor válido. */
+  collectionValueProvided?: boolean;
   /** Programação definida pelo responsável da Expedição. */
   expeditionShift?: "manha" | "tarde";
   /** Data local AAAA-MM-DD, exclusiva de coletas agendadas. */
