@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+
 /** O RPC public.commit_logistics_changes verifica a fila inteira de deliveries:
  * expected precisa conter TODAS as linhas, mesmo quando só uma coleta muda.
  * Enviar somente a coleta produz erro falso de "fila alterada" em filas com 2+ pedidos.
@@ -5,7 +7,7 @@
 export type LogisticsSnapshotRow = {
   id: string;
   position: number;
-  payload: unknown;
+  payload: Json;
 };
 
 export function collectionEditCommitPayload(
@@ -15,11 +17,11 @@ export function collectionEditCommitPayload(
   if (!target) throw new Error("Coleta não encontrada. Atualize a Expedição.");
   return {
     kind: "deliveries" as const,
-    expected: rows.map(row => ({ id: row.id, payload: row.payload })),
+    expected: rows.map(row => ({ id: row.id, payload: row.payload })) as Json,
     changes: [{
       id,
       position: target.position,
-      payload: JSON.parse(JSON.stringify(payload)) as Record<string, unknown>,
-    }],
+      payload: JSON.parse(JSON.stringify(payload)) as Json,
+    }] as Json,
   };
 }
