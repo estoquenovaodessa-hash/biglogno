@@ -42,7 +42,7 @@ function StopCard({
       </div>
       {stop.address
         ? <p className="mt-2 break-words text-xs text-muted-foreground">{fullDeliveryAddress(stop.address)}</p>
-        : <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Endereço sem cadastro — parada preservada na sequência.</p>}
+        : <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{isCollection ? "Endereço da coleta não informado — registro preservado no histórico, sem marcador no mapa." : "Endereço sem cadastro — parada preservada na sequência."}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {stop.deliveries.map(delivery => <span key={delivery.id} className={`rounded-md border px-2 py-1 text-xs font-medium ${delivery.source === "coleta" ? "border-orange-400/40 bg-orange-400/15 text-orange-700 dark:text-orange-300" : "border-border bg-muted/40"}`}>
           {delivery.source === "coleta" ? "COLETA" : delivery.onlyDelivery ? "Somente entrega" : "Nota " + (delivery.document || "—") }
