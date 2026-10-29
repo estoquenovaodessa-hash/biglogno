@@ -1,7 +1,10 @@
 import { isConsumerDelivery, type Delivery } from "./deliveries";
+import { shiftOf, type ShiftSection } from "./expedition-schedule";
 import { normalizeDeliveryClientCode, type DeliveryClientAddress } from "./delivery-addresses";
 
 export interface RouteStop {
+  /** Origem fixa, distinta das paradas e da contagem de visitas. */
+  kind?: "origin";
   key: string;
   company: string;
   clientCode: string;
@@ -34,10 +37,11 @@ export function fullDeliveryAddress(address: DeliveryClientAddress): string {
 /** Reconstitui a ordem da CONFIRMAÇÃO das entregas, nunca uma trilha de GPS.
  * Várias notas só viram uma parada quando compartilham o mesmo evento de chegada
  * ou de finalização; visitas separadas ao mesmo cliente permanecem separadas. */
-export function getRouteStops(deliveries: Delivery[], selected: Delivery, addresses: DeliveryClientAddress[]): RouteStop[] {
+export function getRouteStops(deliveries: Delivery[], selected: Delivery, addresses: DeliveryClientAddress[], storeOrigin?: DeliveryClientAddress): RouteStop[] {
   const driverName = normalizeName(selected.driver ?? "");
   if (!driverName) return [];
   const day = saoPauloDay(selected.finishedAt || selected.arrivedAt || selected.startedAt || selected.createdAt);
+  const shift = shiftOf(selected);
   if (!day) return [];
   const known = new Map(addresses.map(address => [normalizeDeliveryClientCode(address.client_code), address]));
   const matches = deliveries.filter(delivery => {
@@ -45,7 +49,8 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
       ? selected.driverEmployeeId === delivery.driverEmployeeId
       : normalizeName(delivery.driver ?? "") === driverName;
     const at = deliveryVisitTime(delivery);
-    return sameDriver && delivery.status === "finalizada" && !!at && saoPauloDay(at) === day;
+    return sameDriver && delivery.status === "finalizada" && !!at &&
+      saoPauloDay(at) === day && shiftOf(delivery) === shift;
   }).sort((a, b) => deliveryVisitTime(a).localeCompare(deliveryVisitTime(b))
     || a.position - b.position || a.id.localeCompare(b.id));
 
@@ -79,25 +84,57 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
       });
     }
   }
+  // Cada turno sempre parte da loja, inclusive o da tarde.
+  // O endereço vem do cadastro: não inventar ponto geográfico se estiver ausente.
+  if (storeOrigin && stops.length) {
+    stops.unshift({
+      kind: "origin", key: "origin:bignotto", company: "BIGNOTTO FERRAMENTAS",
+      clientCode: normalizeDeliveryClientCode(storeOrigin.client_code),
+      at: matches[0]?.startedAt || matches[0]?.createdAt || "",
+      deliveries: [], address: storeOrigin,
+    });
+  }
   return stops;
 }
 
-/** Uma rota por entregador e data, independente do pedido selecionado no painel.
+/** Uma rota por entregador, data E turno, independente do pedido selecionado no painel.
  * Mostrar a rota mais recente por padrão evita abrir em branco ao selecionar um pendente. */
 export function listDeliveryRoutes(deliveries: Delivery[]) {
-  const groups = new Map<string, { key: string; name: string; day: string; selected: Delivery; count: number }>();
+  const groups = new Map<string, { key: string; name: string; day: string; shift: ShiftSection; selected: Delivery; count: number }>();
   const finalized = deliveries.filter(d => d.status === "finalizada" && !!d.driver?.trim() && !!deliveryVisitTime(d))
     .sort((a, b) => deliveryVisitTime(b).localeCompare(deliveryVisitTime(a)) || a.id.localeCompare(b.id));
   for (const delivery of finalized) {
     const day = saoPauloDay(deliveryVisitTime(delivery));
     if (!day) continue;
     const identity = delivery.driverEmployeeId?.trim() || normalizeName(delivery.driver ?? "");
-    const key = identity + "|" + day;
+    const shift = shiftOf(delivery);
+    const key = identity + "|" + day + "|" + shift;
     const group = groups.get(key);
     if (group) group.count++;
-    else groups.set(key, { key, name: delivery.driver!.trim(), day, selected: delivery, count: 1 });
+    else groups.set(key, { key, name: delivery.driver!.trim(), day, shift, selected: delivery, count: 1 });
   }
   return [...groups.values()];
+}
+
+/** Encontra a origem fixa pelo cadastro de clientes E pelo endereço confirmado
+ * da Av. Ampélio Gazzetta. Nunca usa um ponto inventado no mapa. */
+export function findBignottoOrigin(
+  clients: { code: string; name: string }[],
+  addresses: DeliveryClientAddress[],
+): DeliveryClientAddress | undefined {
+  const normalize = (value: string) => value.normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "").toLocaleUpperCase("pt-BR").replace(/[^A-Z0-9]/g, "");
+  const store = clients.find(client => {
+    const name = normalize(client.name);
+    return name.includes("BIGNOTTO") && name.includes("FERRAMENTAS");
+  });
+  if (!store) return undefined;
+  const address = addresses.find(row =>
+    normalizeDeliveryClientCode(row.client_code) === normalizeDeliveryClientCode(store.code));
+  // O estabelecimento é fixo. Rejeita cadastro incorreto ou endereço trocado
+  // em vez de desenhar uma origem incorreta.
+  const street = address ? normalize(address.address) : "";
+  return street.includes("AMPELIO") && street.includes("GAZET") ? address : undefined;
 }
 
 /** Limita a cinco paradas por link para funcionar também no Google Maps móvel. */
