@@ -48,13 +48,22 @@ export const addCollection = createServerFn({ method: "POST" })
     const company = companies.find(row => row.id === data.companyId);
     if (!company) throw new Error("Empresa de coleta não encontrada. Atualize o cadastro e tente novamente.");
     const { logisticsClient } = await import("./logistics.server");
+    const { loadCollectionLocations } = await import("./collection-locations.functions");
+    const { normalizeCollectionAddress } = await import("./collection-locations");
+    const standard = (await loadCollectionLocations()).defaults[company.id];
+    const address = data.address.trim() || standard?.address || "";
+    const confirmed = standard && normalizeCollectionAddress(address) === normalizeCollectionAddress(standard.address)
+      ? standard : undefined;
     const db = await logisticsClient();
     const payload = {
       source: "coleta", company: company.name, document: "", value: data.value ?? 0,
       collectionValueProvided: data.value !== undefined,
       collectionTransport: data.vehicle,
       collectionCompanyId: company.id,
-      status: "nao_iniciada", collectionAddress: data.address,
+      status: "nao_iniciada", collectionAddress: address,
+      ...(confirmed ? { collectionConfirmedAddress: confirmed.address,
+        collectionLatitude: confirmed.latitude, collectionLongitude: confirmed.longitude,
+        collectionLocationConfirmedAt: confirmed.confirmedAt } : {}),
       collectionContact: data.contact, collectionPayment: data.payment,
       expeditionShift: data.shift ?? undefined,
       scheduledDate: data.scheduledDate || undefined, onlyDelivery: false,
@@ -88,11 +97,22 @@ export const editCollection = createServerFn({ method: "POST" })
     if (payload.source !== "coleta") throw new Error("Este registro não é uma coleta.");
     if (payload.status !== "nao_iniciada")
       throw new Error("Coletas já iniciadas não podem ser editadas na Expedição.");
+    const { loadCollectionLocations } = await import("./collection-locations.functions");
+    const { normalizeCollectionAddress } = await import("./collection-locations");
+    const standard = (await loadCollectionLocations()).defaults[company.id];
+    const address = data.address.trim() || standard?.address || "";
+    const confirmed = standard && normalizeCollectionAddress(address) === normalizeCollectionAddress(standard.address)
+      ? standard : undefined;
+    const { collectionConfirmedAddress: _oldAddress, collectionLatitude: _oldLat,
+      collectionLongitude: _oldLng, collectionLocationConfirmedAt: _oldAt, ...originalFields } = payload;
     const next = {
-      ...payload,
+      ...originalFields,
       company: company.name,
       collectionCompanyId: company.id,
-      collectionAddress: data.address,
+      collectionAddress: address,
+      ...(confirmed ? { collectionConfirmedAddress: confirmed.address,
+        collectionLatitude: confirmed.latitude, collectionLongitude: confirmed.longitude,
+        collectionLocationConfirmedAt: confirmed.confirmedAt } : {}),
       collectionContact: data.contact,
       value: data.value ?? 0,
       collectionValueProvided: data.value !== undefined,
