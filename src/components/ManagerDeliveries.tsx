@@ -7,8 +7,7 @@ import { confirmCollectionLocation } from "@/lib/collection-locations.functions"
 import { listEmployees } from "@/lib/employees.functions";
 import {
   managerDeliveryDrivers, managerDeliveryInPeriod, managerMatchesDriver,
-  type ManagerDeliveryPeriod,
-} from "@/lib/manager-delivery-filters";
+ } from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
 import { CollectionGoogleMapsConfirm } from "./CollectionGoogleMapsConfirm";
@@ -31,10 +30,10 @@ import { Input } from "@/components/ui/input";
 import { fmtBrasilia, fmtDuration, travelMs, waitMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
 import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
 
-type Period = ManagerDeliveryPeriod;
-type StatusFilter = "all" | DeliveryStatus;
-type Filters = { period: Period; driver: string; shift: "all" | "manha" | "tarde" | "indefinido"; status: StatusFilter; search: string };
-const initial: Filters = { period: "all", driver: "all", shift: "all", status: "all", search: "" };
+ type StatusFilter = "all" | DeliveryStatus;
+type Filters = { period: "today"; driver: string; shift: "all" | "manha" | "tarde" | "indefinido"; status: StatusFilter; search: string };
+// A consulta gerencial abre e permanece no dia civil atual de São Paulo.
+const initial: Filters = { period: "today", driver: "all", shift: "all", status: "all", search: "" };
 const currency = (n: number) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const statusInfo: Record<DeliveryStatus, { label: string; className: string }> = {
@@ -151,7 +150,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const reportDeliveries = consolidateCaueDeliveries(deliveries, employees);
   const term = filters.search.trim().toLocaleLowerCase("pt-BR");
   const scoped = reportDeliveries.filter(d =>
-    managerDeliveryInPeriod(d, filters.period, now) &&
+    managerDeliveryInPeriod(d, "today", now) &&
     (filters.shift === "all" || shiftOf(d) === filters.shift) &&
     managerMatchesDriver(d, filters.driver, employees) &&
     (filters.status === "all" || d.status === filters.status) &&
@@ -244,7 +243,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     {isError && <p role="alert" className="rounded-lg border border-red-500/50 bg-red-900/20 p-3 text-sm">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
 
     <form className="manager-delivery-panel rounded-xl p-3 sm:p-4"
-      onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); setDetailsOpen(false); }}>
+      onSubmit={e => { e.preventDefault(); setFilters({ ...draft, period: "today" }); setSelectedId(null); setDetailsOpen(false); }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-bold text-[#e8f5ff]">
           <CalendarDays className="h-4 w-4 text-[#55baff]" /> Filtros de entregas
@@ -252,11 +251,9 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         {applied && <span className="text-xs font-semibold text-[#60bfff]">Filtros aplicados</span>}
       </div>
       <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_1.7fr_auto_auto]">
-        <label><span className="manager-field-label">Período</span>
-          <select className="manager-field" value={draft.period} onChange={e => setDraft(p => ({ ...p, period: e.target.value as Period }))}>
-            <option value="all">Todo o período</option><option value="today">Hoje</option>
-            <option value="7d">Últimos 7 dias</option><option value="month">Mês atual</option>
-            <option value="previous">Mês anterior</option>
+        <label><span className="manager-field-label">Período (fixo)</span>
+          <select className="manager-field cursor-not-allowed opacity-80" aria-label="Período fixo em Hoje" value="today" disabled>
+            <option value="today">Hoje</option>
           </select></label>
         <label><span className="manager-field-label">Entregador</span>
           <select className="manager-field" value={draft.driver} onChange={e => setDraft(p => ({ ...p, driver: e.target.value }))}>

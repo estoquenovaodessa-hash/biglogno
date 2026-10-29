@@ -144,7 +144,8 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
   const { theme, toggleTheme, items, ready } = useStore();
   const { employee, switchProfile } = useActiveEmployee();
   const rights = useOperatorRights();
-  const [tab, setTab] = useState<TabKey>(role === "gestor" ? "Importação" : "Contagem");
+  // O gestor inicia pela visão geral; a jornada do operador permanece independente.
+  const [tab, setTab] = useState<TabKey>(role === "gestor" ? "Apuração Geral" : "Contagem");
   const [aberto, setAberto] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("desktop");
 
