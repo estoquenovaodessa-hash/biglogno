@@ -33,5 +33,7 @@ jobs:
         run: bun test src/lib/manager-delivery-rows.test.js
       - name: Testar indicadores gerenciais sem duplicar notas
         run: bun test src/lib/manager-delivery-time-totals.test.js
+      - name: Testar números da apresentação do gestor
+        run: bun test src/lib/manager-welcome-data.test.js
       - name: Executar build de producao
         run: npm run build

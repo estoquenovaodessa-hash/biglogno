@@ -66,6 +66,7 @@ import { Entregas } from "@/components/Entregas";
 import { ExpedicaoOperador } from "@/components/ExpedicaoOperador";
 import { CiclosContagem } from "@/components/CiclosContagem";
 import { ApuracaoGeral } from "@/components/ApuracaoGeral";
+import { ManagerWelcome } from "@/components/ManagerWelcome";
 import { ChatOcorrencias } from "@/components/ChatOcorrencias";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/bignotto-logo.png.asset.json";
@@ -127,6 +128,8 @@ function App() {
 function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void }) {
   const queryClient = useQueryClient();
   const lock = useServerFn(lockAccess);
+  // A cada acesso ou atualização da página: novo roteiro, sem persistir preferência de pular.
+  const [showManagerWelcome, setShowManagerWelcome] = useState(role === "gestor");
   const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Expedição" | "Chat" | null>(null);
   const [exiting, setExiting] = useState(false);
   const handleExit = async () => {
@@ -356,6 +359,12 @@ const brandHeader = (
       </div>
     </div>
   );
+
+  // Ocupa a tela inteira sem renderizar o menu. PULAR/OK volta à Apuração Geral.
+  if (role === "gestor" && showManagerWelcome) {
+    return <ManagerWelcome firstName={employee?.name.trim().split(/\s+/)[0] || ""}
+      onDone={() => setShowManagerWelcome(false)} />;
+  }
 
   if (role === "operador") {
     // O Chat é um mensageiro em tela cheia: nenhum cabeçalho ou menu do painel.
