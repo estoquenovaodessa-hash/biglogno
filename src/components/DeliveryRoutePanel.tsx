@@ -152,7 +152,7 @@ export function DeliveryRoutePanel({
     <div className="space-y-4 p-3 sm:p-4">
       {routes.length > 0 && <label className="block space-y-1.5 text-sm font-bold">
         <span>Selecionar entregador, dia e turno</span>
-        <select aria-label="Rota finalizada por entregador, dia e turno" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); }}
+        <select aria-label="Rota finalizada por entregador, dia e turno" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); setRoadDistance(null); }}
           className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground">
           {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {shiftLabel(route.shift)} · {route.count} {route.count === 1 ? "operação" : "operações"} finalizadas</option>)}
         </select>
