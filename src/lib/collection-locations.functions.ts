@@ -12,6 +12,7 @@ const locationSchema = z.object({
   companyId: z.string().uuid(),
   companyName: z.string().trim().min(2).max(180),
   address: z.string().trim().min(5, "Informe rua, número, cidade e UF.").max(400),
+  initialAddress: z.string().max(400).optional(),
   latitude: z.number().finite().min(-34).max(6),
   longitude: z.number().finite().min(-74).max(-28),
   confirmedAt: z.string().datetime(),
@@ -81,7 +82,9 @@ export const confirmCollectionLocation = createServerFn({ method: "POST" })
     const confirmed = locationSchema.parse({
       collectionId: data.collectionId, companyId,
       companyName: String(original.company ?? ""),
-      address: data.address.trim(), latitude: data.latitude,
+      address: data.address.trim(),
+      initialAddress: String(original.collectionAddress ?? "").slice(0, 400),
+      latitude: data.latitude,
       longitude: data.longitude, confirmedAt: new Date().toISOString(),
     });
     const timestamp = new Date().toISOString();
