@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { readDeliveryAddresses, saveDeliveryAddresses, confirmDeliveryAddressLocation } from "@/lib/delivery-addresses.functions";
@@ -14,7 +15,7 @@ import { CollectionGoogleMapsConfirm } from "./CollectionGoogleMapsConfirm";
 import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import { ManagerDeliveryTable } from "./ManagerDeliveryTable";
 import { managerDeliveryRows } from "@/lib/manager-delivery-rows";
-import { listDeliveryRoutes } from "@/lib/delivery-route";
+import { managerDeliveryTimeTotals } from "@/lib/manager-delivery-time-totals";
 import { consolidateCaueDeliveries } from "@/lib/delivery-accountability";
 import { findBignottoOrigin } from "@/lib/delivery-route";
 import { DeliveryKilometersPanel } from "./DeliveryKilometersPanel";
@@ -23,7 +24,7 @@ import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
 import {
   CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
-  MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound,
+  MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound, Timer, Hourglass, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,13 +163,13 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     (a.status === "finalizada" ? 1 : 0) - (b.status === "finalizada" ? 1 : 0) ||
     a.position - b.position);
   const finishedToday = finished.filter(d => managerDeliveryInPeriod(d, "today", now)).length;
-  const completedShifts = listDeliveryRoutes(finished).length;
+  // Totais respeitam os filtros e não multiplicam a mesma visita pelas notas unificadas.
+  const totalTimes = managerDeliveryTimeTotals(scoped);
   const showDeliveryDetails = (id: string) => {
     setSelectedId(id);
     setDetailsOpen(true);
-    window.setTimeout(() => document.getElementById("manager-selected-details")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
-  };
-  const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
+   };
+  const selected = visible.find(d => d.id === selectedId) ?? null;
   // Exibir todas as notas vinculadas à linha unificada selecionada.
   const selectedGroup = selected && selected.status !== "finalizada"
     ? managerDeliveryRows(pending, "open").find(group => group.some(d => d.id === selected.id)) ?? [selected]
@@ -288,10 +289,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </form>
 
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
       <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Notas e coletas · unificadas no grid" />
       <Summary icon={CheckCircle2} label="Finalizadas hoje" value={finishedToday} hint="Entregas concluídas no dia" tone="success" />
-      <Summary icon={CalendarDays} label="Turnos concluídos" value={completedShifts} hint="Entregador · dia · turno" />
+      <Summary icon={Timer} label="Tempo de trajeto total"
+        value={totalTimes.travelCount ? fmtDuration(totalTimes.travelMs) : "—"}
+        hint={totalTimes.travelCount + (totalTimes.travelCount === 1 ? " percurso com chegada" : " percursos com chegada")} />
+      <Summary icon={Hourglass} label="Tempo de espera total"
+        value={totalTimes.waitCount ? fmtDuration(totalTimes.waitMs) : "—"}
+        hint={totalTimes.waitCount + (totalTimes.waitCount === 1 ? " operação concluída" : " operações concluídas")} tone="warning" />
       <Summary icon={MapPin} label="KM estimados" value={kmSummary.meters === null ? "—" :
         (kmSummary.meters / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " km"}
         hint={kmSummary.total && kmSummary.ready < kmSummary.total ? "Total parcial — rotas sem cálculo" : "Distâncias pelas ruas"} tone="warning" />
@@ -327,12 +333,31 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       />
     </div>
 
-    {detailsOpen && <div id="manager-selected-details" className="scroll-mt-8">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-bold text-[#f2f8ff]">Informações completas da operação</h3>
-        <Button type="button" variant="outline" size="sm" className="manager-action-outline"
-          onClick={() => setDetailsOpen(false)}>Fechar detalhes</Button>
-      </div>
+    <DialogPrimitive.Root open={detailsOpen && !!selected}
+      onOpenChange={open => { if (!open) { setDetailsOpen(false); setSelectedId(null); } }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className="fixed inset-0 z-[3000] bg-[#061d44]/75 backdrop-blur-[5px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content id="manager-selected-details"
+          className="fixed left-1/2 top-1/2 z-[3010] max-h-[90dvh] w-[calc(100%-1.25rem)] max-w-5xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-sky-300/50 bg-[#0b2b51]/95 p-3 text-[#ecf6ff] shadow-[0_25px_90px_rgba(0,12,42,0.65)] outline-none sm:p-5"
+          aria-describedby="manager-selected-details-description">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-sky-300/30 pb-3">
+            <div>
+              <DialogPrimitive.Title className="flex items-center gap-2 text-lg font-extrabold text-white sm:text-xl">
+                <FileText className="h-5 w-5 text-sky-300" /> Informações completas da operação
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description id="manager-selected-details-description"
+                className="mt-1 text-xs text-sky-200">
+                Detalhes da entrega selecionada. Feche para voltar ao grid do gestor.
+              </DialogPrimitive.Description>
+            </div>
+            <DialogPrimitive.Close asChild>
+              <Button type="button" variant="outline" size="sm"
+                className="manager-action-outline gap-2">
+                <X className="h-4 w-4" /> Fechar
+              </Button>
+            </DialogPrimitive.Close>
+          </div>
       <section className="manager-delivery-panel min-w-0 rounded-2xl p-4 sm:p-5" aria-label="Detalhes da entrega selecionada">
         {selected ? <>
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
@@ -349,6 +374,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Meio de transporte</p><p className="mt-1 font-semibold">{selected.collectionTransport === "moto" ? "🏍️ MOTO" : selected.collectionTransport === "carro" ? "🚗 CARRO" : "Não informado"}</p></div>}
             {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Pagamento</p><p className="mt-1 font-semibold">{selected.collectionPayment === "dinheiro" ? "Dinheiro" : selected.collectionPayment === "faturado" ? "Faturado" : "Não informado"}</p></div>}
             <div><p className="text-xs text-muted-foreground">Turno</p><p className="mt-1 font-semibold">{shiftLabel(shiftOf(selected))}</p></div>
+            <div><p className="text-xs text-muted-foreground">Código do cliente</p><p className="mt-1 font-semibold">{selected.companyCode || "—"}</p></div>
+            <div><p className="text-xs text-muted-foreground">Criado em</p><p className="mt-1 font-semibold">{fmtBrasilia(selected.createdAt)}</p></div>
             {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Data programada</p><p className="mt-1 font-semibold">{selected.scheduledDate ? scheduledDateLabel(selected.scheduledDate) : "Não definida"}</p></div>}
             <div><p className="text-xs text-muted-foreground">Tempo de trajeto</p><p className="mt-1 font-semibold">{fmtDuration(travelMs(selected))}</p></div>
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
@@ -384,7 +411,9 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
           </div>
         </> : <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground"><Truck className="h-9 w-9" /><p className="text-sm">Selecione uma entrega na lista para ver os detalhes.</p></div>}
       </section>
-    </div>}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
 
     <details className="manager-delivery-panel rounded-xl p-4">
       <summary className="cursor-pointer text-sm font-bold text-[#a9d8ff]">Configurações de mensagens e WhatsApp</summary>
