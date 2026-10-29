@@ -48,20 +48,17 @@ describe("rota por turno e origem fixa da Bignotto", () => {
     const marked = done("2", "Manhã", "2026-10-26T13:10:00Z", { expeditionShift: "manha" });
     expect(listDeliveryRoutes([unmarked, marked]).map(row => row.shift).sort()).toEqual(["indefinido", "manha"]);
   });
-  test("resolve a loja pelo nome e código do cadastro e pelo endereço correto", () => {
-    const clients = [
-      { code: "500", name: "Empresa X" },
-      { code: "00017", name: "BIGNOTTO FERRAMENTAS LTDA" },
-    ];
-    const origin = { ...address("17"), address: "Av. Ampelio Gazzetta, 101", city: "Nova Odessa" };
-    expect(findBignottoOrigin(clients, [address("500"), origin])).toEqual(origin);
-    expect(findBignottoOrigin(clients, [address("500")])).toBeUndefined();
-    expect(findBignottoOrigin(clients, [ { ...origin, address: "Rua Outra" } ])).toBeUndefined();
+  test("origem vem do endereço do cliente número 1, independentemente do nome da loja ou grafia da rua", () => {
+    const origin = { ...address("0001"), address: "Av. Ampelio Gazzetta, 101", city: "Nova Odessa" };
+    expect(findBignottoOrigin([address("500"), origin])).toEqual(origin);
+    expect(findBignottoOrigin([address("500")])).toBeUndefined();
+    expect(findBignottoOrigin([{ ...origin, address: "Rua Outra, 9" }])).toEqual({ ...origin, address: "Rua Outra, 9" });
+    expect(findBignottoOrigin([address("10"), { ...address("1"), address: "" }])).toBeUndefined();
+    expect(findBignottoOrigin([address("1")])?.client_code).toBe("1");
   });
-  test("cada turno inicia com a Loja, e a loja não conta como entrega", () => {
-    const clients = [{ code: "17", name: "Bignotto Ferramentas" }];
-    const origin = findBignottoOrigin(clients, [
-      { ...address("17"), address: "Av. Ampélio Gazetta, 200" },
+  test("cada turno inicia com a Loja código 1, e a loja não conta como entrega", () => {
+    const origin = findBignottoOrigin([
+      { ...address("1"), address: "Av. Ampélio Gazetta, 200" },
     ]);
     const morning = done("1", "X", "2026-10-26T13:00:00Z", { expeditionShift: "manha" });
     const afternoon = done("2", "Y", "2026-10-26T19:00:00Z", { expeditionShift: "tarde" });
