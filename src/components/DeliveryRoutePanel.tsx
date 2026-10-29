@@ -164,7 +164,7 @@ export function DeliveryRoutePanel({
       </div>}
       <p className="text-xs text-muted-foreground">A linha azul acompanha as ruas calculadas a partir dos endereços, seguindo a ordem das entregas confirmadas. Não é uma gravação do GPS do veículo. Quando o roteamento falha, aparecem trechos pontilhados estimados.</p>
       {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-        <TriangleAlert className="mr-1 inline h-4 w-4" /> A origem fixa é a BIGNOTTO FERRAMENTAS, na Av. Ampélio Gazetta. {originError ? "Não foi possível consultar o cadastro." : "Confira o cadastro da loja e seu endereço; não será inventado um ponto no mapa."}
+        <TriangleAlert className="mr-1 inline h-4 w-4" /> Origem fixa: BIGNOTTO FERRAMENTAS, cliente código 1. {originError ? "Não foi possível consultar os endereços." : "O endereço do cliente 1 não foi encontrado na base de endereços. Importe ou corrija o endereço do código 1 para incluir a loja no mapa."}
       </p>}
       {!!activeRoute && <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs font-semibold">
         <strong>Origem de cada turno:</strong> BIGNOTTO FERRAMENTAS {storeOrigin ? "· " + fullDeliveryAddress(storeOrigin) : "· Av. Ampélio Gazetta (endereço a confirmar)"}
