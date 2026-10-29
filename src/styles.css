@@ -567,6 +567,38 @@
 .biglogno-route-map-shell .leaflet-popup-content p {
   margin: 5px 0;
 }
+/* KM de cada perna aparece sobre as ruas enquanto a linha é animada. */
+.biglogno-route-km-icon {
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+.biglogno-route-km-icon span {
+  display: inline-flex;
+  min-width: 88px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+  border: 2px solid #b4ecff;
+  border-radius: 999px;
+  background: #092f69;
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 2px 9px rgb(0 17 51 / 34%);
+}
+.biglogno-route-playback {
+  backdrop-filter: blur(5px);
+}
+@media (max-width: 640px) {
+  .biglogno-route-playback { padding: 0.6rem; }
+  .biglogno-route-playback p:nth-child(3) { font-size: 1.1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .biglogno-route-playback,
+  .biglogno-route-km-icon { animation: none !important; transition: none !important; }
+}
 
 
 /* BigLogno Gestor Entregas · visual aprovado: escuro, azul e cartões em grades.
