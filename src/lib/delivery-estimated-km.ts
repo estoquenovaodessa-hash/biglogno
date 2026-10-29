@@ -73,6 +73,8 @@ export function estimatedKmTrips(
 export interface EstimatedKmResult {
   meters: number | null;
   reason?: string;
+  /** Em metros, exatamente uma perna por par de endereços consecutivos. */
+  legs?: number[];
 }
 
 /** Retorna null se qualquer perna não puder ser calculada. Distância parcial
