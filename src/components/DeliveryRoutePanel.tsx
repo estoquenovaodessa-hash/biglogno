@@ -207,7 +207,7 @@ export function DeliveryRoutePanel({
           </div>
         </aside>
       </div>
-      <p className="text-[11px] text-[#96b5d9]">O mapa mostra inicialmente toda a rota. Ao clicar em Animar, a linha azul avança e o número de cada destino aparece somente quando o traçado chega à parada. A animação termina após uma execução e pode ser iniciada novamente pelo botão. O caminho é estimado pelas ruas, não é rastreamento GPS.</p>
+      <p className="text-[11px] text-[#96b5d9]">O mapa mostra inicialmente toda a rota com números e o primeiro nome de cada destino: entregas em azul, coletas em laranja e origem em verde. Ao clicar em Animar, a linha azul avança e cada marcador com nome reaparece somente ao alcançar a parada. A animação termina após uma execução e pode ser iniciada novamente pelo botão. O caminho é estimado pelas ruas, não é rastreamento GPS.</p>
       {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
         <TriangleAlert className="mr-1 inline h-4 w-4" /> O endereço do cliente 1 (origem BIGNOTTO FERRAMENTAS) não foi localizado. {originError ? "Falha ao consultar os endereços." : "Importe ou corrija o código 1 no cadastro de endereços."}
       </p>}

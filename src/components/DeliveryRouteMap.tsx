@@ -3,7 +3,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import type { RouteStop } from "@/lib/delivery-route";
 import { fullDeliveryAddress } from "@/lib/delivery-route";
 import "leaflet/dist/leaflet.css";
-import { progressiveRoadLine, roadKmLabel, visibleAnimatedStopIndexes, type RoadPoint } from "@/lib/delivery-route-animation";
+import { progressiveRoadLine, roadKmLabel, visibleAnimatedStopIndexes, destinationFirstName, routeStopPinType, type RoadPoint } from "@/lib/delivery-route-animation";
 
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
@@ -343,10 +343,25 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
           const isOrigin = stop.kind === "origin";
           const hasOrigin = stops[0]?.kind === "origin";
           const number = isOrigin ? 0 : index + (hasOrigin ? 0 : 1);
-          const isFirst = index === 0;
+          // Usar nós DOM com textContent: nomes de clientes nunca entram como HTML.
+          const type = routeStopPinType(stop);
+          const iconContent = document.createElement("span");
+          iconContent.className = "biglogno-route-marker-content";
+          const pin = document.createElement("span");
+          pin.className = "biglogno-route-pin biglogno-route-pin--" + type;
+          const pinNumber = document.createElement("span");
+          pinNumber.textContent = isOrigin ? "L" : String(number);
+          pin.append(pinNumber);
+          iconContent.append(pin);
+          if (!isOrigin) {
+            const shortName = document.createElement("span");
+            shortName.className = "biglogno-route-name" + (type === "collection" ? " biglogno-route-name--collection" : "");
+            shortName.textContent = destinationFirstName(stop.company);
+            iconContent.append(shortName);
+          }
           const icon = L.divIcon({
             className: "biglogno-route-marker",
-            html: '<span class="biglogno-route-pin ' + (isFirst ? "biglogno-route-pin--start" : "biglogno-route-pin--stop") + '"><span>' + (isOrigin ? "L" : number) + '</span></span>',
+            html: iconContent,
             iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -23],
           });
           const marker = L.marker([point.lat, point.lng], {

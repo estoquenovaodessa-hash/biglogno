@@ -2,6 +2,19 @@
  * A linha é a geometria devolvida pelo roteador de ruas. */
 export type RoadPoint = [number, number];
 
+/** O nome curto do destino acompanha o marcador, sem alterar o cadastro. */
+export function destinationFirstName(company: string): string {
+  return company.trim().split(/\s+/u)[0] || "Destino";
+}
+
+/** A origem permanece verde; coletas são laranja e entregas são azuis. */
+export function routeStopPinType(
+  stop: { kind?: "origin"; deliveries: ReadonlyArray<{ source: string }> },
+): "start" | "collection" | "stop" {
+  if (stop.kind === "origin") return "start";
+  return stop.deliveries.some(delivery => delivery.source === "coleta") ? "collection" : "stop";
+}
+
 /** Marcadores visíveis durante uma reprodução.
  * Uma parada só aparece após a conclusão do trecho que chega até ela.
  * Quando há lacunas de endereço, a partida de um trecho isolado aparece

@@ -537,6 +537,36 @@
 .biglogno-route-marker {
   border: 0;
   background: transparent;
+  /* O ponto continua ancorado no centro; o nome se estende à direita. */
+  width: max-content !important;
+  height: 40px !important;
+}
+.biglogno-route-marker-content {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  height: 40px;
+}
+.biglogno-route-name {
+  display: inline-block;
+  max-width: 122px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid #bfd5ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px 7px;
+  color: #173f75;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  box-shadow: 0 2px 7px rgba(27, 46, 95, .18);
+}
+.biglogno-route-name--collection {
+  border-color: #fdba74;
+  color: #9a3412;
 }
 .biglogno-route-pin {
   display: flex;
@@ -554,14 +584,17 @@
 .biglogno-route-pin--stop {
   background: #245ddc;
 }
+.biglogno-route-pin--collection {
+  background: #ea791c;
+}
 .biglogno-route-pin span {
   color: #fff;
   font-size: 16px;
   font-weight: 800;
   line-height: 1;
 }
-/* O pin numerado surge apenas quando a linha animada alcança o destino. */
-.biglogno-route-marker--arrived .biglogno-route-pin {
+/* Número e primeiro nome surgem juntos ao alcançar o destino. */
+.biglogno-route-marker--arrived .biglogno-route-marker-content {
   animation: biglogno-stop-arrive 340ms cubic-bezier(.2, 1.3, .35, 1) both;
 }
 @keyframes biglogno-stop-arrive {
@@ -569,7 +602,7 @@
   to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .biglogno-route-marker--arrived .biglogno-route-pin { animation: none; }
+  .biglogno-route-marker--arrived .biglogno-route-marker-content { animation: none; }
 }
 .biglogno-route-map-shell .leaflet-popup-content {
   font-size: 12px;

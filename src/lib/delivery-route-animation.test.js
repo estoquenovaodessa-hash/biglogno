@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { progressiveRoadLine, routeAnimationResumeIndex, roadKmLabel, visibleAnimatedStopIndexes } from "./delivery-route-animation";
+import { progressiveRoadLine, routeAnimationResumeIndex, roadKmLabel, visibleAnimatedStopIndexes, destinationFirstName, routeStopPinType } from "./delivery-route-animation";
 
 describe("animação da rota realizada", () => {
   const geometry = [[-22.78, -47.29], [-22.781, -47.29], [-22.782, -47.3]];
@@ -50,6 +50,20 @@ describe("animação da rota realizada", () => {
     const legs = [{ from: 2, to: 3 }];
     expect(visibleAnimatedStopIndexes(legs, 0, null, 2)).toEqual([2]);
     expect(visibleAnimatedStopIndexes(legs, 1, null, 2)).toEqual([2, 3]);
+  });
+  test("mostra somente o primeiro nome do destino sem modificar o nome original", () => {
+    expect(destinationFirstName("  Maria   Oliveira   ")).toBe("Maria");
+    expect(destinationFirstName("João de Souza")).toBe("João");
+    expect(destinationFirstName("  ")).toBe("Destino");
+    expect(destinationFirstName("MÁQUINAS & CIA")).toBe("MÁQUINAS");
+    expect(destinationFirstName("<script> Injeção")).toBe("<script>");
+  });
+  test("origem verde, entrega azul e coleta laranja, inclusive após animar", () => {
+    expect(routeStopPinType({ kind: "origin", deliveries: [] })).toBe("start");
+    expect(routeStopPinType({ deliveries: [{ source: "conferencia" }] })).toBe("stop");
+    expect(routeStopPinType({ deliveries: [{ source: "manual" }] })).toBe("stop");
+    expect(routeStopPinType({ deliveries: [{ source: "coleta" }] })).toBe("collection");
+    expect(routeStopPinType({ deliveries: [{ source: "manual" }, { source: "coleta" }] })).toBe("collection");
   });
   test("mostra KM viários com duas casas e não inventa valor para trecho indisponível", () => {
     expect(roadKmLabel(4250)).toBe("4,25 km");
