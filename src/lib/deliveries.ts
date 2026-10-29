@@ -30,6 +30,12 @@ export interface Delivery {
   status: DeliveryStatus;
   driver?: string;
   driverEmployeeId?: string;
+  /** Auditoria: o funcionário que iniciou a operação pode ser diferente do motorista.
+   * Cauê atua como apoio do Luciano; não muda o crédito gerencial da entrega. */
+  startedBy?: string;
+  startedByEmployeeId?: string;
+  lastActionBy?: string;
+  lastActionByEmployeeId?: string;
   /** Conferência que originou o pedido: futuro Balcão poderá direcionar para Entrega/Retira. */
   channel?: "balcao" | "expedicao";
   /** Campos legados preservados para compatibilidade; não comandam o status Expedição. */
