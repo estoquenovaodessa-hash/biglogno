@@ -9,6 +9,19 @@ async function fetchEmployees(): Promise<Employee[]> {
   return employeeListSchema.parse(data?.value ?? []);
 }
 
+/** Cauê auxilia o motorista Luciano; não deve gerar uma segunda rota.
+ * Esta resolução acontece no servidor, a partir do perfil autenticado.
+ * As permissões continuam as do funcionário que clicou no botão. */
+export async function deliveryResponsibleForOperator(actor: Employee): Promise<Employee> {
+  const { isCaue, findLucianoDriver } = await import("./delivery-accountability");
+  if (!isCaue(actor.name)) return actor;
+  const luciano = findLucianoDriver(await fetchEmployees());
+  if (!luciano) {
+    throw new Error("Não foi possível identificar um único Luciano ativo com emblema ENTREGADOR. Confira o Cadastro de Funcionários.");
+  }
+  return luciano;
+}
+
 export const listEmployees = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
   const role = await requireAccess();
