@@ -71,6 +71,39 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_gps_distance_events: {
+        Row: {
+          id: string
+          employee_id: string
+          delivery_id: string
+          session_id: string
+          started_at: string
+          finished_at: string
+          distance_m: number
+          created_at: string
+        }
+        Insert: {
+          id: string
+          employee_id: string
+          delivery_id: string
+          session_id: string
+          started_at: string
+          finished_at: string
+          distance_m: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          delivery_id?: string
+          session_id?: string
+          started_at?: string
+          finished_at?: string
+          distance_m?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       pickups: {
         Row: {
           created_at: string
@@ -112,6 +145,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      record_delivery_gps_distance: {
+        Args: {
+          p_event_id: string
+          p_employee_id: string
+          p_delivery_id: string
+          p_session_id: string
+          p_started_at: string
+          p_finished_at: string
+          p_distance_m: number
+        }
+        Returns: boolean
+      }
+      delivery_gps_distance_report: {
+        Args: { p_reference_date: string; p_period: string }
+        Returns: {
+          employee_id: string
+          distance_m: number
+          segments: number
+          first_at: string
+          last_at: string
+        }[]
+      }
       delete_verification_logistics: {
         Args: { record_id: string }
         Returns: Json
