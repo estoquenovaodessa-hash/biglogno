@@ -6,13 +6,17 @@ import "leaflet/dist/leaflet.css";
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
 type LookupEntry = { at: number; point: Point | null };
+import { progressiveRoadLine, roadKmLabel, routeAnimationResumeIndex, type RoadPoint } from "@/lib/delivery-route-animation";
+
+type RoadLeg = { line: RoadPoint[]; meters: number | null };
 type RouteResponse = {
   code?: string;
-  routes?: Array<{ distance?: number; geometry?: { type?: string; coordinates?: number[][] } }>;
+  routes?: Array<{ legs?: Array<{
+    distance?: number; steps?: Array<{ geometry?: { coordinates?: number[][] } }>;
+  }> }>;
 };
 const CACHE_PREFIX = "biglogno:route-geocode:v2:";
 const PREVIOUS_CACHE_PREFIX = "biglogno:route-geocode:v1:";
-const ROUTE_CACHE_PREFIX = "biglogno:road-route:v1:";
 const CACHE_TTL = 90 * 86400000;
 const EMPTY_TTL = 7 * 86400000;
 const ROAD_TTL = 24 * 60 * 60 * 1000;
@@ -148,35 +152,54 @@ async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | nul
 
 /** Consulta a geometria viária pela ordem dada. Nunca usa otimização de rota,
  * pois ela mudaria a sequência efetivamente registrada nas entregas. */
-async function drivingGeometry(points: Point[], signal: AbortSignal): Promise<{ line: [number, number][]; meters: number }> {
+async function drivingGeometry(points: Point[], signal: AbortSignal): Promise<RoadLeg[]> {
   const query = points.map(point => point.lng.toFixed(6) + "," + point.lat.toFixed(6)).join(";");
-  const cacheKey = ROUTE_CACHE_PREFIX + query;
+  // v2: a geometria de cada perna + seu KM, não apenas a distância agregada.
+  const cacheKey = "biglogno:road-route:v2:" + query;
   try {
-    const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null") as { at: number; coordinates: [number, number][]; meters?: number } | null;
-    if (cached?.coordinates?.length && Number.isFinite(cached.meters) && cached.meters! >= 0 && Date.now() - cached.at < ROAD_TTL)
-      return { line: cached.coordinates, meters: cached.meters! };
-  } catch { /* Seguir com consulta on-line. */ }
+    const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null") as { at: number; legs?: RoadLeg[] } | null;
+    if (cached?.legs?.length === points.length - 1
+      && cached.legs.every(leg => leg.line.length >= 2 && typeof leg.meters === "number" && Number.isFinite(leg.meters))
+      && Date.now() - cached.at < ROAD_TTL) return cached.legs;
+  } catch { /* Cache opcional. */ }
 
+  // O OSRM devolve distância por leg e geometria das ruas em steps; sem
+  // otimização de paradas para preservar a ordem efetiva do ciclo.
   const url = "https://router.project-osrm.org/route/v1/driving/" + query
-    + "?overview=full&geometries=geojson&steps=false";
+    + "?overview=false&geometries=geojson&steps=true";
   const response = await fetch(url, { signal, referrerPolicy: "strict-origin-when-cross-origin" });
   if (!response.ok) throw new Error("Serviço de rotas indisponível.");
   const result = (await response.json()) as RouteResponse;
   if (result.code !== "Ok") throw new Error("Não foi possível calcular o trajeto pelas ruas.");
-  const coordinates = result.routes?.[0]?.geometry?.coordinates;
-  const meters = result.routes?.[0]?.distance;
-  if (!Array.isArray(coordinates) || coordinates.length < 2) {
-    throw new Error("O serviço de rotas não retornou um percurso válido.");
-  }
-  const geometry = coordinates.map(pair => [pair[1], pair[0]] as [number, number])
-    .filter(pair => pair.length === 2 && pair.every(Number.isFinite));
-  if (geometry.length < 2 || !Number.isFinite(meters) || meters! < 0)
-    throw new Error("Distância viária indisponível para este trecho.");
+  const osrmLegs = result.routes?.[0]?.legs;
+  if (!osrmLegs || osrmLegs.length !== points.length - 1)
+    throw new Error("Não foi possível discriminar o KM de cada trecho da rota.");
+
+  const legs: RoadLeg[] = osrmLegs.map((leg, index) => {
+    const meters = leg.distance;
+    if (typeof meters !== "number" || !Number.isFinite(meters) || meters < 0)
+      throw new Error("Distância não informada para a parada " + (index + 1) + ".");
+    const line: RoadPoint[] = [];
+    for (const step of leg.steps ?? []) {
+      for (const pair of step.geometry?.coordinates ?? []) {
+        if (Array.isArray(pair) && Number.isFinite(pair[0]) && Number.isFinite(pair[1])) {
+          const point: RoadPoint = [pair[1], pair[0]];
+          const previous = line[line.length - 1];
+          if (!previous || previous[0] !== point[0] || previous[1] !== point[1]) line.push(point);
+        }
+      }
+    }
+    if (line.length < 2) {
+      if (meters !== 0) throw new Error("Geometria da via indisponível para a parada " + (index + 1) + ".");
+      return { line: [[points[index].lat, points[index].lng], [points[index + 1].lat, points[index + 1].lng]], meters };
+    }
+    return { line, meters };
+  });
   try {
-    const value = JSON.stringify({ at: Date.now(), coordinates: geometry, meters });
+    const value = JSON.stringify({ at: Date.now(), legs });
     if (value.length < 240000) localStorage.setItem(cacheKey, value);
   } catch { /* Cache opcional. */ }
-  return { line: geometry, meters: meters! };
+  return legs;
 }
 
 /** Quando um endereço estiver ausente, não liga os pontos através dele:
