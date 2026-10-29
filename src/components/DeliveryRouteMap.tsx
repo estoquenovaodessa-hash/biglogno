@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RouteStop } from "@/lib/delivery-route";
 import { fullDeliveryAddress } from "@/lib/delivery-route";
 import "leaflet/dist/leaflet.css";
+import { progressiveRoadLine, roadKmLabel, routeAnimationResumeIndex, type RoadPoint } from "@/lib/delivery-route-animation";
 
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
@@ -326,46 +327,150 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
       }
 
       const groups = consecutiveGroups(stops, located);
-      let roadsDrawn = 0;
-      let failures = 0;
-      let totalRoadMeters = 0;
-      // Até 10 paradas por consulta, com uma parada repetida entre trechos,
-      // preservando a ordem das visitas sem reordenar os pontos.
+      type DrawLeg = { from: number; to: number; line: RoadPoint[]; meters: number | null };
+      const legs: DrawLeg[] = [];
+      let failedChunks = 0;
+      // Cada waypoint consecutivo vira um trecho individual. O roteador
+      // fornece a geometria e a distância por rua, na ordem efetiva da rota.
       for (const group of groups) {
         for (let start = 0; start < group.length - 1; start += MAX_WAYPOINTS - 1) {
           if (cancelled) return;
           const chunk = group.slice(start, start + MAX_WAYPOINTS);
           if (chunk.length < 2) continue;
-          const points = chunk.map(entry => entry.point);
           try {
-            const route = await drivingGeometry(points, controller.signal);
+            const routed = await drivingGeometry(chunk.map(entry => entry.point), controller.signal);
             if (cancelled) return;
-            totalRoadMeters += route.meters;
-            L.polyline(route.line, { color: "#ffffff", weight: 9, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
-            L.polyline(route.line, { color: "#2864df", weight: 5.5, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
-            roadsDrawn++;
+            routed.forEach((leg, i) => legs.push({
+              from: chunk[i].index, to: chunk[i + 1].index,
+              line: leg.line, meters: leg.meters,
+            }));
           } catch (cause) {
             if (cancelled) return;
-            failures++;
-            // Somente como alternativa: linha pontilhada explicitamente estimada.
-            const endpoints: [number, number][] = points.map(point => [point.lat, point.lng]);
-            L.polyline(endpoints, { color: "#6d86b6", weight: 3, opacity: 0.85, dashArray: "7 9" }).addTo(roadLayer);
-            setError(cause instanceof Error ? cause.message : "Trajeto rodoviário indisponível.");
+            failedChunks++;
+            setError(cause instanceof Error ? cause.message : "Algum trecho não pôde ser calculado.");
+            // Sem distância inventada: exibe linha pontilhada, identificada
+            // como estimativa visual, jamais incluída no KM total.
+            for (let i = 0; i < chunk.length - 1; i++) {
+              legs.push({
+                from: chunk[i].index, to: chunk[i + 1].index,
+                line: [[chunk[i].point.lat, chunk[i].point.lng], [chunk[i + 1].point.lat, chunk[i + 1].point.lng]],
+                meters: null,
+              });
+            }
           }
         }
       }
       if (cancelled || !map) return;
-
-
-
-      const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
+      const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as RoadPoint);
       if (coordinates.length > 1) map.fitBounds(L.latLngBounds(coordinates), { padding: [60, 60], maxZoom: 14 });
-      const expected = groups.reduce((sum, group) => sum + Math.ceil((group.length - 1) / (MAX_WAYPOINTS - 1)), 0);
-      const complete = expected > 0 && failures === 0 && roadsDrawn === expected
-        && stops.every(stop => !!stop.address) && located.length === stops.length;
-      onRoadDistanceChange?.(complete ? totalRoadMeters : null);
-      setRouteState(!expected ? "unavailable" : !complete ? "partial" : "road");
-      if (!expected && located.length > 1) setError("Endereços intermediários ausentes: não é possível ligar as paradas com segurança.");
+      const fullyLocated = stops.every(stop => !!stop.address) && located.length === stops.length;
+      const complete = fullyLocated && !failedChunks && legs.length === stops.length - 1
+        && legs.every((leg, index) => leg.meters !== null && leg.from === index && leg.to === index + 1);
+      const totalMeters = legs.reduce((total, leg) => total + (leg.meters ?? 0), 0);
+      onRoadDistanceChange?.(complete ? totalMeters : null);
+      setRouteState(!legs.length ? "unavailable" : complete ? "road" : "partial");
+      if (!legs.length) {
+        setError("É necessário localizar pelo menos duas paradas consecutivas para animar a rota.");
+        return;
+      }
+
+      const name = (index: number) => stops[index]?.kind === "origin" ? "LOJA" : stops[index]?.company ?? "Parada";
+      const signatures = legs.map(leg => JSON.stringify([
+        stops[leg.from]?.key, stops[leg.to]?.key,
+        leg.line[0], leg.line[leg.line.length - 1], leg.meters,
+      ]));
+      const saved = remembered.current;
+      const resume = routeAnimationResumeIndex(
+        saved?.routeKey, routeKey, saved?.signatures ?? [], signatures, saved?.completed ?? 0,
+      );
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+      // Suspende a animação quando o gestor pausa ou troca de aba. Todos
+      // os frames anteriores são cancelados ao selecionar outra rota.
+      async function animateFor(duration: number, draw: (fraction: number) => void): Promise<void> {
+        await new Promise<void>(resolve => {
+          let elapsed = 0;
+          let previous = 0;
+          const step = (time: number) => {
+            if (cancelled) { resolve(); return; }
+            if (previous && !pausedRef.current && !document.hidden) elapsed += Math.min(100, time - previous);
+            previous = time;
+            const t = Math.min(1, elapsed / duration);
+            draw(t);
+            if (t >= 1) { frameId = null; resolve(); return; }
+            frameId = window.requestAnimationFrame(step);
+          };
+          frameId = window.requestAnimationFrame(step);
+        });
+      }
+
+      function addKmMarker(leg: DrawLeg) {
+        if (leg.meters === null) return;
+        const center = progressiveRoadLine(leg.line, 0.5).at(-1);
+        if (!center) return;
+        L.marker(center, {
+          interactive: false, zIndexOffset: 1700,
+          icon: L.divIcon({
+            className: "biglogno-route-km-icon",
+            html: "<span>" + roadKmLabel(leg.meters) + "</span>",
+            iconSize: [98, 26], iconAnchor: [49, 13],
+          }),
+        }).addTo(roadLayer);
+      }
+      function drawCompleted(leg: DrawLeg) {
+        if (leg.meters === null) {
+          L.polyline(leg.line, { color: "#6d86b6", weight: 3, dashArray: "7 9" }).addTo(roadLayer);
+        } else {
+          L.polyline(leg.line, { color: "#fff", weight: 9, opacity: 0.95 }).addTo(roadLayer);
+          L.polyline(leg.line, { color: "#2864df", weight: 5.5 }).addTo(roadLayer);
+          addKmMarker(leg);
+        }
+      }
+
+      let firstPass = true;
+      while (!cancelled) {
+        const begin = firstPass ? resume : 0;
+        firstPass = false;
+        roadLayer.clearLayers();
+        let accumulated = 0;
+        for (let i = 0; i < begin; i++) {
+          drawCompleted(legs[i]);
+          accumulated += legs[i].meters ?? 0;
+        }
+        for (let i = begin; i < legs.length; i++) {
+          if (cancelled) return;
+          const leg = legs[i];
+          const nextAccumulated = accumulated + (leg.meters ?? 0);
+          const state = {
+            index: i + 1, total: legs.length,
+            from: name(leg.from), to: name(leg.to),
+            meters: leg.meters, accumulated: nextAccumulated,
+          };
+          setPlayback({ ...state, phase: "tracing" });
+          const white = leg.meters === null ? null
+            : L.polyline([leg.line[0]], { color: "#fff", weight: 9, opacity: 0.95 }).addTo(roadLayer);
+          const blue = L.polyline([leg.line[0]], leg.meters === null
+            ? { color: "#6d86b6", weight: 3, dashArray: "7 9" }
+            : { color: "#2864df", weight: 5.5, opacity: 1 }).addTo(roadLayer);
+          if (!reduceMotion) await animateFor(720, fraction => {
+            const partial = progressiveRoadLine(leg.line, fraction);
+            white?.setLatLngs(partial);
+            blue.setLatLngs(partial);
+          });
+          if (cancelled) return;
+          white?.setLatLngs(leg.line);
+          blue.setLatLngs(leg.line);
+          addKmMarker(leg);
+          accumulated = nextAccumulated;
+          remembered.current = { routeKey, signatures, completed: i + 1 };
+          setPlayback({ ...state, phase: "reading" });
+          if (!reduceMotion) await animateFor(1180, () => {});
+        }
+        if (cancelled || reduceMotion) return;
+        setPlayback(current => current ? { ...current, phase: "repeating" } : current);
+        await animateFor(900, () => {});
+        remembered.current = { routeKey, signatures, completed: 0 };
+      }
     }
 
     void renderMap().catch(cause => {
