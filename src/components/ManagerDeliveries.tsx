@@ -9,6 +9,7 @@ import {
 } from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
+import { DeliveryKilometersPanel } from "./DeliveryKilometersPanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
 import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
@@ -225,6 +226,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         <Button type="button" variant="outline" className="h-10" onClick={() => { setDraft(initial); setFilters(initial); setSelectedId(null); }}>Limpar</Button>
       </div>
     </form>
+
+    <DeliveryKilometersPanel drivers={drivers} selectedDriverId={filters.driver} />
 
     <DeliveryRoutePanel
       deliveries={deliveries}
