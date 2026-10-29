@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight, Pencil } from "lucide-react";
 import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
+import { deliveryResponsibleName } from "@/lib/delivery-accountability";
 import { listDeliveries, setExpeditionSchedule } from "@/lib/deliveries.functions";
 import { shiftOf, type ExpeditionShift } from "@/lib/expedition-schedule";
 import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
@@ -94,7 +95,7 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onEdit, onSetS
   const onlyDelivery = orders.every(item => item.onlyDelivery);
   const origins = [...new Set(orders.map(originOf))];
   const differentOrigins = origins.length > 1;
-  const driver = first.driver || orders.find(item => item.driver)?.driver;
+  const driver = deliveryResponsibleName(first) || (orders.find(item => item.driver)?.driver ?? "");
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <ExpeditionShiftPicker placement="top" ids={orders.map(order => order.id)}
       shift={shiftOf(first)} readOnly={readOnly}
