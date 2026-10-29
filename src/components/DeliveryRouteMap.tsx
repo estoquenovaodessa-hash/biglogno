@@ -559,12 +559,30 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
           style={{ width: (playback.index / playback.total * 100) + "%" }} />
       </div>
     </div>}
-    {routeState !== "loading" && playback && <button type="button" aria-pressed={paused}
-      aria-label={paused ? "Continuar animação da rota" : "Pausar animação da rota"}
-      onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current); }}
-      className="absolute bottom-3 right-3 z-[700] rounded-full border border-[#a8daff] bg-[#09264d] px-4 py-2 text-xs font-bold text-white shadow-lg hover:bg-[#154883] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff]">
-      {paused ? "▶ Continuar" : "⏸ Pausar"}
-    </button>}
+    <div className="biglogno-route-size-controls absolute bottom-3 right-3 z-[700] flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-[#75b7ec] bg-[#071c39]/95 p-1.5 text-white shadow-[0_8px_24px_rgba(0,17,54,.4)]"
+      role="group" aria-label="Tamanho do mapa e controle da animação">
+      <button type="button" aria-pressed={viewMode === "medium"}
+        title="Ver o mapa em tamanho médio, dentro do painel do Gestor"
+        onClick={() => { void chooseView("medium"); }}
+        className={"inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff] " +
+          (viewMode === "medium" ? "bg-[#1775ce] text-white" : "text-[#c5e3ff] hover:bg-[#174572]")}>
+        <Minimize2 className="h-4 w-4" /> Médio
+      </button>
+      <button type="button" aria-pressed={viewMode === "fullscreen"}
+        title="Ampliar o mapa para ocupar toda a tela, mantendo a animação"
+        onClick={() => { void chooseView("fullscreen"); }}
+        className={"inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff] " +
+          (viewMode === "fullscreen" ? "bg-[#1775ce] text-white" : "text-[#c5e3ff] hover:bg-[#174572]")}>
+        <Maximize2 className="h-4 w-4" /> Tela cheia
+      </button>
+      {routeState !== "loading" && playback && <button type="button" aria-pressed={paused}
+        aria-label={paused ? "Continuar animação da rota" : "Pausar animação da rota"}
+        onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current); }}
+        className="h-9 rounded-lg border border-[#4e83ae] bg-[#123f6e] px-2.5 text-xs font-bold text-white hover:bg-[#1a548f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff]">
+        {paused ? "▶ Continuar" : "⏸ Pausar"}
+      </button>}
+    </div>
+    {viewError && <p role="alert" className="absolute bottom-16 right-3 z-[720] max-w-[85%] rounded-lg bg-rose-950/95 px-3 py-2 text-xs font-semibold text-white">{viewError}</p>}
     {(notLocated.length > 0 || error) && <div role="status" className="pointer-events-none absolute bottom-3 left-3 z-[500] max-w-[65%] rounded-lg bg-white/95 p-2 text-xs text-amber-900 shadow-sm">
       {error && <p>{error}</p>}
       {notLocated.length > 0 && <p>Sem localização exata: {notLocated.join(", ")}. Confira ou corrija esses endereços nos cartões abaixo.</p>}
