@@ -3,7 +3,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import type { RouteStop } from "@/lib/delivery-route";
 import { fullDeliveryAddress } from "@/lib/delivery-route";
 import "leaflet/dist/leaflet.css";
-import { progressiveRoadLine, roadKmLabel, type RoadPoint } from "@/lib/delivery-route-animation";
+import { progressiveRoadLine, roadKmLabel, visibleAnimatedStopIndexes, type RoadPoint } from "@/lib/delivery-route-animation";
 
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
@@ -317,6 +317,7 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
 
       const roadLayer = L.layerGroup().addTo(map);
       const markerLayer = L.layerGroup().addTo(map);
+      const stopMarkers = new Map<number, import("leaflet").Marker>();
       const located: LocatedStop[] = [];
       const unresolved: string[] = [];
       let done = 0;
@@ -363,6 +364,7 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
           popup.append(heading, addressText);
           if (!isOrigin) popup.append(docs);
           marker.bindPopup(popup);
+          stopMarkers.set(index, marker);
           const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
           if (coordinates.length === 1) map.setView(coordinates[0], 13);
           else map.fitBounds(L.latLngBounds(coordinates), { padding: [50, 50], maxZoom: 14 });
@@ -427,6 +429,19 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
       const name = (index: number) => stops[index]?.kind === "origin" ? "LOJA" : stops[index]?.company ?? "Parada";
       const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
+      // Durante a reprodução, marcadores futuros ficam ocultos. O destino
+      // reaparece somente quando o desenho da linha alcança aquele ponto.
+      function showMarkers(indexes: number[], arrivedIndex: number | null = null) {
+        for (const index of indexes) {
+          const marker = stopMarkers.get(index);
+          if (!marker || markerLayer.hasLayer(marker)) continue;
+          marker.addTo(markerLayer);
+          if (index === arrivedIndex && !reduceMotion) {
+            marker.getElement()?.classList.add("biglogno-route-marker--arrived");
+          }
+        }
+      }
+
       // Suspende a animação quando o gestor pausa ou troca de aba. Todos
       // os frames anteriores são cancelados ao selecionar outra rota.
       async function animateFor(duration: number, draw: (fraction: number) => void): Promise<void> {
@@ -484,11 +499,21 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
         setAnimating(true);
         setPlayback(null);
         roadLayer.clearLayers();
+        // Remove os destinos da prévia estática sem perder seus popups.
+        // A origem permanece; na ausência dela, parte da primeira parada localizada.
+        for (const marker of stopMarkers.values()) {
+          marker.getElement()?.classList.remove("biglogno-route-marker--arrived");
+        }
+        markerLayer.clearLayers();
+        const startingIndex = stops[0]?.kind === "origin" && stopMarkers.has(0) ? 0 : legs[0].from;
+        showMarkers(visibleAnimatedStopIndexes(legs, 0, null, startingIndex));
         let accumulated = 0;
         try {
           for (let i = 0; i < legs.length; i++) {
             if (cancelled) return;
             const leg = legs[i];
+            // Um novo trecho após endereço ausente revela apenas seu ponto de partida.
+            showMarkers(visibleAnimatedStopIndexes(legs, i, i, startingIndex));
             const nextAccumulated = accumulated + (leg.meters ?? 0);
             const state = {
               index: i + 1, total: legs.length,
@@ -509,12 +534,15 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
             if (cancelled) return;
             white?.setLatLngs(leg.line);
             blue.setLatLngs(leg.line);
+            showMarkers(visibleAnimatedStopIndexes(legs, i + 1, null, startingIndex), leg.to);
             addKmMarker(leg);
             accumulated = nextAccumulated;
             setPlayback({ ...state, phase: "reading" });
             if (!reduceMotion) await animateFor(1180, () => {});
           }
           if (!cancelled) {
+            // Paradas isoladas, sem ligação viária calculável, continuam visíveis no final.
+            showMarkers([...stopMarkers.keys()]);
             setPlayback(current => current ? { ...current, phase: "finished" } : current);
           }
         } finally {

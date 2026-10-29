@@ -2,6 +2,27 @@
  * A linha é a geometria devolvida pelo roteador de ruas. */
 export type RoadPoint = [number, number];
 
+/** Marcadores visíveis durante uma reprodução.
+ * Uma parada só aparece após a conclusão do trecho que chega até ela.
+ * Quando há lacunas de endereço, a partida de um trecho isolado aparece
+ * apenas ao começar esse trecho, sem inventar uma ligação entre ruas. */
+export function visibleAnimatedStopIndexes(
+  legs: ReadonlyArray<{ from: number; to: number }>,
+  completedLegs: number,
+  activeLeg: number | null,
+  startingIndex: number | null,
+): number[] {
+  const indexes = new Set<number>();
+  if (startingIndex !== null) indexes.add(startingIndex);
+  const count = Math.min(legs.length, Math.max(0, completedLegs));
+  for (let i = 0; i < count; i++) {
+    indexes.add(legs[i].from);
+    indexes.add(legs[i].to);
+  }
+  if (activeLeg !== null && legs[activeLeg]) indexes.add(legs[activeLeg].from);
+  return [...indexes];
+}
+
 function metersBetween(a: RoadPoint, b: RoadPoint): number {
   const rad = Math.PI / 180;
   const y1 = a[0] * rad, y2 = b[0] * rad;

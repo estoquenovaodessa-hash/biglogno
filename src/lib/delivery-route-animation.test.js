@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { progressiveRoadLine, routeAnimationResumeIndex, roadKmLabel } from "./delivery-route-animation";
+import { progressiveRoadLine, routeAnimationResumeIndex, roadKmLabel, visibleAnimatedStopIndexes } from "./delivery-route-animation";
 
 describe("animação da rota realizada", () => {
   const geometry = [[-22.78, -47.29], [-22.781, -47.29], [-22.782, -47.3]];
@@ -28,6 +28,28 @@ describe("animação da rota realizada", () => {
     expect(routeAnimationResumeIndex("manha", "tarde", ["loja-a"], ["loja-a", "a-b"], 1)).toBe(0);
     expect(routeAnimationResumeIndex("manha", "manha", ["loja-a"], ["loja-z", "z-b"], 1)).toBe(0);
     expect(routeAnimationResumeIndex("manha", "manha", ["loja-a"], ["loja-a"], 1)).toBe(0);
+  });
+  test("o destino numerado aparece somente após a linha chegar", () => {
+    const legs = [{ from: 0, to: 1 }, { from: 1, to: 2 }, { from: 2, to: 3 }];
+    expect(visibleAnimatedStopIndexes(legs, 0, null, 0)).toEqual([0]);
+    expect(visibleAnimatedStopIndexes(legs, 0, 0, 0)).toEqual([0]);
+    expect(visibleAnimatedStopIndexes(legs, 1, null, 0)).toEqual([0, 1]);
+    expect(visibleAnimatedStopIndexes(legs, 1, 1, 0)).toEqual([0, 1]);
+    expect(visibleAnimatedStopIndexes(legs, 2, null, 0)).toEqual([0, 1, 2]);
+    expect(visibleAnimatedStopIndexes(legs, 3, null, 0)).toEqual([0, 1, 2, 3]);
+    // Ao reiniciar, todos os destinos futuros voltam a ficar ocultos.
+    expect(visibleAnimatedStopIndexes(legs, 0, null, 0)).toEqual([0]);
+  });
+  test("não antecipa destinos após uma lacuna de endereço", () => {
+    const legs = [{ from: 0, to: 1 }, { from: 3, to: 4 }];
+    expect(visibleAnimatedStopIndexes(legs, 1, null, 0)).toEqual([0, 1]);
+    expect(visibleAnimatedStopIndexes(legs, 1, 1, 0)).toEqual([0, 1, 3]);
+    expect(visibleAnimatedStopIndexes(legs, 2, null, 0)).toEqual([0, 1, 3, 4]);
+  });
+  test("funciona quando a rota não tem origem cadastrada", () => {
+    const legs = [{ from: 2, to: 3 }];
+    expect(visibleAnimatedStopIndexes(legs, 0, null, 2)).toEqual([2]);
+    expect(visibleAnimatedStopIndexes(legs, 1, null, 2)).toEqual([2, 3]);
   });
   test("mostra KM viários com duas casas e não inventa valor para trecho indisponível", () => {
     expect(roadKmLabel(4250)).toBe("4,25 km");
