@@ -191,6 +191,22 @@ export function DeliveryKilometersPanel({
                 ? formatRoadKm(calculated[trip.key].meters!)
                 : <span title={calculated[trip.key].reason} className="text-amber-600 dark:text-amber-400">Não calculado</span>
                 : "Calculando…"}
+              {calculated[trip.key]?.legs?.length === trip.stops.length - 1 &&
+                <details className="mt-1 min-w-40 text-left text-xs font-normal">
+                  <summary className="cursor-pointer font-semibold text-primary">Ver KM entre endereços</summary>
+                  <ol className="mt-2 space-y-1 text-muted-foreground">
+                    {calculated[trip.key].legs!.map((meters, index) =>
+                      <li key={index} className="border-t border-border/70 pt-1">
+                        {trip.stops[index]?.kind === "origin" ? "LOJA" : trip.stops[index]?.company}
+                        {" → "}{trip.stops[index + 1]?.company}: <strong>{formatRoadKm(meters)}</strong>
+                      </li>
+                    )}
+                  </ol>
+                </details>}
+              {calculated[trip.key]?.meters === null &&
+                <p className="mt-1 text-left text-xs font-normal text-muted-foreground">
+                  {calculated[trip.key].reason}
+                </p>}
             </td>
           </tr>)}
           {!selectedTrips.length && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Nenhuma entrega finalizada no período.</td></tr>}
