@@ -36,8 +36,7 @@ describe("KM estimados de entregas concluídas", () => {
       expeditionShift: "tarde", company: "Empresa 20",
     });
     const pending = { ...a, id: "pending", document: "pending", status: "nao_iniciada" };
-    const collected = { ...a, id: "collected", source: "coleta" };
-    const trips = estimatedKmTrips([b, a, c, pending, collected], [employee], addresses, store, "2026-10-26", "day");
+    const trips = estimatedKmTrips([b, a, c, pending], [employee], addresses, store, "2026-10-26", "day");
     expect(trips).toHaveLength(2);
     expect(trips.map(t => t.shift).sort()).toEqual(["manha", "tarde"]);
     const morning = trips.find(trip => trip.shift === "manha");
@@ -47,6 +46,21 @@ describe("KM estimados de entregas concluídas", () => {
     expect(morning?.stops.map(stop => stop.company)).toEqual(["BIGNOTTO FERRAMENTAS", "Empresa 10"]);
     expect(trips.find(trip => trip.shift === "tarde")?.stops[0].kind).toBe("origin");
     expect(pending.status).toBe("nao_iniciada");
+  });
+  test("coleta finalizada com local confirmado participa da mesma rota e dos KM", () => {
+    const delivered = delivery("10", "2026-10-26T13:00:00Z", { expeditionShift: "manha" });
+    const collection = delivery("coleta-1", "2026-10-26T14:00:00Z", {
+      source: "coleta", expeditionShift: "manha", company: "Empresa de Coleta",
+      companyCode: "", collectionAddress: "Rua da Coleta, 88, Nova Odessa - SP",
+      collectionLatitude: -22.77, collectionLongitude: -47.29,
+      collectionLocationConfirmedAt: "2026-10-26T10:00:00Z",
+    });
+    const [trip] = estimatedKmTrips([delivered, collection], [employee], addresses, store, "2026-10-26", "day");
+    expect(trip.documents).toBe(2);
+    expect(trip.stops).toHaveLength(3);
+    expect(trip.stops[2].company).toBe("Empresa de Coleta");
+    expect(trip.stops[2].address?.locationSource).toBe("google_maps");
+    expect(completedRouteKilometers(trip.stops, [2800, 4100]).meters).toBe(6900);
   });
   test("soma Loja → Cliente A → Cliente B sem calcular retorno não confirmado", () => {
     const morning = delivery("10", "2026-10-26T13:00:00Z", { expeditionShift: "manha" });
