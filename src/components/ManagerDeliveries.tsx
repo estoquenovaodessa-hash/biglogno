@@ -10,6 +10,8 @@ import {
 } from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
+import { CollectionGoogleMapsConfirm } from "./CollectionGoogleMapsConfirm";
+import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import { ManagerDeliveryTable } from "./ManagerDeliveryTable";
 import { listDeliveryRoutes } from "@/lib/delivery-route";
 import { consolidateCaueDeliveries } from "@/lib/delivery-accountability";
@@ -167,12 +169,31 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   };
   const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
   const address = selected?.source === "coleta" && selected.collectionAddress
-    ? { client_code: "", address: selected.collectionAddress, neighborhood: "", city: "", state: "" }
+    ? { client_code: "", address: selected.collectionAddress, neighborhood: "", city: "", state: "",
+      ...(Number.isFinite(selected.collectionLatitude) && Number.isFinite(selected.collectionLongitude)
+        ? { latitude: selected.collectionLatitude, longitude: selected.collectionLongitude,
+          locationSource: "google_maps" as const } : {}) }
     : selected?.companyCode
       ? addressQuery.data?.find(a => normalizeDeliveryClientCode(a.client_code) === normalizeDeliveryClientCode(selected.companyCode ?? ""))
       : undefined;
   const addressText = address ? [address.address, address.neighborhood, address.city, address.state].filter(Boolean).join(", ") : "";
-  const mapHref = addressText ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addressText + ", Brasil") : null;
+  const mapHref = selected?.source === "coleta" && Number.isFinite(selected.collectionLatitude) && Number.isFinite(selected.collectionLongitude)
+    ? googleMapsPointUrl({ latitude: selected.collectionLatitude!, longitude: selected.collectionLongitude! })
+    : addressText ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addressText + ", Brasil") : null;
+  const selectedCollectionStop = selected?.source === "coleta"
+    ? { key: "coleta:" + selected.id, company: selected.company, clientCode: "",
+      at: selected.finishedAt || selected.arrivedAt || selected.createdAt,
+      deliveries: [selected], address } : null;
+  async function saveConfirmedCollection(collectionId: string, collectionAddress: string, point: ConfirmedPoint) {
+    await confirmCollection({ data: {
+      collectionId, address: collectionAddress, latitude: point.latitude, longitude: point.longitude,
+    } });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["deliveries"] }),
+      queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] }),
+      queryClient.invalidateQueries({ queryKey: ["collection-locations"] }),
+    ]);
+  }
   async function importAddressFile(file?: File) {
     if (!file) return;
     setImporting(true); setImportMessage("");
@@ -290,17 +311,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         await confirmLocation({ data: { clientCode, latitude: point.latitude, longitude: point.longitude } });
         await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
       }}
-      onConfirmCollectionLocation={async (collectionId: string, address: string, point: ConfirmedPoint) => {
-        await confirmCollection({ data: {
-          collectionId, address, latitude: point.latitude, longitude: point.longitude,
-        } });
-        // Compartilhado entre Gestor, Operador e Expedição.
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["deliveries"] }),
-          queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] }),
-          queryClient.invalidateQueries({ queryKey: ["collection-locations"] }),
-        ]);
-      }}
+      onConfirmCollectionLocation={saveConfirmedCollection}
     />
       <DeliveryKilometersPanel
         drivers={drivers} selectedDriverId={filters.driver}
@@ -345,6 +356,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
               <p className="text-sm text-muted-foreground">{[address.neighborhood, address.city, address.state].filter(Boolean).join(" · ")}</p>
               {mapHref && <a href={mapHref} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary underline"><MapPin className="h-4 w-4" /> Abrir endereço no Google Maps</a>}
             </> : <p className="mt-2 text-sm text-muted-foreground">{selected.companyCode ? "Endereço não encontrado na base importada para este código de cliente." : "Pedido sem código do cliente. Não é possível associar um endereço com segurança."}</p>}
+            {selectedCollectionStop && <CollectionGoogleMapsConfirm stop={selectedCollectionStop}
+              onSave={saveConfirmedCollection} />}
             <p className="mt-2 text-xs text-muted-foreground">Sem rastreamento GPS ativo — nenhuma localização é simulada.</p>
           </div>
           <div className="mt-5 border-t border-border pt-4">
