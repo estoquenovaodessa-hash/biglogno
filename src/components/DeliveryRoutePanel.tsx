@@ -12,7 +12,7 @@ import type { ConfirmedPoint } from "@/lib/google-maps-location";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 function RouteStopNumber({ number }: { number: number }) {
-  return <span aria-label={number + "ª parada"} className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-white text-xs font-black text-white shadow-[0_3px_9px_rgba(22,65,151,0.28)] ${"bg-[#245ddc]"}`}>
+  return <span aria-label={number + "ª parada"} className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-[3px] border-white bg-[#245ddc] text-xs font-black text-white shadow-[0_3px_9px_rgba(22,65,151,0.28)]">
     {number}
   </span>;
 }
