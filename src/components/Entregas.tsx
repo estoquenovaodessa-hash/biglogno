@@ -17,7 +17,6 @@ import { LogisticsOrderFields } from './LogisticsOrderFields';
 import { Retira } from './Retira';
 import { ManagerDeliveries } from './ManagerDeliveries';
 import { OperatorDeliveryCard } from './OperatorDeliveryCard';
-import { DeliveryGpsRecorder } from './DeliveryGpsRecorder';
 import { operatorShiftSections, shiftLabel, type ShiftSection } from '@/lib/expedition-schedule';
 const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -36,12 +35,6 @@ export function Entregas({ role }: { role: AccessRole }) {
   async function run(fn: () => Promise<unknown>) { setBusy(true); setError(''); try { await fn(); await q.refetch(); return true; } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível concluir.'); return false; } finally { setBusy(false); } }
   const action = (a: DeliveryAction) => run(() => act({ data: a }));
   const all = q.data ?? [], open = all.filter(d => d.status !== 'finalizada'), groups = deliveryGroups(open);
-  // Evitar contar notas unificadas duas vezes. A gravação GPS associa os
-  // segmentos apenas ao pedido ativo mais antigo deste entregador.
-  const gpsActiveDelivery = employee?.id && employee.badge === "ENTREGADOR"
-    ? open.filter(d => d.driverEmployeeId === employee.id && d.status === "em_rota")
-      .sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? "") || a.id.localeCompare(b.id))[0]
-    : undefined;
   const sections = operatorShiftSections(groups);
   const done = all.filter(d => d.status === 'finalizada').sort((a,b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
   const clients = sales.data?.clients ?? [];
@@ -120,8 +113,6 @@ export function Entregas({ role }: { role: AccessRole }) {
           <Plus className="h-5 w-5" /> Adicionar entrega
         </Button>
       </div>
-      <DeliveryGpsRecorder deliveryId={gpsActiveDelivery?.id ?? null}
-        enabled={canOperate && !!employee && employee.badge === "ENTREGADOR"} />
       {sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>}
       {!canOperate && <p role="status" className="text-sm text-muted-foreground">Somente consulta: seu perfil não possui o direito Entregas. Os botões operacionais estão bloqueados.</p>}
     </>}
