@@ -40,11 +40,16 @@ export function consolidateCaueDeliveries(
   return records.map(row => {
     const isCaueRecord = (row.driverEmployeeId && caueIds.has(row.driverEmployeeId))
       || isCaue(row.driver);
-    if (!isCaueRecord) return row;
-    return {
+    if (isCaueRecord) return {
       ...row,
       driver: luciano?.name ?? "Luciano",
       driverEmployeeId: luciano?.id ?? undefined,
     };
+    // Notas antigas do próprio Luciano nem sempre têm driverEmployeeId.
+    // Completar a referência na VISÃO evita criar uma segunda rota por nome.
+    if (luciano && !row.driverEmployeeId && isLuciano(row.driver)) return {
+      ...row, driver: luciano.name, driverEmployeeId: luciano.id,
+    };
+    return row;
   });
 }
