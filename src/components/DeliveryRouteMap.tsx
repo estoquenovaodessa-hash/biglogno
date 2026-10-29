@@ -484,17 +484,40 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
 
   return <div className="biglogno-route-map-shell relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
     <div ref={container} className="h-[380px] w-full sm:h-[490px]" role="region" aria-label="Mapa das entregas em sequência pelas ruas" />
-    <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[calc(100%-24px)] rounded-xl border border-white/90 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-800 shadow-md">
+    <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[45%] rounded-xl border border-white/90 bg-white/95 px-2.5 py-2 text-[11px] font-semibold text-slate-800 shadow-md">
       <span className="inline-flex items-center gap-2">
         <span className="h-3 w-3 rounded-full bg-[#2864df]" />
-        {routeState === "road" ? "Trajeto estimado pelas ruas" : routeState === "partial" ? "Alguns trechos não puderam ser roteados" : "Sequência das entregas"}
+        {routeState === "road" ? "Trajeto animado pelas ruas" : routeState === "partial" ? "Alguns trechos sem KM" : "Preparando animação"}
       </span>
       {progress.total > 0 && progress.done < progress.total
         ? <span className="mt-1 block text-slate-500">Localizando {progress.done}/{progress.total} endereços...</span>
         : <span className="mt-1 block text-slate-500">{progress.found} de {stops.length} paradas no mapa</span>}
       {routeState === "partial" && <span className="mt-1 block text-slate-500">Linhas pontilhadas não seguem necessariamente as ruas.</span>}
     </div>
-    {(notLocated.length > 0 || error) && <div role="status" className="absolute bottom-3 left-3 z-[500] max-w-[83%] rounded-lg bg-white/95 p-2 text-xs text-amber-900 shadow-sm">
+    {playback && <div className="biglogno-route-playback pointer-events-none absolute right-3 top-3 z-[600] w-[min(52%,235px)] rounded-xl border-2 border-[#8ec7ff] bg-[#071c39]/95 px-3 py-3 text-white shadow-[0_8px_24px_rgba(0,17,54,.45)]"
+      role="status" aria-live="off" aria-label="Quilometragem do trecho atual">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#9fd3ff]">
+        {playback.phase === "repeating" ? "Recomeçando o ciclo..." : "Trecho " + playback.index + " de " + playback.total}
+      </p>
+      <p className="mt-1 break-words text-[11px] font-bold leading-snug text-[#d3e9ff]">{playback.from} → {playback.to}</p>
+      <p className="mt-1 text-xl font-black tabular-nums tracking-tight text-[#76e6ff] sm:text-2xl">
+        {roadKmLabel(playback.meters)}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold text-[#b9d7f7]">
+        Acumulado: {roadKmLabel(playback.accumulated)}
+      </p>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#23476d]">
+        <div className="h-full rounded-full bg-[#3fcbff] transition-[width] duration-200"
+          style={{ width: (playback.index / playback.total * 100) + "%" }} />
+      </div>
+    </div>}
+    {routeState !== "loading" && playback && <button type="button" aria-pressed={paused}
+      aria-label={paused ? "Continuar animação da rota" : "Pausar animação da rota"}
+      onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current); }}
+      className="absolute bottom-3 right-3 z-[700] rounded-full border border-[#a8daff] bg-[#09264d] px-4 py-2 text-xs font-bold text-white shadow-lg hover:bg-[#154883] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff]">
+      {paused ? "▶ Continuar" : "⏸ Pausar"}
+    </button>}
+    {(notLocated.length > 0 || error) && <div role="status" className="pointer-events-none absolute bottom-3 left-3 z-[500] max-w-[65%] rounded-lg bg-white/95 p-2 text-xs text-amber-900 shadow-sm">
       {error && <p>{error}</p>}
       {notLocated.length > 0 && <p>Sem localização exata: {notLocated.join(", ")}. Confira ou corrija esses endereços nos cartões abaixo.</p>}
     </div>}
