@@ -22,6 +22,12 @@ export function findLucianoDriver(employees: Employee[]): Employee | null {
   return candidates.length === 1 ? candidates[0] : null;
 }
 
+/** Crédito visível da entrega, inclusive na Expedição e na tela do operador.
+ * Não altera o nome de quem realizou a ação, preservado em campos de auditoria. */
+export function deliveryResponsibleName(row: Pick<Delivery, "driver">): string {
+  return isCaue(row.driver) ? "Luciano" : row.driver ?? "";
+}
+
 /** Reconciliação apenas para exibição/relatórios de entregas antigas, quando
  * o pedido foi iniciado em nome de Cauê. Não altera registro do Supabase nem
  * modifica a contagem de notas. Outras identidades continuam intactas. */
