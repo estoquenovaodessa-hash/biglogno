@@ -234,7 +234,12 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </form>
 
-    <DeliveryKilometersPanel drivers={drivers} selectedDriverId={filters.driver} />
+    <DeliveryKilometersPanel
+      drivers={drivers} selectedDriverId={filters.driver}
+      deliveries={deliveries} addresses={addressQuery.data ?? []}
+      storeOrigin={findBignottoOrigin(originClientsQuery.data ?? [], addressQuery.data ?? [])}
+      originError={originClientsQuery.isError || addressQuery.isError}
+    />
 
     <DeliveryRoutePanel
       deliveries={deliveries}
