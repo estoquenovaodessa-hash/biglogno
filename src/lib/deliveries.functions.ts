@@ -42,7 +42,7 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
       && !isCaue(original.driver) && !isLuciano(original.driver)) {
     throw new Error('O apoio de Cauê nas Entregas é exclusivo das operações de Luciano.');
   }
-  const responsible = data.action === 'start' && isCaue(actor.name)
+  const responsible = isCaue(actor.name)
     ? await deliveryResponsibleForOperator(actor)
     : actor;
   const action = data.action === 'start'
@@ -58,8 +58,8 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
     // Mesmo pedidos antigos iniciados pelo Cauê passam a pertencer ao Luciano
     // quando um novo movimento for registrado. O histórico de autor fica separado.
     const legacyCaue = isCaue(row.driver);
-    const owner = legacyCaue && !cancelled
-      ? responsible === actor ? null : responsible : null;
+    const owner = legacyCaue && !cancelled && (isCaue(actor.name) || isLuciano(actor.name))
+      ? responsible : null;
     return {
       ...row,
       ...(started ? {
