@@ -106,6 +106,9 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onEdit, onSetS
         <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
           {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} {orders.length > 1 ? "unificados" : ""}
         </p>
+        {!!first.expeditionShift && <p className="mt-1 text-xs font-semibold text-primary">
+          Lote de turno separado · novas conferências não serão unificadas aqui.
+        </p>}
       </div>
       <Status value={deliveryStatus(first)} />
     </div>
