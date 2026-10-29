@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import type { RouteStop } from "@/lib/delivery-route";
 import { fullDeliveryAddress } from "@/lib/delivery-route";
 import "leaflet/dist/leaflet.css";
@@ -228,6 +229,10 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
   onRoadDistanceChange?: (meters: number | null) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const shell = useRef<HTMLDivElement>(null);
+  const leafletMap = useRef<import("leaflet").Map | null>(null);
+  const [viewMode, setViewMode] = useState<"medium" | "fullscreen">("medium");
+  const [viewError, setViewError] = useState("");
   const [progress, setProgress] = useState({ done: 0, found: 0, total: 0 });
   const [routeState, setRouteState] = useState<"loading" | "road" | "partial" | "unavailable">("loading");
   const [error, setError] = useState("");
@@ -236,6 +241,44 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const remembered = useRef<{ routeKey: string; signatures: string[]; completed: number } | null>(null);
+
+  // Fullscreen API coloca o PRÓPRIO mapa na camada superior do navegador,
+  // sem desmontar o Leaflet e sem interromper a animação em andamento.
+  useEffect(() => {
+    const element = container.current;
+    const root = shell.current;
+    if (!element || !root) return;
+    const resizeMap = () => {
+      window.requestAnimationFrame(() => leafletMap.current?.invalidateSize({ pan: false }));
+    };
+    const onFullscreenChange = () => {
+      setViewMode(document.fullscreenElement === root ? "fullscreen" : "medium");
+      resizeMap();
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resizeMap) : null;
+    observer?.observe(element);
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
+
+  async function chooseView(mode: "medium" | "fullscreen") {
+    const element = shell.current;
+    if (!element) return;
+    setViewError("");
+    try {
+      if (mode === "fullscreen" && document.fullscreenElement !== element) {
+        if (!element.requestFullscreen) throw new Error("Este navegador não permite tela cheia.");
+        await element.requestFullscreen();
+      } else if (mode === "medium" && document.fullscreenElement === element) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      setViewError("Não foi possível abrir a tela cheia. Verifique a permissão do navegador.");
+    }
+  }
 
   useEffect(() => {
     const element = container.current;
@@ -258,6 +301,7 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
       if (cancelled || !element) return;
       map = L.map(element, { scrollWheelZoom: false, zoomControl: false })
         .setView([-22.78, -47.29], 10);
+      leafletMap.current = map;
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -478,10 +522,15 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
         setError(cause instanceof Error ? cause.message : "Mapa indisponível.");
       }
     });
-    return () => { cancelled = true; controller.abort(); if (frameId !== null) cancelAnimationFrame(frameId); map?.remove(); };
+    return () => {
+      cancelled = true; controller.abort();
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      if (leafletMap.current === map) leafletMap.current = null;
+      map?.remove();
+    };
   }, [stops, routeKey]);
 
-  return <div className="biglogno-route-map-shell relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
+  return <div ref={shell} className="biglogno-route-map-shell relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
     <div ref={container} className="h-[380px] w-full sm:h-[490px]" role="region" aria-label="Mapa das entregas em sequência pelas ruas" />
     <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[45%] rounded-xl border border-white/90 bg-white/95 px-2.5 py-2 text-[11px] font-semibold text-slate-800 shadow-md">
       <span className="inline-flex items-center gap-2">
