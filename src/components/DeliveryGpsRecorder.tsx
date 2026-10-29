@@ -59,8 +59,11 @@ export function DeliveryGpsRecorder({ deliveryId, enabled }: {
       const start = previous;
       const decision = gpsDistanceDecision(start, fix);
       if (decision.kind === "skip") return;
+      if (decision.kind === "reset") { previous = fix; return; }
+      // Em conexão lenta, mantém a última âncora até a gravação seguinte.
+      // Avançá-la enquanto há envio pendente perderia quilômetros reais.
+      if (inflight) return;
       previous = fix;
-      if (decision.kind !== "segment" || inflight) return;
 
       inflight = true;
       void sendRef.current({ data: {
