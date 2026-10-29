@@ -102,7 +102,7 @@ function CompletedRows({ mode, deliveries, pickups }: {
                       <Detail label="Chegou ao destino" value={expeditionDateTime(delivery.arrivedAt)} />
                       <Detail label="Pausado em" value={expeditionDateTime(delivery.pausedAt)} />
                       <Detail label="Tempo de pausa" value={delivery.pausedMs != null ? Math.round(delivery.pausedMs / 1000) + " s" : "—"} />
-                      <Detail label="Entregador responsável (ID)" value={text(delivery.driverEmployeeId)} />
+                      <Detail label="ID originalmente registrado" value={text(delivery.driverEmployeeId)} />
                        <Detail label="Iniciado por" value={text(delivery.startedBy ?? (isCaue(delivery.driver) ? delivery.driver : undefined))} />
                        <Detail label="Última ação por" value={text(delivery.lastActionBy)} />
                       <Detail label="Posição original" value={String(delivery.position)} />
