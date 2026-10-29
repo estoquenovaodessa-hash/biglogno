@@ -52,8 +52,10 @@ export function estimatedKmTrips(
 ): EstimatedKmTrip[] {
   const { start, end } = kmPeriodBounds(date, period);
   const completed = deliveries.filter(row =>
-    row.status === "finalizada" && row.source !== "coleta" && !!row.finishedAt
+    row.status === "finalizada" && !!row.finishedAt
   );
+  // Coletas finalizadas também são paradas reais da mesma viagem.
+  // A rota e o KM usam exatamente a mesma sequência confirmada por turno.
   return listDeliveryRoutes(completed)
     .filter(route => route.day >= start && route.day < end)
     .map(route => {
