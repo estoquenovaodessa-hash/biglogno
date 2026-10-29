@@ -18,7 +18,7 @@ const isRecorded = (outcome?: EstimatedKmResult) => typeof outcome?.meters === "
  * Reconstitui as viagens com as entregas concluídas, por motorista/dia/turno.
  * Não apresenta distância parcial como se fosse total. */
 export function DeliveryKilometersPanel({
-  drivers, selectedDriverId, deliveries, addresses, storeOrigin, originError,
+  drivers, selectedDriverId, deliveries, addresses, storeOrigin, originError, onTotalsChange,
 }: {
   drivers: Employee[];
   selectedDriverId: string;
@@ -26,6 +26,7 @@ export function DeliveryKilometersPanel({
   addresses: DeliveryClientAddress[];
   storeOrigin?: DeliveryClientAddress;
   originError?: boolean;
+  onTotalsChange?: (summary: { meters: number | null; ready: number; total: number }) => void;
 }) {
   const [period, setPeriod] = useState<KmPeriod>("day");
   const [referenceDate, setReferenceDate] = useState(currentSaoPauloDate);
@@ -70,6 +71,10 @@ export function DeliveryKilometersPanel({
   const missing = selectedTrips.filter(trip => calculated[trip.key] && !isRecorded(calculated[trip.key]));
   const sum = ready.reduce((total, trip) => total + (calculated[trip.key]?.meters ?? 0), 0);
   const pending = selectedTrips.length - processed;
+  // Mostra o mesmo total calculado no KPI superior sem criar quilometragem fictícia.
+  useEffect(() => {
+    onTotalsChange?.({ meters: ready.length ? sum : null, ready: ready.length, total: selectedTrips.length });
+  }, [sum, ready.length, selectedTrips.length, onTotalsChange]);
   const dateRange = period === "day" ? shortDate(bounds.start) : "De " + shortDate(bounds.start)
     + " a " + shortDate(new Date(Date.parse(bounds.end + "T12:00:00Z") - 86400000).toISOString().slice(0, 10));
   const summary = drivers
