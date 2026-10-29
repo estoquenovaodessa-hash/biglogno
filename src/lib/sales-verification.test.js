@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { percentageTone, canManageSales, sellerMetrics, sellerCountKey, sellerSalesSchema, canonicalCode, documentPrefix, errorComment, lastVerificationFields, parseClients, salesMetrics, verificationDestination, verificationEditKind, verificationSchema } from "./sales-verification";
+import { percentageTone, canManageSales, sellerMetrics, sellerCountKey, sellerSalesSchema, canonicalCode, documentPrefix, errorComment, lastVerificationFields, parseClients, salesMetrics, verificationDestination, verificationEditKind, verificationClientDisplayName, verificationSchema } from "./sales-verification";
 
 describe("conferência de materiais vendidos", () => {
   test("percentuais abaixo de 70 são vermelhos", () => { expect(percentageTone(69.9)).toBe("destructive"); });
@@ -26,6 +26,22 @@ describe("conferência de materiais vendidos", () => {
     expect(verificationEditKind(old, { ...old, balcaoDestination: undefined })).toBe("none");
     expect(verificationEditKind({ verifierCode: "102", forDelivery: true },
       { verifierCode: "102", forDelivery: true })).toBe("keep");
+  });
+  test("nome opcional do CONSUMIDOR código 100, com ou sem zeros à esquerda", () => {
+    const client = { code: "100", name: "CONSUMIDOR" };
+    expect(verificationClientDisplayName(client)).toBe("CONSUMIDOR");
+    expect(verificationClientDisplayName(client, "  Maria da Silva  ")).toBe("CONSUMIDOR (Maria da Silva)");
+    expect(verificationClientDisplayName({ ...client, code: "00100" }, "João")).toBe("CONSUMIDOR (João)");
+    expect(verificationClientDisplayName({ code: "200", name: "EMPRESA X" }, "João")).toBe("EMPRESA X");
+  });
+  test("Conferência permite consumidor sem nome e valida nome opcional, sem modificar outros clientes", () => {
+    const correct = { ...input, correct: true };
+    expect(verificationSchema.safeParse(correct).success).toBe(true);
+    expect(verificationSchema.safeParse({ ...correct, consumerName: "  Ana " }).success).toBe(true);
+    expect(verificationSchema.parse({ ...correct, consumerName: "  Ana " }).consumerName).toBe("Ana");
+    expect(verificationSchema.safeParse({ ...correct, clientCode: "00100", consumerName: "Bruno" }).success).toBe(true);
+    expect(verificationSchema.safeParse({ ...correct, clientCode: "200", consumerName: "Bruno" }).success).toBe(false);
+    expect(verificationSchema.safeParse({ ...correct, consumerName: "A".repeat(101) }).success).toBe(false);
   });
   test("cliente permanece preenchido exatamente como no último registro", () => {
     expect(lastVerificationFields({ ...input, clientCode: "00024711" }).clientCode).toBe("00024711");
