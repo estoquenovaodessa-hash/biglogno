@@ -163,7 +163,7 @@ export function DeliveryRoutePanel({
       </label>}
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.65fr)]">
         <div className="min-w-0">
-          {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved}
+          {located.length > 0 && <DeliveryRouteMap stops={stops} routeKey={activeRoute?.key ?? ""} onUnresolvedChange={reportUnresolved}
             onRoadDistanceChange={setRoadDistance} />}
           {!located.length && <div className="flex min-h-[310px] flex-col items-center justify-center rounded-xl border border-dashed border-[#3a628d] bg-[#0a2846] p-5 text-center">
             <MapPin className="h-8 w-8 text-[#5cb7ff]" />
@@ -207,7 +207,7 @@ export function DeliveryRoutePanel({
           </div>
         </aside>
       </div>
-      <p className="text-[11px] text-[#96b5d9]">A linha azul segue as ruas calculadas pelos endereços, na ordem das entregas finalizadas. Não é rastreamento GPS.</p>
+      <p className="text-[11px] text-[#96b5d9]">A linha azul se desenha parada por parada, com o KM estimado de cada trecho. Ao completar o ciclo, a animação recomeça; novas entregas finalizadas entram na sequência automaticamente. Não é rastreamento GPS.</p>
       {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
         <TriangleAlert className="mr-1 inline h-4 w-4" /> O endereço do cliente 1 (origem BIGNOTTO FERRAMENTAS) não foi localizado. {originError ? "Falha ao consultar os endereços." : "Importe ou corrija o código 1 no cadastro de endereços."}
       </p>}
