@@ -1,6 +1,7 @@
 import type { Delivery } from "./deliveries";
 import type { Employee } from "./employees";
 import { expeditionLocalDay } from "./expedition-history";
+import { isCaue, isLuciano } from "./delivery-accountability";
 
 export type ManagerDeliveryPeriod = "all" | "today" | "7d" | "month" | "previous";
 
@@ -42,7 +43,11 @@ export function managerDeliveryInPeriod(record: Delivery, period: ManagerDeliver
 }
 
 export function managerDeliveryDrivers(employees: Employee[]): Employee[] {
-  return employees.filter(employee => employee.badge === "ENTREGADOR")
+  // Cauê é apoio do Luciano, não um segundo motorista nos relatórios.
+  // Se o perfil Luciano ainda não existir, não esconder Cauê silenciosamente.
+  const hasLuciano = employees.some(e => e.badge === "ENTREGADOR" && isLuciano(e.name));
+  return employees.filter(employee => employee.badge === "ENTREGADOR"
+    && !(hasLuciano && isCaue(employee.name)))
     .slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id));
 }
 
@@ -50,6 +55,12 @@ export function managerMatchesDriver(delivery: Delivery, selectedId: string, emp
   if (selectedId === "all") return true;
   const chosen = employees.find(employee => employee.id === selectedId && employee.badge === "ENTREGADOR");
   if (!chosen) return false;
+  const caueIds = new Set(employees.filter(employee => isCaue(employee.name)).map(employee => employee.id));
+  const caueDelivery = (delivery.driverEmployeeId && caueIds.has(delivery.driverEmployeeId))
+    || isCaue(delivery.driver);
+  // O histórico de Cauê pertence ao motorista Luciano, inclusive pedidos
+  // antigos que tenham apenas um ID ou nome, sem duplicar a seleção.
+  if (caueDelivery) return isLuciano(chosen.name);
   if (delivery.driverEmployeeId) return delivery.driverEmployeeId === chosen.id;
   // Registros históricos anteriores à gravação de driverEmployeeId: buscar por nome.
   const normalize = (s: string) => s.trim().normalize("NFD")
