@@ -18,6 +18,7 @@ import { Retira } from './Retira';
 import { ManagerDeliveries } from './ManagerDeliveries';
 import { OperatorDeliveryCard } from './OperatorDeliveryCard';
 import { operatorShiftSections, shiftLabel, type ShiftSection } from '@/lib/expedition-schedule';
+import { isCaue } from '@/lib/delivery-accountability';
 const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function Entregas({ role }: { role: AccessRole }) {
@@ -54,6 +55,9 @@ export function Entregas({ role }: { role: AccessRole }) {
   }
   const controlsDisabled = busy || !driver || q.isError || !canOperate;
   const queue = <div className="space-y-6">
+    {employee && isCaue(employee.name) && <div role="status" className="rounded-lg border border-sky-400/50 bg-[#123a64] px-4 py-3 text-sm font-semibold text-[#c7e8ff]">
+      Apoio do Luciano: as ações de entrega feitas por Cauê serão atribuídas ao entregador Luciano. O sistema registra Cauê como operador. As viagens de Marcelo permanecem independentes.
+    </div>}
     {sections.map(({ shift, groups: shiftGroups }) => <section key={shift} className="space-y-3" aria-label={shiftLabel(shift)}>
       <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${shift === "manha"
         ? "border-sky-400/40 bg-sky-600/15 text-sky-200"
