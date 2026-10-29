@@ -9,7 +9,6 @@ import {
 } from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
-import { readBignottoOriginClients } from "@/lib/delivery-origin.functions";
 import { findBignottoOrigin } from "@/lib/delivery-route";
 import { DeliveryKilometersPanel } from "./DeliveryKilometersPanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
@@ -123,11 +122,6 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const saveAddresses = useServerFn(saveDeliveryAddresses);
   const confirmLocation = useServerFn(confirmDeliveryAddressLocation);
   const fetchEmployees = useServerFn(listEmployees);
-  const fetchOriginClients = useServerFn(readBignottoOriginClients);
-  const originClientsQuery = useQuery({
-    queryKey: ["bignotto-origin-client"],
-    queryFn: () => fetchOriginClients(), staleTime: 300000,
-  });
   const employeesQuery = useQuery({
     queryKey: ["employees-available", "gestor"],
     queryFn: () => fetchEmployees(), staleTime: 30000,
@@ -237,15 +231,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     <DeliveryKilometersPanel
       drivers={drivers} selectedDriverId={filters.driver}
       deliveries={deliveries} addresses={addressQuery.data ?? []}
-      storeOrigin={findBignottoOrigin(originClientsQuery.data ?? [], addressQuery.data ?? [])}
-      originError={originClientsQuery.isError || addressQuery.isError}
+      storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
+      originError={addressQuery.isError}
     />
 
     <DeliveryRoutePanel
       deliveries={deliveries}
       addresses={addressQuery.data ?? []}
-      storeOrigin={findBignottoOrigin(originClientsQuery.data ?? [], addressQuery.data ?? [])}
-      originError={originClientsQuery.isError || addressQuery.isError}
+      storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
+      originError={addressQuery.isError}
       onSaveAddress={async (address: DeliveryClientAddress) => {
         await saveAddresses({ data: [address] });
         await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
