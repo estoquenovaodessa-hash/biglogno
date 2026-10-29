@@ -103,6 +103,18 @@ export const editCollection = createServerFn({ method: "POST" })
     const address = data.address.trim() || standard?.address || "";
     const confirmed = standard && normalizeCollectionAddress(address) === normalizeCollectionAddress(standard.address)
       ? standard : undefined;
+    // Editar apenas pagamento/contato/turno não apaga ponto previamente confirmado.
+    const unchangedAddress = normalizeCollectionAddress(address) ===
+      normalizeCollectionAddress(String(payload.collectionAddress ?? ""));
+    const previousLocation = unchangedAddress && typeof payload.collectionConfirmedAddress === "string"
+      && typeof payload.collectionLatitude === "number" && typeof payload.collectionLongitude === "number"
+      && typeof payload.collectionLocationConfirmedAt === "string"
+      ? {
+        collectionConfirmedAddress: payload.collectionConfirmedAddress,
+        collectionLatitude: payload.collectionLatitude,
+        collectionLongitude: payload.collectionLongitude,
+        collectionLocationConfirmedAt: payload.collectionLocationConfirmedAt,
+      } : {};
     const { collectionConfirmedAddress: _oldAddress, collectionLatitude: _oldLat,
       collectionLongitude: _oldLng, collectionLocationConfirmedAt: _oldAt, ...originalFields } = payload;
     const next = {
@@ -112,7 +124,7 @@ export const editCollection = createServerFn({ method: "POST" })
       collectionAddress: address,
       ...(confirmed ? { collectionConfirmedAddress: confirmed.address,
         collectionLatitude: confirmed.latitude, collectionLongitude: confirmed.longitude,
-        collectionLocationConfirmedAt: confirmed.confirmedAt } : {}),
+        collectionLocationConfirmedAt: confirmed.confirmedAt } : previousLocation),
       collectionContact: data.contact,
       value: data.value ?? 0,
       collectionValueProvided: data.value !== undefined,
