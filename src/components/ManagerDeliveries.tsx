@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { readDeliveryAddresses, saveDeliveryAddresses, confirmDeliveryAddressLocation } from "@/lib/delivery-addresses.functions";
+import { confirmCollectionLocation } from "@/lib/collection-locations.functions";
 import { listEmployees } from "@/lib/employees.functions";
 import {
   managerDeliveryDrivers, managerDeliveryInPeriod, managerMatchesDriver,
@@ -123,6 +124,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const readAddresses = useServerFn(readDeliveryAddresses);
   const saveAddresses = useServerFn(saveDeliveryAddresses);
   const confirmLocation = useServerFn(confirmDeliveryAddressLocation);
+  const confirmCollection = useServerFn(confirmCollectionLocation);
   const fetchEmployees = useServerFn(listEmployees);
   const employeesQuery = useQuery({
     queryKey: ["employees-available", "gestor"],
@@ -287,6 +289,17 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       onConfirmLocation={async (clientCode: string, point: ConfirmedPoint) => {
         await confirmLocation({ data: { clientCode, latitude: point.latitude, longitude: point.longitude } });
         await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+      }}
+      onConfirmCollectionLocation={async (collectionId: string, address: string, point: ConfirmedPoint) => {
+        await confirmCollection({ data: {
+          collectionId, address, latitude: point.latitude, longitude: point.longitude,
+        } });
+        // Compartilhado entre Gestor, Operador e Expedição.
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["deliveries"] }),
+          queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] }),
+          queryClient.invalidateQueries({ queryKey: ["collection-locations"] }),
+        ]);
       }}
     />
       <DeliveryKilometersPanel
