@@ -61,6 +61,18 @@ describe("Cauê auxilia Luciano; Marcelo permanece independente", () => {
     expect(trips.find(trip => trip.name === "Luciano Santos")?.documents).toBe(2);
     expect(trips.find(trip => trip.name === "Marcelo Pereira")?.documents).toBe(1);
   });
+  test("Luciano legado com nome mas sem ID é unido à rota de Luciano e Cauê", () => {
+    const rows = [
+      finish("10", "Cauê Dias", caue.id, "2026-10-29T12:00:00.000Z"),
+      finish("20", "Luciano", undefined, "2026-10-29T12:10:00.000Z"),
+      finish("30", "Marcelo", marcelo.id, "2026-10-29T12:20:00.000Z"),
+    ];
+    const projected = consolidateCaueDeliveries(rows, people);
+    expect(projected[0].driverEmployeeId).toBe(luciano.id);
+    expect(projected[1].driverEmployeeId).toBe(luciano.id);
+    expect(listDeliveryRoutes(projected)).toHaveLength(2);
+    expect(rows[1].driverEmployeeId).toBeUndefined();
+  });
   test("sem cadastro do Luciano, a visão mostra o nome padrão sem atribuir ID fictício", () => {
     const rows = [finish("10", "Cauê", caue.id, "2026-10-29T12:00:00.000Z")];
     const [result] = consolidateCaueDeliveries(rows, [caue, marcelo]);
