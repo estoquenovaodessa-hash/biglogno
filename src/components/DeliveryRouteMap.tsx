@@ -3,7 +3,7 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import type { RouteStop } from "@/lib/delivery-route";
 import { fullDeliveryAddress } from "@/lib/delivery-route";
 import "leaflet/dist/leaflet.css";
-import { progressiveRoadLine, roadKmLabel, routeAnimationResumeIndex, type RoadPoint } from "@/lib/delivery-route-animation";
+import { progressiveRoadLine, roadKmLabel, type RoadPoint } from "@/lib/delivery-route-animation";
 
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
@@ -237,10 +237,12 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
   const [routeState, setRouteState] = useState<"loading" | "road" | "partial" | "unavailable">("loading");
   const [error, setError] = useState("");
   const [notLocated, setNotLocated] = useState<string[]>([]);
-  const [playback, setPlayback] = useState<{ index: number; total: number; from: string; to: string; meters: number | null; accumulated: number; phase: "tracing" | "reading" | "repeating" } | null>(null);
+  const [playback, setPlayback] = useState<{ index: number; total: number; from: string; to: string; meters: number | null; accumulated: number; phase: "tracing" | "reading" | "finished" } | null>(null);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
-  const remembered = useRef<{ routeKey: string; signatures: string[]; completed: number } | null>(null);
+  const animateRef = useRef<(() => void) | null>(null);
+  const [animationReady, setAnimationReady] = useState(false);
+  const [animating, setAnimating] = useState(false);
 
   // Fullscreen API coloca o PRÓPRIO mapa na camada superior do navegador,
   // sem desmontar o Leaflet e sem interromper a animação em andamento.
@@ -291,6 +293,11 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
     setProgress({ done: 0, found: 0, total: validCount });
     setRouteState("loading");
     setPlayback(null);
+    setAnimationReady(false);
+    setAnimating(false);
+    setPaused(false);
+    pausedRef.current = false;
+    animateRef.current = null;
     onRoadDistanceChange?.(null);
     setError("");
     onUnresolvedChange?.([]);
