@@ -2,6 +2,7 @@ import { CheckCircle2, Truck, ChevronRight, Clock3, FileText } from "lucide-reac
 import type { Delivery, DeliveryStatus } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
+import { finishedDeliveryTransport } from "@/lib/delivery-transport";
 
 type Kind = "open" | "finished";
 type Props = {
@@ -48,7 +49,7 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
       <span className="text-[11px] font-medium text-[#84aad5]">Clique no cliente para abrir detalhes</span>
     </div>
     <div className="max-h-[450px] overflow-auto rounded-xl border border-[#163656]">
-      <table className="manager-delivery-table min-w-[680px] w-full text-left text-xs">
+      <table className={`manager-delivery-table w-full text-left text-xs ${finished ? "min-w-[780px]" : "min-w-[680px]"}`}>
         <thead>
           <tr>
             <th className="w-8">#</th>
@@ -56,6 +57,7 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
             {!finished && <th>Documento</th>}
             <th>{finished ? "Recebedor" : "Entregador"}</th>
             <th>Turno</th>
+            {finished && <th>Transporte</th>}
             <th>Status</th>
             <th>{finished ? "Finalizada às" : "Saída às"}</th>
             <th className="w-8"><span className="sr-only">Abrir</span></th>
@@ -79,6 +81,20 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
             <td className="whitespace-nowrap">{shiftLabel(shiftOf(d))}
               {d.source === "coleta" && d.scheduledDate && <span className="block text-[10px] text-[#9fb6d8]">{scheduledDateLabel(d.scheduledDate)}</span>}
             </td>
+            {finished && <td>
+              {(() => {
+                const transport = finishedDeliveryTransport(d);
+                return transport
+                  ? <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1 text-xs font-bold ${transport === "moto"
+                    ? "border-[#447abe] bg-[#163b6a] text-[#d4ecff]"
+                    : "border-[#237c77] bg-[#124c4d] text-[#b9f8e6]"}`}>
+                      <span role="img" aria-label={transport === "moto" ? "Moto" : "Carro"}
+                        className="text-lg leading-none">{transport === "moto" ? "🏍️" : "🚗"}</span>
+                      {transport === "moto" ? "Moto" : "Carro"}
+                    </span>
+                  : <span className="text-[#91a9c9]" title="Transporte não informado">—</span>;
+              })()}
+            </td>}
             <td><span className={"inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-bold " + (d.source === "coleta"
               ? "border-orange-500/45 bg-orange-500/15 text-orange-200"
               : statusColors[d.status])}>
@@ -91,7 +107,7 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
               className="rounded p-1.5 text-[#86c8ff] hover:bg-[#163b6b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#56cfff]" aria-label={"Abrir " + (d.document || d.company)}>
               <FileText className="h-4 w-4" /></button></td>
           </tr>)}
-          {!sorted.length && <tr><td colSpan={finished ? 7 : 8} className="py-12 text-center text-[#9ab4d4]">
+          {!sorted.length && <tr><td colSpan={8} className="py-12 text-center text-[#9ab4d4]">
             {isLoading ? <><Clock3 className="mx-auto mb-2 h-5 w-5 animate-pulse" />Carregando…</>
               : "Nenhuma entrega encontrada neste filtro."}
           </td></tr>}
