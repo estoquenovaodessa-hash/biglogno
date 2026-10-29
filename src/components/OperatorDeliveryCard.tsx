@@ -8,6 +8,7 @@ import {
   type Delivery, type DeliveryAction,
 } from "@/lib/deliveries";
 import { scheduledDateLabel, shiftLabel, shiftOf } from "@/lib/expedition-schedule";
+import { deliveryResponsibleName } from "@/lib/delivery-accountability";
 
 const currency = (value: number) =>
   Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -123,7 +124,7 @@ export function OperatorDeliveryCard({
 
       {order.driver && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-[#172b45] px-3 py-2 text-xs text-[#c6dcfa]">
-          <span className="inline-flex items-center gap-1.5"><UserRound className="h-4 w-4 text-[#6faafa]" /> {order.driver}</span>
+          <span className="inline-flex items-center gap-1.5"><UserRound className="h-4 w-4 text-[#6faafa]" /> {deliveryResponsibleName(order)}</span>
           {order.startedAt && <span className="inline-flex items-center gap-1.5"><Clock3 className="h-4 w-4 text-[#6faafa]" /> Início: {fmtBrasilia(order.startedAt)}</span>}
         </div>
       )}
