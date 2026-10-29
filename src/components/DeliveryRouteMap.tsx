@@ -7,7 +7,6 @@ import { progressiveRoadLine, roadKmLabel, routeAnimationResumeIndex, type RoadP
 type Point = { lat: number; lng: number };
 type LocatedStop = { index: number; stop: RouteStop; point: Point };
 type LookupEntry = { at: number; point: Point | null };
-import { progressiveRoadLine, roadKmLabel, routeAnimationResumeIndex, type RoadPoint } from "@/lib/delivery-route-animation";
 
 type RoadLeg = { line: RoadPoint[]; meters: number | null };
 type RouteResponse = {
