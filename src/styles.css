@@ -567,3 +567,187 @@
 .biglogno-route-map-shell .leaflet-popup-content p {
   margin: 5px 0;
 }
+
+
+/* BigLogno Gestor Entregas · visual aprovado: escuro, azul e cartões em grades.
+   Escopo EXCLUSIVO desta tela; conferência, entregador, expedição e demais
+   páginas continuam com seus temas e permissões originais. */
+.manager-deliveries-dashboard {
+  --background: #081b33;
+  --foreground: #e9f3ff;
+  --card: #0b203b;
+  --card-foreground: #ecf6ff;
+  --muted: #152e4c;
+  --muted-foreground: #9cbbdf;
+  --accent: #17395e;
+  --accent-foreground: #edf7ff;
+  --border: #20476e;
+  --input: #285078;
+  --primary: #58baff;
+  --primary-foreground: #061a32;
+  --success: #48e1b8;
+  --warning: #ffc35c;
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  background:
+    radial-gradient(ellipse at 75% -6%, rgb(4 91 176 / 17%), transparent 39%),
+    linear-gradient(160deg, #051326 0%, #071b32 38%, #07182b 100%);
+  border: 1px solid #15385b;
+  box-shadow: 0 14px 40px rgb(0 8 30 / 20%);
+  color: #e9f3ff;
+}
+.manager-deliveries-dashboard :is(button, input, select, summary):focus-visible {
+  outline: 2px solid #54d2ff;
+  outline-offset: 3px;
+}
+.manager-deliveries-dashboard .manager-delivery-panel {
+  background: linear-gradient(155deg, rgb(13 36 65 / 94%), rgb(6 22 42 / 98%));
+  border: 1px solid #1b5288;
+  box-shadow: inset 0 1px rgb(144 199 255 / 5%), 0 5px 22px rgb(0 10 26 / 22%);
+}
+.manager-deliveries-dashboard .manager-delivery-kpi {
+  min-width: 0;
+  border: 1px solid #245d99;
+  border-radius: 0.85rem;
+  padding: 0.95rem;
+  background: linear-gradient(115deg, #0b2444, #091b34);
+  box-shadow: inset 0 1px rgb(255 255 255 / 6%), 0 4px 20px rgb(2 8 22 / 18%);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.manager-deliveries-dashboard .manager-delivery-kpi:hover {
+  transform: translateY(-2px);
+  border-color: #459dea;
+  box-shadow: 0 8px 24px rgb(5 45 100 / 30%);
+}
+.manager-deliveries-dashboard .manager-kpi-blue .manager-kpi-icon {
+  color: #4baaff;
+  background: linear-gradient(135deg, #105197, #073067);
+}
+.manager-deliveries-dashboard .manager-kpi-green { border-color: #146d67; }
+.manager-deliveries-dashboard .manager-kpi-green .manager-kpi-icon {
+  color: #4df3c5;
+  background: linear-gradient(135deg, #07574b, #0c3944);
+}
+.manager-deliveries-dashboard .manager-kpi-amber { border-color: #866134; }
+.manager-deliveries-dashboard .manager-kpi-amber .manager-kpi-icon {
+  color: #ffd35a;
+  background: linear-gradient(135deg, #5c411d, #2b2d2c);
+}
+.manager-deliveries-dashboard .manager-field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #a8c9ed;
+}
+.manager-deliveries-dashboard .manager-field {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 2.55rem;
+  border: 1px solid #315779;
+  border-radius: 0.5rem;
+  background: #071b35;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  color: #f1f7ff;
+  color-scheme: dark;
+}
+.manager-deliveries-dashboard .manager-field::placeholder { color: #819ec4; }
+.manager-deliveries-dashboard .manager-action-outline {
+  border: 1px solid #315779;
+  background: #0b2647;
+  color: #bddfff;
+}
+.manager-deliveries-dashboard .manager-action-outline:hover {
+  background: #164377;
+  color: #fff;
+}
+.manager-deliveries-dashboard .manager-delivery-table {
+  border-collapse: collapse;
+  font-size: 0.77rem;
+  color: #d7eaff;
+}
+.manager-deliveries-dashboard .manager-delivery-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #112d50;
+  color: #bed7f4;
+}
+.manager-deliveries-dashboard .manager-delivery-table th {
+  padding: 0.65rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.manager-deliveries-dashboard .manager-delivery-table td {
+  padding: 0.52rem 0.7rem;
+  border-top: 1px solid #1a3b5e;
+  vertical-align: middle;
+}
+.manager-deliveries-dashboard .manager-delivery-table tbody tr:nth-child(2n) {
+  background-color: #0a2643;
+}
+.manager-deliveries-dashboard .manager-delivery-table tbody tr:hover {
+  background-color: #143b68;
+}
+.manager-deliveries-dashboard .manager-delivery-lower > section {
+  margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #20588e;
+  border-radius: 0.95rem;
+  background: linear-gradient(140deg, #0c2544, #091b32);
+  color: #eef6ff;
+  box-shadow: 0 6px 22px rgb(0 7 25 / 24%);
+}
+.manager-deliveries-dashboard .manager-delivery-lower .biglogno-route-map-shell {
+  border-color: #47739a;
+}
+.manager-deliveries-dashboard .manager-delivery-lower .biglogno-route-map-shell [aria-label="Mapa das entregas em sequência pelas ruas"] {
+  height: 330px;
+}
+.manager-deliveries-dashboard .manager-delivery-lower table thead {
+  background: #153557;
+  color: #c4e1ff;
+}
+.manager-deliveries-dashboard .manager-delivery-lower table td {
+  border-color: #1e4164;
+}
+.manager-deliveries-dashboard .manager-delivery-lower table tr:hover {
+  background: #12375e;
+}
+.manager-deliveries-dashboard .manager-km-panel :is(select, input[type="date"]) {
+  color-scheme: dark;
+  background: #081c37;
+  border-color: #315779;
+  color: #ebf6ff;
+}
+.manager-deliveries-dashboard .manager-km-panel .km-period-active {
+  border-color: #1688ff;
+  background: linear-gradient(145deg, #0c59b3, #0b408b);
+  color: white;
+  box-shadow: 0 0 12px rgb(30 134 250 / 24%);
+}
+.manager-deliveries-dashboard .manager-km-panel .km-period-inactive {
+  border-color: #294b70;
+  background: #0a203d;
+  color: #a6c5e9;
+}
+.manager-deliveries-dashboard .manager-km-panel .km-period-inactive:hover {
+  background: #123c6a;
+  color: #fff;
+}
+@media (max-width: 767px) {
+  .manager-deliveries-dashboard { padding: 0.65rem; border-radius: 0.75rem; }
+  .manager-deliveries-dashboard .manager-delivery-panel { padding: 0.65rem; }
+  .manager-deliveries-dashboard .manager-delivery-table th,
+  .manager-deliveries-dashboard .manager-delivery-table td { padding: 0.6rem 0.55rem; }
+  .manager-deliveries-dashboard .manager-delivery-lower .biglogno-route-map-shell [aria-label="Mapa das entregas em sequência pelas ruas"] { height: 310px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .manager-deliveries-dashboard .manager-delivery-kpi { transition: none; }
+  .manager-deliveries-dashboard .manager-delivery-kpi:hover { transform: none; }
+}
