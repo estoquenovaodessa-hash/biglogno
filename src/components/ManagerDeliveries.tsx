@@ -9,6 +9,8 @@ import {
 } from "@/lib/manager-delivery-filters";
 import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/delivery-addresses";
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
+import { ManagerDeliveryTable } from "./ManagerDeliveryTable";
+import { listDeliveryRoutes } from "@/lib/delivery-route";
 import { findBignottoOrigin } from "@/lib/delivery-route";
 import { DeliveryKilometersPanel } from "./DeliveryKilometersPanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
@@ -25,9 +27,8 @@ import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedu
 
 type Period = ManagerDeliveryPeriod;
 type StatusFilter = "all" | DeliveryStatus;
-type Filters = { period: Period; driver: string; status: StatusFilter; search: string };
-type ListTab = "pendentes" | "finalizadas" | "todas";
-const initial: Filters = { period: "all", driver: "all", status: "all", search: "" };
+type Filters = { period: Period; driver: string; shift: "all" | "manha" | "tarde" | "indefinido"; status: StatusFilter; search: string };
+const initial: Filters = { period: "all", driver: "all", shift: "all", status: "all", search: "" };
 const currency = (n: number) => Number(n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const statusInfo: Record<DeliveryStatus, { label: string; className: string }> = {
@@ -86,16 +87,16 @@ function exportCsv(rows: Delivery[]) {
 }
 
 function Summary({ icon: Icon, label, value, hint, tone = "primary" }: {
-  icon: typeof Truck; label: string; value: number; hint: string; tone?: "primary" | "warning" | "success";
+  icon: typeof Truck; label: string; value: number | string; hint: string; tone?: "primary" | "warning" | "success";
 }) {
-  const style = tone === "warning" ? "bg-warning/10 text-warning" : tone === "success" ? "bg-success/10 text-success" : "bg-primary/15 text-primary";
-  return <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm">
-    <div className="flex items-start gap-3">
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${style}`}><Icon className="h-5 w-5" /></div>
+  const color = tone === "warning" ? "manager-kpi-amber" : tone === "success" ? "manager-kpi-green" : "manager-kpi-blue";
+  return <div className={"manager-delivery-kpi " + color}>
+    <div className="flex items-center gap-3">
+      <span className="manager-kpi-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"><Icon className="h-6 w-6" /></span>
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 text-3xl font-bold tabular-nums text-foreground">{value.toLocaleString("pt-BR")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+        <p className="text-xs font-semibold text-[#bed5f2]">{label}</p>
+        <p className="mt-1 text-2xl font-extrabold tabular-nums text-white">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p>
+        <p className="mt-1 text-[11px] text-[#8fb7e5]">{hint}</p>
       </div>
     </div>
   </div>;
@@ -132,7 +133,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const [importMessage, setImportMessage] = useState("");
   const [draft, setDraft] = useState<Filters>(initial);
   const [filters, setFilters] = useState<Filters>(initial);
-  const [tab, setTab] = useState<ListTab>("pendentes");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [kmSummary, setKmSummary] = useState<{ meters: number | null; ready: number; total: number }>({ meters: null, ready: 0, total: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Usar horário atualizado, não a data congelada da primeira abertura da aba.
   const now = new Date();
@@ -141,18 +143,23 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const term = filters.search.trim().toLocaleLowerCase("pt-BR");
   const scoped = deliveries.filter(d =>
     managerDeliveryInPeriod(d, filters.period, now) &&
+    (filters.shift === "all" || shiftOf(d) === filters.shift) &&
     managerMatchesDriver(d, filters.driver, employees) &&
     (filters.status === "all" || d.status === filters.status) &&
     (!term || [d.company, d.companyCode, d.document, d.driver, d.receiver, d.collectionAddress, d.collectionContact].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(term)))
   );
   const pending = scoped.filter(d => d.status !== "finalizada");
   const finished = scoped.filter(d => d.status === "finalizada");
-  const visible = (tab === "pendentes" ? pending : tab === "finalizadas" ? finished : scoped)
-    .slice().sort((a, b) => {
-      if (tab === "finalizadas") return String(b.finishedAt ?? "").localeCompare(String(a.finishedAt ?? ""));
-      if (tab === "todas" && (a.status === "finalizada") !== (b.status === "finalizada")) return a.status === "finalizada" ? 1 : -1;
-      return a.position - b.position;
-    });
+  const visible = scoped.slice().sort((a, b) =>
+    (a.status === "finalizada" ? 1 : 0) - (b.status === "finalizada" ? 1 : 0) ||
+    a.position - b.position);
+  const finishedToday = finished.filter(d => managerDeliveryInPeriod(d, "today", now)).length;
+  const completedShifts = listDeliveryRoutes(finished.filter(d => d.source !== "coleta")).length;
+  const showDeliveryDetails = (id: string) => {
+    setSelectedId(id);
+    setDetailsOpen(true);
+    window.setTimeout(() => document.getElementById("manager-selected-details")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+  };
   const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
   const address = selected?.source === "coleta" && selected.collectionAddress
     ? { client_code: "", address: selected.collectionAddress, neighborhood: "", city: "", state: "" }
@@ -180,61 +187,91 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const applied = Object.values(filters).some((v, i) => v !== Object.values(initial)[i]);
   const label = "block mb-1.5 text-xs font-semibold text-muted-foreground";
 
-  return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-4">
+  return <div className="manager-deliveries-dashboard space-y-4 rounded-2xl p-3 text-[#e9f4ff] sm:p-4 2xl:p-5">
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1d4066]/90 pb-4">
       <div>
-        <h2 className="flex items-center gap-2 text-xl font-bold"><Truck className="h-5 w-5 text-primary" /> Painel de Entregas</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Acompanhe a operação, consulte os pedidos e confira os horários registrados.</p>
+        <h2 className="flex items-center gap-2 text-2xl font-black tracking-tight text-white">
+          <Truck className="h-6 w-6 text-[#45bfff]" /> Entregas — Gestor
+        </h2>
+        <p className="mt-1 text-sm text-[#9bbde5]">Acompanhe as entregas, rotas e desempenho da equipe em tempo real.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={isFetching} onClick={onRefresh}><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Atualizar</Button>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">
+        <Button type="button" variant="outline" size="sm" disabled={isFetching} onClick={onRefresh}
+          className="manager-action-outline"><RefreshCw className={"h-4 w-4 " + (isFetching ? "animate-spin" : "")} /> Atualizar</Button>
+        <label className="manager-action-outline inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-bold">
           <Upload className="h-4 w-4" /> {importing ? "Importando…" : "Importar endereços"}
-          <input aria-label="Importar CSV de endereços" type="file" accept=".csv,text/csv" className="sr-only" disabled={importing} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; void importAddressFile(file); }} />
+          <input aria-label="Importar CSV de endereços" type="file" accept=".csv,text/csv" className="sr-only"
+            disabled={importing} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; void importAddressFile(file); }} />
         </label>
-        <Button variant="outline" size="sm" disabled={!visible.length} onClick={() => exportCsv(visible)}><Download className="h-4 w-4" /> Exportar CSV</Button>
+        <Button type="button" variant="outline" size="sm" disabled={!visible.length}
+          onClick={() => exportCsv(visible)} className="manager-action-outline"><Download className="h-4 w-4" /> Exportar CSV</Button>
       </div>
-    </div>
+    </header>
 
-    <DeliveryWhatsAppSettings deliveries={deliveries.filter(d => d.source !== "coleta")} />
-    {importMessage && <p role="status" className="rounded-md border border-border p-3 text-sm">{importMessage}</p>}
-    {isError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <Summary icon={Package} label="Entregas e coletas" value={scoped.length} hint="Registros no filtro" />
-      <Summary icon={Clock3} label="Pendentes" value={pending.length} hint="Ainda não finalizadas" tone="warning" />
-      <Summary icon={Truck} label="Em rota / destino" value={scoped.filter(d => d.status === "em_rota" || d.status === "no_destino").length} hint="Operações em andamento" />
-      <Summary icon={Pause} label="Pausadas" value={scoped.filter(d => d.status === "pausada").length} hint="Aguardando retomada" tone="warning" />
-      <Summary icon={CheckCircle2} label="Finalizadas" value={finished.length} hint={scoped.length ? `${(100 * finished.length / scoped.length).toFixed(1).replace(".", ",")}% do total` : "Sem entregas"} tone="success" />
-    </div>
+    {importMessage && <p role="status" className="rounded-lg border border-[#315780] bg-[#102b4a] p-3 text-sm">{importMessage}</p>}
+    {isError && <p role="alert" className="rounded-lg border border-red-500/50 bg-red-900/20 p-3 text-sm">Não foi possível atualizar as entregas. Verifique a conexão e tente novamente.</p>}
 
-    <form className="rounded-xl border border-border bg-card p-4" onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); setTab("todas"); }}>
+    <form className="manager-delivery-panel rounded-xl p-3 sm:p-4"
+      onSubmit={e => { e.preventDefault(); setFilters({ ...draft }); setSelectedId(null); setDetailsOpen(false); }}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold"><CalendarDays className="h-4 w-4 text-primary" /> Filtros de entregas e coletas</h3>
-        {applied && <span className="text-xs text-primary">Filtros aplicados</span>}
+        <h3 className="flex items-center gap-2 text-sm font-bold text-[#e8f5ff]">
+          <CalendarDays className="h-4 w-4 text-[#55baff]" /> Filtros de entregas
+        </h3>
+        {applied && <span className="text-xs font-semibold text-[#60bfff]">Filtros aplicados</span>}
       </div>
-      <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.8fr_auto_auto]">
-        <label><span className={label}>Período</span><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.period} onChange={e => setDraft(p => ({ ...p, period: e.target.value as Period }))}>
-          <option value="all">Todo o período</option><option value="today">Hoje</option><option value="7d">Últimos 7 dias</option><option value="month">Mês atual</option><option value="previous">Mês anterior</option>
-        </select></label>
-        <label><span className={label}>Entregador</span><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.driver} onChange={e => setDraft(p => ({ ...p, driver: e.target.value }))}>
-          <option value="all">Todos</option>{drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>{employeesQuery.isError && <span className="mt-1 block text-xs text-destructive">Não foi possível carregar os entregadores cadastrados.</span>}</label>
-        <label><span className={label}>Situação</span><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.status} onChange={e => setDraft(p => ({ ...p, status: e.target.value as StatusFilter }))}>
-          <option value="all">Todas</option>{(Object.keys(statusInfo) as DeliveryStatus[]).map(k => <option key={k} value={k}>{statusInfo[k].label}</option>)}
-        </select></label>
-        <label><span className={label}>Busca</span><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="h-10 pl-9" value={draft.search} onChange={e => setDraft(p => ({ ...p, search: e.target.value }))} placeholder="Cliente, documento ou entregador" /></div></label>
-        <Button type="submit" className="h-10">Filtrar</Button>
-        <Button type="button" variant="outline" className="h-10" onClick={() => { setDraft(initial); setFilters(initial); setSelectedId(null); }}>Limpar</Button>
+      <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_0.9fr_0.9fr_1.7fr_auto_auto]">
+        <label><span className="manager-field-label">Período</span>
+          <select className="manager-field" value={draft.period} onChange={e => setDraft(p => ({ ...p, period: e.target.value as Period }))}>
+            <option value="all">Todo o período</option><option value="today">Hoje</option>
+            <option value="7d">Últimos 7 dias</option><option value="month">Mês atual</option>
+            <option value="previous">Mês anterior</option>
+          </select></label>
+        <label><span className="manager-field-label">Entregador</span>
+          <select className="manager-field" value={draft.driver} onChange={e => setDraft(p => ({ ...p, driver: e.target.value }))}>
+            <option value="all">Todos</option>{drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          {employeesQuery.isError && <span className="mt-1 block text-xs text-red-300">Não foi possível carregar entregadores.</span>}
+        </label>
+        <label><span className="manager-field-label">Turno</span>
+          <select className="manager-field" value={draft.shift}
+            onChange={e => setDraft(p => ({ ...p, shift: e.target.value as Filters["shift"] }))}>
+            <option value="all">Todos</option><option value="manha">Manhã</option>
+            <option value="tarde">Tarde</option><option value="indefinido">Indefinido</option>
+          </select>
+        </label>
+        <label><span className="manager-field-label">Situação</span>
+          <select className="manager-field" value={draft.status} onChange={e => setDraft(p => ({ ...p, status: e.target.value as StatusFilter }))}>
+            <option value="all">Todas</option>{(Object.keys(statusInfo) as DeliveryStatus[]).map(k =>
+              <option key={k} value={k}>{statusInfo[k].label}</option>)}
+          </select>
+        </label>
+        <label><span className="manager-field-label">Busca</span>
+          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[#89b4e1]" />
+            <Input className="manager-field pl-9" value={draft.search}
+              onChange={e => setDraft(p => ({ ...p, search: e.target.value }))}
+              placeholder="Cliente, documento, entregador..." /></div>
+        </label>
+        <Button type="submit" className="h-10 bg-[#0877ed] font-bold text-white hover:bg-[#168aff]"><Search className="h-4 w-4" /> Aplicar</Button>
+        <Button type="button" variant="outline" className="manager-action-outline h-10"
+          onClick={() => { setDraft(initial); setFilters(initial); setSelectedId(null); setDetailsOpen(false); }}>Limpar</Button>
       </div>
     </form>
 
-    <DeliveryKilometersPanel
-      drivers={drivers} selectedDriverId={filters.driver}
-      deliveries={deliveries} addresses={addressQuery.data ?? []}
-      storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
-      originError={addressQuery.isError}
-    />
+    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+      <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Ver no grid abaixo" />
+      <Summary icon={CheckCircle2} label="Finalizadas hoje" value={finishedToday} hint="Entregas concluídas no dia" tone="success" />
+      <Summary icon={CalendarDays} label="Turnos concluídos" value={completedShifts} hint="Entregador · dia · turno" />
+      <Summary icon={MapPin} label="KM estimados" value={kmSummary.meters === null ? "—" :
+        (kmSummary.meters / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " km"}
+        hint={kmSummary.total && kmSummary.ready < kmSummary.total ? "Total parcial — rotas sem cálculo" : "Distâncias pelas ruas"} tone="warning" />
+    </div>
 
+    <div className="grid min-w-0 items-start gap-4 2xl:grid-cols-2">
+      <ManagerDeliveryTable kind="open" records={pending} isLoading={isLoading} onSelect={showDeliveryDetails} />
+      <ManagerDeliveryTable kind="finished" records={finished} isLoading={isLoading} onSelect={showDeliveryDetails} />
+    </div>
+
+    <div className="manager-delivery-lower grid min-w-0 items-start gap-4 2xl:grid-cols-2">
     <DeliveryRoutePanel
       deliveries={deliveries}
       addresses={addressQuery.data ?? []}
@@ -249,38 +286,22 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
       }}
     />
+      <DeliveryKilometersPanel
+        drivers={drivers} selectedDriverId={filters.driver}
+        deliveries={deliveries} addresses={addressQuery.data ?? []}
+        storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
+        originError={addressQuery.isError}
+        onTotalsChange={setKmSummary}
+      />
+    </div>
 
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-      <section className="min-w-0 rounded-xl border border-border bg-card p-3 sm:p-4">
-        <div className="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-background/70 p-1" role="tablist" aria-label="Situação das entregas">
-          {([
-            ["pendentes", "Pendentes", pending.length],
-            ["finalizadas", "Finalizadas", finished.length],
-            ["todas", "Todas", scoped.length],
-          ] as const).map(([key, title, count]) => <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => { setTab(key); setSelectedId(null); }}
-            className={`rounded-md px-2 py-2 text-xs font-semibold transition-colors sm:text-sm ${tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}>{title} ({count})</button>)}
-        </div>
-        <p className="mb-3 text-xs text-muted-foreground">{isLoading ? "Carregando entregas…" : `${visible.length} pedido(s) nesta visualização`}</p>
-        <div className="max-h-[690px] space-y-2 overflow-y-auto pr-1">
-          {visible.map(d => <button key={d.id} type="button" onClick={() => setSelectedId(d.id)} aria-pressed={selected?.id === d.id}
-            className={`w-full rounded-lg border p-3 text-left transition-colors sm:p-4 ${d.source === "coleta" ? selected?.id === d.id ? "border-orange-500 bg-orange-400/20 ring-1 ring-orange-500/30" : "border-orange-400/35 bg-orange-500/[0.08] hover:border-orange-500" : selected?.id === d.id ? "border-primary bg-primary/10 ring-1 ring-primary/30" : "border-border bg-background/40 hover:border-primary/60"}`}>
-            <div className="flex items-start justify-between gap-2">
-              <h4 className="min-w-0 break-words text-sm font-bold text-foreground sm:text-base">{d.company}</h4>
-              <span className="flex shrink-0 items-center gap-1">{statusBadge(d)}<ChevronRight className="h-4 w-4 text-muted-foreground" /></span>
-            </div>
-            <p className="mt-2 text-xs font-bold text-muted-foreground">{d.scheduledDate && d.source === "coleta" ? scheduledDateLabel(d.scheduledDate) + " • " : ""}{shiftLabel(shiftOf(d))}</p>
-            <div className="mt-3 grid gap-x-3 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-2 sm:text-sm">
-              <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> {d.source === "coleta" ? "COLETA" : d.onlyDelivery ? "Somente entrega" : `Doc. ${d.document || "—"}`}</span>
-              <span className="font-semibold text-foreground">{d.source === "coleta" && d.collectionValueProvided === false ? "Valor não informado" : d.onlyDelivery ? "Sem cobrança" : currency(d.value)}</span>
-              <span className="flex items-center gap-1.5"><UserRound className="h-3.5 w-3.5" /> {d.source === "coleta" ? (d.collectionTransport === "moto" ? "🏍️ MOTO · " : d.collectionTransport === "carro" ? "🚗 CARRO · " : "Transporte não informado · ") : ""}{d.driver || "Entregador não definido"}</span>
-              <span className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" /> {fmtBrasilia(d.finishedAt ?? d.startedAt ?? d.createdAt)}</span>
-            </div>
-          </button>)}
-          {!visible.length && <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{isLoading ? "Carregando…" : "Nenhuma entrega encontrada para os filtros selecionados."}</p>}
-        </div>
-      </section>
-
-      <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5" aria-label="Detalhes da entrega selecionada">
+    {detailsOpen && <div id="manager-selected-details" className="scroll-mt-8">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-lg font-bold text-[#f2f8ff]">Informações completas da operação</h3>
+        <Button type="button" variant="outline" size="sm" className="manager-action-outline"
+          onClick={() => setDetailsOpen(false)}>Fechar detalhes</Button>
+      </div>
+      <section className="manager-delivery-panel min-w-0 rounded-2xl p-4 sm:p-5" aria-label="Detalhes da entrega selecionada">
         {selected ? <>
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
             <div className="min-w-0 flex-1"><p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{selected.source === "coleta" ? "Detalhes da coleta" : "Detalhes da entrega"}</p><h3 className="break-words text-lg font-bold">{selected.company}</h3></div>
@@ -318,7 +339,11 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
           </div>
         </> : <div className="flex min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground"><Truck className="h-9 w-9" /><p className="text-sm">Selecione uma entrega na lista para ver os detalhes.</p></div>}
       </section>
-    </div>
+    </div>}
 
+    <details className="manager-delivery-panel rounded-xl p-4">
+      <summary className="cursor-pointer text-sm font-bold text-[#a9d8ff]">Configurações de mensagens e WhatsApp</summary>
+      <div className="mt-4"><DeliveryWhatsAppSettings deliveries={deliveries.filter(d => d.source !== "coleta")} /></div>
+    </details>
   </div>;
 }
