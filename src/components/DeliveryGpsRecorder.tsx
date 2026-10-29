@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Navigation2, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
+import { Button } from "@/components/ui/button";
 import { recordGpsDistance } from "@/lib/delivery-gps.functions";
 import { gpsDistanceDecision, validGpsFix, type GpsFix } from "@/lib/delivery-gps";
 
@@ -19,6 +20,7 @@ export function DeliveryGpsRecorder({ deliveryId, enabled }: {
   const [status, setStatus] = useState<GpsStatus>("idle");
   const [detail, setDetail] = useState("");
   const [measurements, setMeasurements] = useState(0);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!enabled || !deliveryId) {
@@ -107,7 +109,7 @@ export function DeliveryGpsRecorder({ deliveryId, enabled }: {
       clearWatch();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [deliveryId, enabled]);
+  }, [deliveryId, enabled, retry]);
 
   if (!enabled) return null;
   const icon = status === "active" ? <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
@@ -125,6 +127,11 @@ export function DeliveryGpsRecorder({ deliveryId, enabled }: {
     role="status" aria-live="polite">
     <div className="flex items-start gap-2">{icon}<span className="font-semibold">{text}</span></div>
     {detail && <p className="mt-1 text-amber-200">{detail}</p>}
+    {(status === "denied" || status === "error" || status === "unavailable") && <Button
+      type="button" size="sm" variant="outline" className="mt-2 h-8 border-[#5288bb] bg-transparent text-xs text-white hover:bg-[#234261]"
+      onClick={() => setRetry(value => value + 1)}>
+      Tentar GPS novamente
+    </Button>}
     {measurements > 0 && <p className="mt-1 text-emerald-200">{measurements} trecho(s) de GPS registrado(s) nesta sessão.</p>}
     <p className="mt-1 flex items-start gap-1 text-[11px] text-[#9db8d8]">
       <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
