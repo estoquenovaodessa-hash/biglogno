@@ -92,7 +92,7 @@ export function DeliveryKilometersPanel({
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="flex items-center gap-2 text-lg font-extrabold text-white"><Gauge className="h-5 w-5 text-[#54beff]" /> KM por entregador</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Distâncias calculadas entre a loja e as entregas finalizadas, pelas ruas. Sem GPS.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Distâncias calculadas pela rota das entregas e coletas finalizadas, pelas ruas. Sem rastreamento GPS.</p>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <div className="flex rounded-lg border border-[#2a5079] p-1" role="group" aria-label="Período da quilometragem">
@@ -139,7 +139,7 @@ export function DeliveryKilometersPanel({
         </p>
         <p className="mt-2 text-base font-bold">{dateRange}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {selectedTrips.reduce((total, trip) => total + trip.documents, 0)} nota(s) finalizada(s)
+          {selectedTrips.reduce((total, trip) => total + trip.documents, 0)} operação(ões) finalizada(s)
           · {selectedTrips.length} turno(s)
         </p>
       </div>
@@ -228,13 +228,13 @@ export function DeliveryKilometersPanel({
                 </p>}
             </td>
           </tr>)}
-          {!selectedTrips.length && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Nenhuma entrega finalizada no período.</td></tr>}
+          {!selectedTrips.length && <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">Nenhuma entrega ou coleta finalizada no período.</td></tr>}
         </tbody>
       </table>
     </div>
     </details>
     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-      Cálculo: BIGNOTTO FERRAMENTAS → primeira entrega → demais paradas confirmadas do mesmo entregador, dia e turno.
+      Cálculo: BIGNOTTO FERRAMENTAS → primeira parada → demais entregas e coletas confirmadas do mesmo entregador, dia e turno.
       A loja é a origem de cada turno; não é somado o retorno à loja após a última parada.
       A distância é estimada pelas vias disponíveis e pode variar com o roteamento atual. Rotas sem endereço ou sem resposta
       do serviço aparecem como não calculadas. O sistema não solicita localização nem monitora o celular do entregador.
