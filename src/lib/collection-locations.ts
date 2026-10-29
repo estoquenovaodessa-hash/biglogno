@@ -7,6 +7,9 @@ export interface ConfirmedCollectionLocation {
   companyId: string;
   companyName: string;
   address: string;
+  /** Texto do endereço original na coleta no momento da confirmação.
+   * Mudanças posteriores na Expedição invalidam automaticamente o ponto antigo. */
+  initialAddress?: string;
   latitude: number;
   longitude: number;
   confirmedAt: string;
@@ -30,7 +33,15 @@ export function matchingCollectionLocation(
 ): ConfirmedCollectionLocation | undefined {
   if (delivery.source !== "coleta") return undefined;
   const specific = catalog.specific[delivery.id];
-  if (specific) return specific;
+  if (specific) {
+    const now = normalizeCollectionAddress(delivery.collectionAddress);
+    const original = normalizeCollectionAddress(specific.initialAddress);
+    const confirmed = normalizeCollectionAddress(specific.address);
+    // Corrigir texto de uma coleta concluída é permitido. Mas se a Expedição
+    // depois trocar o endereço desta operação, não reutilizar coordenadas antigas.
+    if (now === original || now === confirmed) return specific;
+    return undefined;
+  }
   if (!delivery.collectionCompanyId) return undefined;
   const standard = catalog.defaults[delivery.collectionCompanyId];
   // Outras coletas antigas só herdam a confirmação se o texto corresponder.
