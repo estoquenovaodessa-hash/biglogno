@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addCollection, addCollectionCompany, listCollectionCompanies } from "@/lib/collections.functions";
+import { readCollectionLocations } from "@/lib/collection-locations.functions";
+import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
@@ -34,6 +36,8 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const list = useServerFn(listCollectionCompanies);
   const addCompany = useServerFn(addCollectionCompany);
   const addOrder = useServerFn(addCollection);
+  const readLocations = useServerFn(readCollectionLocations);
+  const locations = useQuery({ queryKey: ["collection-locations"], queryFn: () => readLocations(), staleTime: 30000 });
   const companies = useQuery({
     queryKey: ["collection-companies"], queryFn: () => list(), staleTime: 30000,
   });
@@ -129,6 +133,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
         </div>
         <div className="mt-3 space-y-1.5 border-t border-orange-400/20 pt-3 text-xs sm:text-sm">
           <p className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" /><span className="break-words">{order.collectionAddress || "Endereço não informado"}</span></p>
+          {!!order.collectionLocationConfirmedAt && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">✓ Local confirmado no Google Maps {Number.isFinite(order.collectionLatitude) && Number.isFinite(order.collectionLongitude) && <a className="ml-1 underline" target="_blank" rel="noopener noreferrer" href={googleMapsPointUrl({ latitude: order.collectionLatitude!, longitude: order.collectionLongitude! })}>Ver local</a>}</p>}
           <p><strong>Valor:</strong> {order.collectionValueProvided === false ? "Não informado" : money(order.value)}</p>
           <p className="flex items-center gap-2"><span aria-hidden="true" className="text-lg">{order.collectionTransport === "moto" ? "🏍️" : order.collectionTransport === "carro" ? "🚗" : "🚚"}</span>
             <span><strong>Transporte:</strong> {order.collectionTransport === "moto" ? "MOTO" : order.collectionTransport === "carro" ? "CARRO" : "Não informado"}</span></p>
@@ -171,7 +176,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           <DialogHeader><DialogTitle>Adicionar coleta</DialogTitle></DialogHeader>
           <label className="space-y-1.5 text-sm font-semibold">Empresa de coleta
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
-              value={companyId} onChange={event => setCompanyId(event.target.value)}>
+              value={companyId} onChange={event => { const id = event.target.value; setCompanyId(id); setAddress(locations.data?.defaults[id]?.address ?? ""); }}>
               <option value="">Selecione uma empresa</option>
               {(companies.data ?? []).map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
             </select>
@@ -182,6 +187,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
             <Input value={address} maxLength={400} onChange={event => setAddress(event.target.value)}
               placeholder="Rua, número, bairro, cidade e UF (se souber)" />
           </label>
+          {!!companyId && !!locations.data?.defaults[companyId] && <p role="status" className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-600 dark:text-emerald-300">✓ Endereço confirmado pelo gestor e reutilizado para esta empresa. Caso o local seja outro, informe um endereço diferente.</p>}
           <label className="space-y-1.5 text-sm font-semibold">Valor da coleta (R$) — opcional
             <Input inputMode="decimal" value={value} onChange={event => setValue(event.target.value)}
               placeholder="Deixe em branco se não informado" />
