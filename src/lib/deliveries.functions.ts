@@ -30,17 +30,50 @@ export const addManualDelivery = createServerFn({ method: 'POST' }).inputValidat
   if (error) throw new Error('Não foi possível adicionar a entrega.'); return { ok: true };
 });
 export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(deliveryActionSchema).handler(async ({ data }) => {
-  const { requireOperatorPermission } = await import('./employees.functions');
-  const employee = await requireOperatorPermission('entregas');
+  const { requireOperatorPermission, deliveryResponsibleForOperator } = await import('./employees.functions');
+  const actor = await requireOperatorPermission('entregas');
+  const { isCaue, isLuciano } = await import('./delivery-accountability');
   const { db, rows, list } = await loadAll();
-  const action = data.action === 'start' ? { ...data, driver: employee.name } : data;
-  const next = applyDeliveryGroupAction(list, action, new Date()).map(d =>
-    data.action === 'start' && d.status === 'em_rota' && d.startedAt && list.find(old => old.id === d.id)?.status === 'nao_iniciada'
-      ? { ...d, driverEmployeeId: employee.id }
-      : data.action === 'cancel' && d.status === 'nao_iniciada' && list.find(old => old.id === d.id)?.status !== 'nao_iniciada'
-        ? { ...d, driverEmployeeId: undefined }
-        : d
-  );
+  const original = list.find(row => row.id === data.id);
+  if (!original) throw new Error('Entrega não encontrada.');
+  // Apoio do Cauê é exclusivo das operações do Luciano; não interfere na
+  // Expedição dos demais motoristas nem em viagens próprias do Marcelo.
+  if (isCaue(actor.name) && original.status !== 'nao_iniciada' && original.driver
+      && !isCaue(original.driver) && !isLuciano(original.driver)) {
+    throw new Error('O apoio de Cauê nas Entregas é exclusivo das operações de Luciano.');
+  }
+  const responsible = data.action === 'start' && isCaue(actor.name)
+    ? await deliveryResponsibleForOperator(actor)
+    : actor;
+  const action = data.action === 'start'
+    ? { ...data, driver: responsible.name }
+    : data;
+  const next = applyDeliveryGroupAction(list, action, new Date()).map((row, i) => {
+    const old = list[i];
+    if (row === old) return row;
+    const started = data.action === 'start' && row.status === 'em_rota'
+      && row.startedAt && old.status === 'nao_iniciada';
+    const cancelled = data.action === 'cancel' && row.status === 'nao_iniciada'
+      && old.status !== 'nao_iniciada';
+    // Mesmo pedidos antigos iniciados pelo Cauê passam a pertencer ao Luciano
+    // quando um novo movimento for registrado. O histórico de autor fica separado.
+    const legacyCaue = isCaue(row.driver);
+    const owner = legacyCaue && !cancelled
+      ? responsible === actor ? null : responsible : null;
+    return {
+      ...row,
+      ...(started ? {
+        driverEmployeeId: responsible.id,
+        startedBy: actor.name, startedByEmployeeId: actor.id,
+      } : cancelled ? {
+        driverEmployeeId: undefined,
+        startedBy: undefined, startedByEmployeeId: undefined,
+      } : {}),
+      ...(owner ? { driver: owner.name, driverEmployeeId: owner.id } : {}),
+      lastActionBy: actor.name,
+      lastActionByEmployeeId: actor.id,
+    };
+  });
   const changes = next.filter((d, i) => d !== list[i]).map(d => ({ id: d.id, payload: payloadOf(d), position: d.position }));
   const { data: saved, error } = await db.rpc('commit_logistics_changes', { kind: 'deliveries', expected: rows.map(r => ({ id: r.id, payload: r.payload })) as never, changes });
   if (error) throw logisticsCommitError('atualizar as entregas', error);
