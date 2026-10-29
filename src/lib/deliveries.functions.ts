@@ -20,7 +20,12 @@ async function loadAll() {
 }
 export const listDeliveries = createServerFn({ method: 'GET' }).handler(async () => {
   const { requireAccess } = await import('./access.server'); await requireAccess();
-  return (await loadAll()).list;
+  const { applyCollectionLocations } = await import('./collection-locations');
+  const { loadCollectionLocations } = await import('./collection-locations.functions');
+  const { list } = await loadAll();
+  // Operador, Expedição e Gestor recebem o MESMO endereço validado.
+  // Nada modifica as entregas persistidas: apenas complementa a consulta.
+  return applyCollectionLocations(list, await loadCollectionLocations());
 });
 export const addManualDelivery = createServerFn({ method: 'POST' }).inputValidator(manualDeliverySchema).handler(async ({ data }) => {
   const { operatorAccess, companyByCode, logisticsClient } = await import('./logistics.server');
