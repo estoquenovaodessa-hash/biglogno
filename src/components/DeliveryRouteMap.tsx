@@ -220,8 +220,9 @@ function consecutiveGroups(stops: RouteStop[], located: LocatedStop[]): LocatedS
   return groups;
 }
 
-export function DeliveryRouteMap({ stops, onUnresolvedChange, onRoadDistanceChange }: {
+export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDistanceChange }: {
   stops: RouteStop[];
+  routeKey: string;
   onUnresolvedChange?: (indexes: number[]) => void;
   /** Distância calculada pelo serviço viário, não pelo GPS do entregador. */
   onRoadDistanceChange?: (meters: number | null) => void;
@@ -231,6 +232,10 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange, onRoadDistanceChan
   const [routeState, setRouteState] = useState<"loading" | "road" | "partial" | "unavailable">("loading");
   const [error, setError] = useState("");
   const [notLocated, setNotLocated] = useState<string[]>([]);
+  const [playback, setPlayback] = useState<{ index: number; total: number; from: string; to: string; meters: number | null; accumulated: number; phase: "tracing" | "reading" | "repeating" } | null>(null);
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const remembered = useRef<{ routeKey: string; signatures: string[]; completed: number } | null>(null);
 
   useEffect(() => {
     const element = container.current;
@@ -238,9 +243,11 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange, onRoadDistanceChan
     let cancelled = false;
     const controller = new AbortController();
     let map: import("leaflet").Map | null = null;
+    let frameId: number | null = null;
     const validCount = stops.filter(stop => !!stop.address).length;
     setProgress({ done: 0, found: 0, total: validCount });
     setRouteState("loading");
+    setPlayback(null);
     onRoadDistanceChange?.(null);
     setError("");
     onUnresolvedChange?.([]);
@@ -367,8 +374,8 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange, onRoadDistanceChan
         setError(cause instanceof Error ? cause.message : "Mapa indisponível.");
       }
     });
-    return () => { cancelled = true; controller.abort(); map?.remove(); };
-  }, [stops]);
+    return () => { cancelled = true; controller.abort(); if (frameId !== null) cancelAnimationFrame(frameId); map?.remove(); };
+  }, [stops, routeKey]);
 
   return <div className="biglogno-route-map-shell relative overflow-hidden rounded-2xl border border-border bg-[#e9f1e9]">
     <div ref={container} className="h-[380px] w-full sm:h-[490px]" role="region" aria-label="Mapa das entregas em sequência pelas ruas" />
