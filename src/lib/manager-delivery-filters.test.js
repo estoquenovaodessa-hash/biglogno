@@ -86,6 +86,22 @@ describe("Entregas do gestor: entregadores", () => {
     expect(managerMatchesDriver(row, driver2.id, employees)).toBe(false);
     expect(managerMatchesDriver(row, "all", employees)).toBe(true);
   });
+  test("Cauê aparece apenas sob Luciano nos filtros, sem duplicar a lista de entregadores", () => {
+    const luciano = employee("Luciano", "ENTREGADOR", { id: "00000000-0000-4000-8000-000000000022" });
+    const caue = employee("Cauê", "ENTREGADOR", { id: "00000000-0000-4000-8000-000000000023" });
+    const marcelo = employee("Marcelo", "ENTREGADOR", { id: "00000000-0000-4000-8000-000000000024" });
+    const people = [luciano, caue, marcelo];
+    expect(managerDeliveryDrivers(people).map(e => e.name)).toEqual(["Luciano", "Marcelo"]);
+    const legacyById = delivery({ driver: "Cauê", driverEmployeeId: caue.id });
+    const legacyByName = delivery({ driver: "Caue da Silva" });
+    const independent = delivery({ driver: "Marcelo", driverEmployeeId: marcelo.id });
+    expect(managerMatchesDriver(legacyById, luciano.id, people)).toBe(true);
+    expect(managerMatchesDriver(legacyByName, luciano.id, people)).toBe(true);
+    expect(managerMatchesDriver(legacyById, marcelo.id, people)).toBe(false);
+    expect(managerMatchesDriver(independent, luciano.id, people)).toBe(false);
+    expect(managerMatchesDriver(independent, marcelo.id, people)).toBe(true);
+    expect(managerMatchesDriver(legacyById, "all", people)).toBe(true);
+  });
   test("mantém filtro de entregas antigas que guardavam apenas nome", () => {
     const row = delivery({ driver: " joão " });
     expect(managerMatchesDriver(row, driver1.id, employees)).toBe(true);
