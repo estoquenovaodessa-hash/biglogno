@@ -8,6 +8,7 @@ import {
   type Delivery, type DeliveryAction,
 } from "@/lib/deliveries";
 import { scheduledDateLabel, shiftLabel, shiftOf } from "@/lib/expedition-schedule";
+import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import { deliveryResponsibleName } from "@/lib/delivery-accountability";
 
 const currency = (value: number) =>
@@ -87,6 +88,13 @@ export function OperatorDeliveryCard({
         <p className="flex items-center gap-2 font-bold"><span className="text-xl" aria-hidden="true">{order.collectionTransport === "moto" ? "🏍️" : order.collectionTransport === "carro" ? "🚗" : "🚚"}</span>
           <span>Transporte: {order.collectionTransport === "moto" ? "MOTO" : order.collectionTransport === "carro" ? "CARRO" : "Não informado"}</span></p>
         <p className="flex items-start gap-2"><MapPinned className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Endereço:</strong> {order.collectionAddress || "Não informado"}</span></p>
+        {!!order.collectionLocationConfirmedAt && <p className="text-xs font-semibold text-emerald-300">
+          ✓ Local confirmado no Google Maps
+          {Number.isFinite(order.collectionLatitude) && Number.isFinite(order.collectionLongitude) &&
+            <a href={googleMapsPointUrl({ latitude: order.collectionLatitude!, longitude: order.collectionLongitude! })}
+              target="_blank" rel="noopener noreferrer"
+              className="ml-2 underline underline-offset-2">Abrir local confirmado</a>}
+        </p>}
         <p className="flex items-start gap-2"><ContactRound className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" /> <span><strong>Falar com:</strong> {order.collectionContact || "Não informado"}</span></p>
       </div>}
       {!collection && <div className="mt-3 space-y-2.5">
