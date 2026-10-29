@@ -122,7 +122,7 @@ export function Entregas({ role }: { role: AccessRole }) {
       </div>
       <DeliveryGpsRecorder deliveryId={gpsActiveDelivery?.id ?? null}
         enabled={canOperate && !!employee && employee.badge === "ENTREGADOR"} />
-      {sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>
+      {sales.isError && <p role="alert" className="text-destructive">Não foi possível consultar as empresas.</p>}
       {!canOperate && <p role="status" className="text-sm text-muted-foreground">Somente consulta: seu perfil não possui o direito Entregas. Os botões operacionais estão bloqueados.</p>}
     </>}
     {error && !arrived && !adding && <p role="alert" className="text-destructive">{error}</p>}
