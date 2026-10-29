@@ -161,7 +161,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     (a.status === "finalizada" ? 1 : 0) - (b.status === "finalizada" ? 1 : 0) ||
     a.position - b.position);
   const finishedToday = finished.filter(d => managerDeliveryInPeriod(d, "today", now)).length;
-  const completedShifts = listDeliveryRoutes(finished.filter(d => d.source !== "coleta")).length;
+  const completedShifts = listDeliveryRoutes(finished).length;
   const showDeliveryDetails = (id: string) => {
     setSelectedId(id);
     setDetailsOpen(true);
