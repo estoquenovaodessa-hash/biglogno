@@ -11,6 +11,11 @@ export interface Delivery {
   source: "conferencia" | "manual" | "coleta";
   /** Coleta avulsa: endereço e contato não dependem da base de clientes. */
   collectionAddress?: string;
+  /** Confirmação independente do endereço da base de clientes, por coleta. */
+  collectionConfirmedAddress?: string;
+  collectionLatitude?: number;
+  collectionLongitude?: number;
+  collectionLocationConfirmedAt?: string;
   collectionContact?: string;
   /** Empresa cadastrada para permitir edição do vínculo de coleta. */
   collectionCompanyId?: string;
