@@ -40,7 +40,8 @@ export function matchingCollectionLocation(
     // Corrigir texto de uma coleta concluída é permitido. Mas se a Expedição
     // depois trocar o endereço desta operação, não reutilizar coordenadas antigas.
     if (now === original || now === confirmed) return specific;
-    return undefined;
+    // Endereço editado: pode receber o NOVO padrão se corresponder, mas
+    // nunca permanece preso ao ponto específico do endereço antigo.
   }
   if (!delivery.collectionCompanyId) return undefined;
   const standard = catalog.defaults[delivery.collectionCompanyId];
@@ -64,6 +65,7 @@ export function applyCollectionLocations(
       collectionLocationConfirmedAt: location.confirmedAt,
       // A coleta específica pode estar sem rua: corrigir o endereço visual
       // para o local efetivamente conferido pelo gestor.
-      collectionAddress: catalog.specific[delivery.id]?.address ?? delivery.collectionAddress };
+      collectionAddress: catalog.specific[delivery.id] === location
+        ? location.address : delivery.collectionAddress };
   });
 }
