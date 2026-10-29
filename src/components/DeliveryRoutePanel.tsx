@@ -8,6 +8,7 @@ import { fullDeliveryAddress, getRouteStops, googleRouteSegments, listDeliveryRo
 import { shiftLabel } from "@/lib/expedition-schedule";
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
 import { GoogleMapsAddressConfirm } from "./GoogleMapsAddressConfirm";
+import { CollectionGoogleMapsConfirm } from "./CollectionGoogleMapsConfirm";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
 
 const reais = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -17,7 +18,7 @@ function RouteStopNumber({ number }: { number: number }) {
   </span>;
 }
 function StopCard({
-  stop, index, editing, openEdit, form, setForm, saveEdit, closeEdit, busy, saveError, unresolved, onConfirmLocation,
+  stop, index, editing, openEdit, form, setForm, saveEdit, closeEdit, busy, saveError, unresolved, onConfirmLocation, onConfirmCollectionLocation,
 }: {
   stop: RouteStop; index: number; editing: boolean; openEdit: () => void;
   form: { address: string; neighborhood: string; city: string; state: string };
@@ -25,6 +26,7 @@ function StopCard({
   saveEdit: () => void; closeEdit: () => void; busy: boolean; saveError: string;
   unresolved: boolean;
   onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
+  onConfirmCollectionLocation: (collectionId: string, address: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const receiver = [...new Set(stop.deliveries.map(d => d.receiver?.trim()).filter((v): v is string => !!v))];
   const isCollection = stop.deliveries[0]?.source === "coleta";
@@ -80,12 +82,13 @@ function StopCard({
       </form>}
       {!isCollection && <GoogleMapsAddressConfirm stop={stop} unresolved={unresolved}
         onSave={point => onConfirmLocation(stop.clientCode, point)} />}
+      {isCollection && <CollectionGoogleMapsConfirm stop={stop} onSave={onConfirmCollectionLocation} />}
     </article>
   </div>;
 }
 
 export function DeliveryRoutePanel({
-  deliveries, addresses, storeOrigin, originError, onSaveAddress, onConfirmLocation,
+  deliveries, addresses, storeOrigin, originError, onSaveAddress, onConfirmLocation, onConfirmCollectionLocation,
 }: {
   deliveries: Delivery[];
   addresses: DeliveryClientAddress[];
@@ -93,6 +96,7 @@ export function DeliveryRoutePanel({
   originError?: boolean;
   onSaveAddress: (address: DeliveryClientAddress) => Promise<void>;
   onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
+  onConfirmCollectionLocation: (collectionId: string, address: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [routeKey, setRouteKey] = useState("");
@@ -234,7 +238,8 @@ export function DeliveryRoutePanel({
           editing={editing === index} openEdit={() => openEdit(stop, index)}
           form={form} setForm={setForm} saveEdit={() => { void saveEdit(stop); }}
           closeEdit={() => setEditing(null)} busy={busy} saveError={saveError}
-          unresolved={unresolved.includes(index + (storeOrigin ? 1 : 0))} onConfirmLocation={onConfirmLocation} />)}
+          unresolved={unresolved.includes(index + (storeOrigin ? 1 : 0))}
+          onConfirmLocation={onConfirmLocation} onConfirmCollectionLocation={onConfirmCollectionLocation} />)}
         {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada com entregador e horário foi encontrada. O mapa será preenchido após as confirmações.</p>}
       </div>
         </div>
