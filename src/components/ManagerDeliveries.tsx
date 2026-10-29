@@ -11,6 +11,7 @@ import { normalizeDeliveryClientCode, parseDeliveryAddressesCsv } from "@/lib/de
 import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
 import { ManagerDeliveryTable } from "./ManagerDeliveryTable";
 import { listDeliveryRoutes } from "@/lib/delivery-route";
+import { consolidateCaueDeliveries } from "@/lib/delivery-accountability";
 import { findBignottoOrigin } from "@/lib/delivery-route";
 import { DeliveryKilometersPanel } from "./DeliveryKilometersPanel";
 import { DeliveryWhatsAppSettings } from "./DeliveryWhatsAppSettings";
@@ -140,8 +141,10 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
   const now = new Date();
   const employees = employeesQuery.data ?? [];
   const drivers = managerDeliveryDrivers(employees);
+  // Exibir entregas de Cauê junto às do Luciano sem regravar notas antigas.
+  const reportDeliveries = consolidateCaueDeliveries(deliveries, employees);
   const term = filters.search.trim().toLocaleLowerCase("pt-BR");
-  const scoped = deliveries.filter(d =>
+  const scoped = reportDeliveries.filter(d =>
     managerDeliveryInPeriod(d, filters.period, now) &&
     (filters.shift === "all" || shiftOf(d) === filters.shift) &&
     managerMatchesDriver(d, filters.driver, employees) &&
@@ -273,7 +276,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
 
     <div className="manager-delivery-lower grid min-w-0 items-start gap-4 2xl:grid-cols-2">
     <DeliveryRoutePanel
-      deliveries={deliveries}
+      deliveries={reportDeliveries}
       addresses={addressQuery.data ?? []}
       storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
       originError={addressQuery.isError}
@@ -288,7 +291,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     />
       <DeliveryKilometersPanel
         drivers={drivers} selectedDriverId={filters.driver}
-        deliveries={deliveries} addresses={addressQuery.data ?? []}
+        deliveries={reportDeliveries} addresses={addressQuery.data ?? []}
         storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
         originError={addressQuery.isError}
         onTotalsChange={setKmSummary}
