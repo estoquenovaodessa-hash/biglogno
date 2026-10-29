@@ -31,6 +31,12 @@ describe("endereço Google Maps de coleta", () => {
   test("um endereço diferente não herda coordenadas do outro local", () => {
     const other = collection("c3", "Rua Distante, 500");
     expect(matchingCollectionLocation(other, catalog)).toBeUndefined();
+    // Uma coleta específica com novo endereço não pode continuar no GPS anterior.
+    const correctedCatalog = {
+      defaults: catalog.defaults,
+      specific: { c3: { ...confirmed, collectionId: "c3", initialAddress: "Rua Antiga, 10" } },
+    };
+    expect(matchingCollectionLocation(other, correctedCatalog)).toBeUndefined();
     expect(applyCollectionLocations([other], catalog)[0].collectionLatitude).toBeUndefined();
   });
   test("outra empresa não herda localização, mesmo usando o nome da mesma rua", () => {
