@@ -123,7 +123,7 @@ export function findBignottoOrigin(
   addresses: DeliveryClientAddress[],
 ): DeliveryClientAddress | undefined {
   const normalize = (value: string) => value.normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "").toLocaleUpperCase("pt-BR").replace(/[^A-Z0-9]/g, "");
+    .replace(/[\u0300-\u036f]/g, "").toLocaleUpperCase("pt-BR").replace(/[^A-Z0-9]/g, "");
   const store = clients.find(client => {
     const name = normalize(client.name);
     return name.includes("BIGNOTTO") && name.includes("FERRAMENTAS");
