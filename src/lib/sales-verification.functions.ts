@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { historicalKey, parseHistoricalSales } from "./sales-import";
-import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verificationEditKind, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
+import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verificationEditKind, verificationClientDisplayName, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
 
 export const readSalesVerification = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
@@ -66,7 +66,13 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
   const { data: existing, error: dupError } = await supabaseAdmin.from("sales_verification_records").select("id").eq("payload->>document", data.document).neq("id", data.requestId).limit(1);
   if (dupError) throw new Error("Não foi possível validar o documento.");
   if (existing?.length) throw new Error(`Documento ${data.document} já foi registrado.`);
-  const payload = { ...data, verifierCode: code, clientName: client.name, verifierName: operator.name, employeeId: operator.id, channel: expedition ? "expedicao" : "balcao" };
+  const displayName = verificationClientDisplayName(client, data.consumerName);
+  const payload = {
+    ...data, verifierCode: code,
+    consumerName: canonicalCode(client.code) === "100" ? data.consumerName || undefined : undefined,
+    clientName: displayName, verifierName: operator.name, employeeId: operator.id,
+    channel: expedition ? "expedicao" : "balcao",
+  };
   if (data.forDelivery && !expedition) throw new Error("Somente a Expedição utiliza a opção antiga 'Para entrega'.");
   if (expedition && data.balcaoDestination) throw new Error("As opções Entrega e Retira são exclusivas do Balcão.");
   // Balcão: Entrega / Retira / nenhuma. A Expedição conserva seu fluxo atual.
@@ -78,7 +84,7 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
       : data.balcaoDestination === "retira" ? "pickups" : "none";
   const { error: insertError } = await supabaseAdmin.rpc("register_verification_logistics", {
     record_id: data.requestId, verification: payload,
-    logistics_kind: kind, logistics: { document: data.document, company: client.name, companyCode: client.code, value: data.value, source: "conferencia", channel: expedition ? "expedicao" : "balcao", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
+    logistics_kind: kind, logistics: { document: data.document, company: displayName, companyCode: client.code, value: data.value, source: "conferencia", channel: expedition ? "expedicao" : "balcao", status: kind === "deliveries" ? "nao_iniciada" : "pendente" },
   });
   if (insertError) {
     // Não mostrar informações internas do banco ao operador, mas registrar
@@ -170,6 +176,7 @@ export const editSalesVerification = createServerFn({ method: "POST" })
     if (expedition && data.record.balcaoDestination)
       throw new Error("As opções Entrega e Retira são exclusivas do Balcão.");
 
+    const displayName = verificationClientDisplayName(client, data.record.consumerName);
     const next = {
       ...original,
       // Evita manter motivos antigos quando a conferência passa de Errado a Certo.
@@ -177,9 +184,11 @@ export const editSalesVerification = createServerFn({ method: "POST" })
       errorReasons: undefined,
       balcaoDestination: undefined,
       forDelivery: undefined,
+      consumerName: undefined,
       ...data.record,
       verifierCode: code,
-      clientName: client.name,
+      consumerName: canonicalCode(client.code) === "100" ? data.record.consumerName || undefined : undefined,
+      clientName: displayName,
       verifierName: operator.name,
       employeeId: operator.id,
       channel: expedition ? "expedicao" : "balcao",
@@ -197,7 +206,7 @@ export const editSalesVerification = createServerFn({ method: "POST" })
     }, data.record);
     const logistics = {
       document: data.record.document,
-      company: client.name,
+      company: displayName,
       companyCode: client.code,
       value: data.record.value,
       source: "conferencia", channel: expedition ? "expedicao" : "balcao",
