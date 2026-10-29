@@ -20,6 +20,9 @@ export interface Delivery {
   collectionValueProvided?: boolean;
   /** Programação definida pelo responsável da Expedição. */
   expeditionShift?: "manha" | "tarde";
+  /** Identifica o lote separado pela Expedição. Notas conferidas depois
+   * nunca entram no lote já marcado, mesmo recebendo o mesmo turno. */
+  expeditionBatchId?: string;
   /** Data local AAAA-MM-DD, exclusiva de coletas agendadas. */
   scheduledDate?: string;
   /** Forma de pagamento da coleta, independente da entrega. */
@@ -83,7 +86,7 @@ export function deliveryGroups(all: Delivery[]): Delivery[][] {
   for (const d of all) {
     const key = d.source === "coleta" || isConsumerDelivery(d) || d.separate || d.status === "finalizada"
       ? d.id
-      : `${companyKey(d)}|${d.status}|${d.expeditionShift ?? ""}|${d.scheduledDate ?? ""}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
+      : `${companyKey(d)}|${d.status}|${d.expeditionShift ?? ""}|${d.expeditionBatchId ?? (d.expeditionShift ? "legado" : "novo")}|${d.scheduledDate ?? ""}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
     const group = groups.get(key) ?? []; group.push(d); groups.set(key, group);
   }
   return [...groups.values()];
