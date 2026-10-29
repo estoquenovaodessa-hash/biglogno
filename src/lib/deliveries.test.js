@@ -75,6 +75,43 @@ describe("entregas", () => {
     expect(deliveryGroups(split)).toHaveLength(2);
     expect(deliveryGroups(applyDeliveryGroupAction(split, { action: "unify", id: "a" }, t(0)))).toHaveLength(1);
   });
+  test("turno marcado isola novas conferências que continuam indefinidas", () => {
+    const loaded = base("antigo", { company: "EMPRESA X", source: "conferencia",
+      document: "100", expeditionShift: "manha", expeditionBatchId: "lote-1" });
+    const newNote = base("nova", { company: "EMPRESA X", source: "conferencia",
+      document: "101" });
+    const groups = deliveryGroups([loaded, newNote]);
+    expect(groups.map(group => group.map(d => d.id))).toEqual([["antigo"], ["nova"]]);
+    expect(newNote.expeditionShift).toBeUndefined();
+    expect(newNote.expeditionBatchId).toBeUndefined();
+    const started = applyDeliveryGroupAction([loaded, newNote],
+      { action: "start", id: "antigo", driver: "Ana" }, t(0));
+    expect(started.map(d => d.status)).toEqual(["em_rota", "nao_iniciada"]);
+    const arrived = applyDeliveryGroupAction(started, { action: "arrive", id: "antigo" }, t(3));
+    const finished = applyDeliveryGroupAction(arrived,
+      { action: "finish", id: "antigo", receiver: "Maria" }, t(5));
+    expect(finished.map(d => d.status)).toEqual(["finalizada", "nao_iniciada"]);
+    expect(finished[1].receiver).toBeUndefined();
+  });
+  test("mesma empresa e mesmo turno, porém lotes distintos, nunca se unificam", () => {
+    const old = base("saiu", { company: "EMPRESA X",
+      expeditionShift: "tarde", expeditionBatchId: "lote-antigo" });
+    const newer = base("novo", { company: "EMPRESA X",
+      expeditionShift: "tarde", expeditionBatchId: "lote-novo" });
+    expect(deliveryGroups([old, newer])).toHaveLength(2);
+    const unmarkedOld = { ...old, expeditionShift: undefined };
+    const pending = base("conferencia-posterior", { company: "EMPRESA X" });
+    expect(deliveryGroups([unmarkedOld, pending])).toHaveLength(2);
+  });
+  test("várias notas marcadas juntas compartilham um lote de uma única visita", () => {
+    const group = [
+      base("a", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1" }),
+      base("b", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1" }),
+    ];
+    expect(deliveryGroups(group)).toHaveLength(1);
+    expect(applyDeliveryGroupAction(group, { action: "start", id: "a", driver: "Ana" }, t(0))
+      .map(d => d.status)).toEqual(["em_rota", "em_rota"]);
+  });
   test("novo pedido não entra em entrega já iniciada", () => {
     expect(deliveryGroups([base("a", { status: "em_rota", startedAt: t(0).toISOString() }), base("b")])).toHaveLength(2);
   });
