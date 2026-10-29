@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { CollectionLocationCatalog } from "./collection-locations";
-import { EMPTY_COLLECTION_LOCATIONS } from "./collection-locations";
 
 const LOCATION_PREFIX = "collection-location:";
 const LOCATION_COMPANY = LOCATION_PREFIX + "company:";
@@ -88,10 +87,11 @@ export const confirmCollectionLocation = createServerFn({ method: "POST" })
       longitude: data.longitude, confirmedAt: new Date().toISOString(),
     });
     const timestamp = new Date().toISOString();
+    const jsonLocation = JSON.parse(JSON.stringify(confirmed));
     // Dois registros persistidos numa única operação, sem alterar entregas.
     const { error: saveError } = await supabaseAdmin.from("app_state").upsert([
-      { key: LOCATION_RECORD + confirmed.collectionId, value: confirmed, updated_at: timestamp },
-      { key: LOCATION_COMPANY + confirmed.companyId, value: confirmed, updated_at: timestamp },
+      { key: LOCATION_RECORD + confirmed.collectionId, value: jsonLocation, updated_at: timestamp },
+      { key: LOCATION_COMPANY + confirmed.companyId, value: jsonLocation, updated_at: timestamp },
     ], { onConflict: "key" });
     if (saveError) throw new Error("Não foi possível salvar o local confirmado no Supabase.");
     return { ok: true, companyId, collectionId: data.collectionId };
