@@ -597,6 +597,21 @@
   box-shadow: 0 14px 40px rgb(0 8 30 / 20%);
   color: #e9f3ff;
 }
+.manager-deliveries-dashboard > header h2 {
+  font-size: clamp(1.4rem, 1.8vw, 1.85rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.manager-deliveries-dashboard .manager-route-panel > header {
+  background: linear-gradient(90deg, #102d50 0%, #081b33 100%);
+  border-bottom: 1px solid #204978;
+}
+.manager-deliveries-dashboard .manager-route-panel select {
+  color-scheme: dark;
+  border-color: #315779;
+  background-color: #091f3a;
+  color: #eff7ff;
+}
 .manager-deliveries-dashboard :is(button, input, select, summary):focus-visible {
   outline: 2px solid #54d2ff;
   outline-offset: 3px;
