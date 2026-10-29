@@ -88,37 +88,40 @@ export function DeliveryKilometersPanel({
       };
     });
 
-  return <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Quilometragem estimada por endereços">
+  return <section className="manager-km-panel manager-delivery-panel min-w-0 rounded-2xl p-4" aria-label="Quilometragem estimada por endereços">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 className="flex items-center gap-2 text-lg font-bold"><Gauge className="h-5 w-5 text-primary" /> KM por entregador</h3>
+        <h3 className="flex items-center gap-2 text-lg font-extrabold text-white"><Gauge className="h-5 w-5 text-[#54beff]" /> KM por entregador</h3>
         <p className="mt-1 text-xs text-muted-foreground">Distâncias calculadas entre a loja e as entregas finalizadas, pelas ruas. Sem GPS.</p>
       </div>
-      <Button size="sm" variant="outline" onClick={() => setRecheck(n => n + 1)}>
-        <RefreshCw className="h-4 w-4" /> Recalcular KM
-      </Button>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex rounded-lg border border-[#2a5079] p-1" role="group" aria-label="Período da quilometragem">
+          {([["day", "Diário"], ["week", "Semanal"], ["month", "Mensal"]] as const).map(([key, text]) =>
+            <button key={key} type="button" aria-pressed={period === key}
+              onClick={() => setPeriod(key)}
+              className={"rounded-md border px-2.5 py-1.5 text-xs font-bold transition-colors " +
+                (period === key ? "km-period-active" : "km-period-inactive")}>
+              {text}
+            </button>)}
+        </div>
+        <Button size="sm" variant="outline" className="manager-action-outline h-9" onClick={() => setRecheck(n => n + 1)}
+          aria-label="Recalcular quilômetros">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
 
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      <label className="block text-xs font-semibold text-muted-foreground">
-        Período
-        <select aria-label="Período de KM por endereço" value={period}
-          onChange={event => setPeriod(event.target.value as KmPeriod)}
-          className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground">
-          <option value="day">Diário</option>
-          <option value="week">Semanal</option>
-          <option value="month">Mensal</option>
-        </select>
-      </label>
-      <label className="block text-xs font-semibold text-muted-foreground">
-        Data de referência
+    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-[#234568] bg-[#091e38] p-2.5">
+      <label className="flex items-center gap-2 text-xs font-semibold text-[#adcaeb]">
+        <CalendarDays className="h-4 w-4 text-[#51bfff]" /> Data de referência
         <input type="date" aria-label="Data de referência dos KM" value={referenceDate}
           onChange={event => { if (event.target.value) setReferenceDate(event.target.value); }}
-          className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" />
+          className="h-9 rounded-md border border-[#315779] bg-[#081c37] px-2 text-xs text-white" />
       </label>
+      <span className="text-xs text-[#99b9dc]">{dateRange}</span>
     </div>
 
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
       <div className="rounded-lg border border-border bg-background/60 p-4">
         <p className="text-xs font-bold text-muted-foreground">Total estimado pelas ruas</p>
         <p className="mt-1 text-3xl font-extrabold tabular-nums">
@@ -153,7 +156,7 @@ export function DeliveryKilometersPanel({
       {missing.length} rota(s) não puderam ser calculadas integralmente. O total acima inclui apenas as rotas completas; não contabiliza como zero os trechos desconhecidos.
     </p>}
 
-    <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+    <div className="mt-3 max-h-[400px] overflow-auto rounded-lg border border-[#21456b]">
       <table className="w-full text-left text-sm">
         <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>
           <th className="px-3 py-2">Entregador</th>
@@ -162,7 +165,16 @@ export function DeliveryKilometersPanel({
         </tr></thead>
         <tbody>
           {summary.map(({ driver, relevant, done, missing: failures }) => <tr key={driver.id} className="border-t border-border">
-            <td className="px-3 py-2.5 font-semibold">{driver.name}</td>
+            <td className="px-3 py-2.5 font-semibold">
+              <div className="flex items-center gap-2">
+                {driver.photo
+                  ? <img src={driver.photo} alt="" className="h-8 w-8 shrink-0 rounded-full border border-[#4d79a7] object-cover" />
+                  : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#165ca8] text-[10px] font-bold text-white">
+                      {driver.name.split(/\s+/).slice(0, 2).map(part => part[0] ?? "").join("").toUpperCase()}
+                    </span>}
+                <span className="break-words">{driver.name}</span>
+              </div>
+            </td>
             <td className="px-3 py-2.5 text-right font-bold tabular-nums">
               {relevant.length === 0 ? "Sem entregas" : done.length
                 ? formatRoadKm(done.reduce((sum, row) => sum + (calculated[row.key]?.meters ?? 0), 0))
@@ -175,7 +187,9 @@ export function DeliveryKilometersPanel({
       </table>
     </div>
 
-    <h4 className="mt-4 flex items-center gap-2 text-sm font-bold"><Route className="h-4 w-4" /> Detalhes por turno</h4>
+    <details className="mt-4 rounded-xl border border-[#28547f] bg-[#0b2847] p-3">
+      <summary className="cursor-pointer text-sm font-bold text-[#9ed7ff]">Ver KM detalhados por dia e turno</summary>
+      <h4 className="mt-3 flex items-center gap-2 text-sm font-bold"><Route className="h-4 w-4" /> Detalhes por turno</h4>
     <div className="mt-2 overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-left text-xs sm:text-sm">
         <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>
@@ -218,6 +232,7 @@ export function DeliveryKilometersPanel({
         </tbody>
       </table>
     </div>
+    </details>
     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
       Cálculo: BIGNOTTO FERRAMENTAS → primeira entrega → demais paradas confirmadas do mesmo entregador, dia e turno.
       A loja é a origem de cada turno; não é somado o retorno à loja após a última parada.
