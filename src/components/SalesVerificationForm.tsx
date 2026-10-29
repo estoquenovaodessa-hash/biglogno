@@ -18,6 +18,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
   const [document, setDocument] = useState(prefix);
   const [items, setItems] = useState("");
   const [clientCode, setClientCode] = useState(lastClientCode);
+  const [consumerName, setConsumerName] = useState("");
   const [verifierCode, setVerifierCode] = useState(lastVerifierCode === "102" ? "102" : "101");
   const [value, setValue] = useState("");
   const [correct, setCorrect] = useState<boolean | null>(null);
@@ -86,6 +87,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
     setDocument(r.document);
     setItems(String(r.items));
     setClientCode(r.clientCode);
+    setConsumerName(canonicalCode(r.clientCode) === "100" ? r.consumerName ?? "" : "");
     setVerifierCode(canonicalCode(r.verifierCode) === "102" ? "102" : "101");
     setValue(formatMoneyInput(String(r.value).replace(".", ",")));
     setCorrect(r.correct);
@@ -122,6 +124,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
       const parsed = verificationSchema.safeParse({
         requestId: editing?.id ?? requestId.current ?? crypto.randomUUID(),
         document, items: Number(items), clientCode, verifierCode, value: numericValue,
+        consumerName: canonicalCode(clientCode) === "100" ? consumerName.trim() : undefined,
         correct, errorReasons: correct === false ? errorReasons : [],
         seller: verifier?.expedition ? "EXPEDIÇÃO" : seller,
         forDelivery: verifier?.expedition ? forDelivery : false,
@@ -145,6 +148,7 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
         lookupSerial.current++;
         setDocument(result.prefix); setItems(""); setClientCode(parsed.data.clientCode);
         setVerifierCode(parsed.data.verifierCode); setValue(""); setCorrect(null); setErrorReasons([]);
+        setConsumerName("");
         setSeller(""); setForDelivery(false); setBalcaoDestination(null); setEditing(null);
         setMessage(`Documento ${document} ${wasEditing ? "atualizado" : "registrado"} com sucesso.`);
         requestId.current = null; started.current = Date.now(); onRegistered(); documentInput.current?.focus();
@@ -169,7 +173,24 @@ export function SalesVerificationForm({ clients, prefix, lastClientCode, lastVer
           className="h-11 text-xl font-semibold md:text-xl" /></Field>
         <Field label="Qtd. itens" id="sales-items"><Input id="sales-items" type="number" required min={1} max={100000} value={items} onChange={e => { setItems(e.target.value); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /></Field>
       </div>
-      <Field label="Código do cliente" id="sales-client"><Input id="sales-client" inputMode="numeric" required maxLength={12} value={clientCode} onChange={e => { setClientCode(e.target.value.replace(/\D/g, "")); requestId.current = null; }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${client ? "text-success" : "text-muted-foreground"}`}>{client?.name ?? (clientCode ? "Cliente não encontrado" : "—")}</p></Field>
+      <Field label="Código do cliente" id="sales-client"><Input id="sales-client" inputMode="numeric" required maxLength={12} value={clientCode} onChange={e => {
+        const nextCode = e.target.value.replace(/\D/g, "");
+        setClientCode(nextCode);
+        if (canonicalCode(nextCode) !== "100") setConsumerName("");
+        requestId.current = null;
+      }} className="h-11 text-xl font-semibold md:text-xl" /><p className={`mt-1 min-h-6 truncate text-base font-medium ${client ? "text-success" : "text-muted-foreground"}`}>{client?.name ?? (clientCode ? "Cliente não encontrado" : "—")}</p></Field>
+      {canonicalCode(clientCode) === "100" && <div className="space-y-1">
+        <label htmlFor="sales-consumer-name" className="block text-base font-bold uppercase text-muted-foreground">
+          Nome do consumidor <span className="text-sm font-normal normal-case">(opcional)</span>
+        </label>
+        <Input id="sales-consumer-name" value={consumerName} maxLength={100}
+          placeholder="Quem é o consumidor deste documento?"
+          onChange={e => { setConsumerName(e.target.value); requestId.current = null; }}
+          autoComplete="off" className="h-11 text-lg font-semibold" />
+        <p className="text-xs text-muted-foreground">
+          Aparecerá em Entregas e Retiras como CONSUMIDOR (nome informado). Deixe em branco se não desejar identificar.
+        </p>
+      </div>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <fieldset><legend className="mb-1 text-base font-bold uppercase text-muted-foreground">Setor *</legend><div className="grid grid-cols-2 gap-2">{[{code:"101",name:"Balcão"},{code:"102",name:"Expedição"}].map(v => <Button key={v.code} type="button" variant={verifierCode === v.code ? "default" : "outline"} className="h-11 gap-1 text-sm font-bold" aria-pressed={verifierCode === v.code} onClick={() => { setVerifierCode(v.code); setSeller(""); setForDelivery(false); setBalcaoDestination(null); requestId.current = null; }}>{v.name}</Button>)}</div><p className="mt-1 text-sm font-semibold text-success">Funcionário: {employee?.name ?? "Não selecionado"}</p></fieldset>
         <Field label="Valor (R$)" id="sales-value"><Input id="sales-value" inputMode="decimal" required maxLength={15} placeholder="0,00" value={value} onChange={e => { setValue(e.target.value.replace(/[^\d.,]/g, "")); requestId.current = null; }} onBlur={() => value.trim() && setValue(formatMoneyInput(value))} className="h-11 text-xl font-semibold md:text-xl" /></Field>
