@@ -29,5 +29,7 @@ jobs:
         run: bun install
       - name: Testar animacao e KM por trecho
         run: bun test src/lib/delivery-route-animation.test.js
+      - name: Testar agrupamento das entregas pendentes
+        run: bun test src/lib/manager-delivery-rows.test.js
       - name: Executar build de producao
         run: npm run build

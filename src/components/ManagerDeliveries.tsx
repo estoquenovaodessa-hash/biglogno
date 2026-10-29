@@ -13,6 +13,7 @@ import { DeliveryRoutePanel } from "./DeliveryRoutePanel";
 import { CollectionGoogleMapsConfirm } from "./CollectionGoogleMapsConfirm";
 import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import { ManagerDeliveryTable } from "./ManagerDeliveryTable";
+import { managerDeliveryRows } from "@/lib/manager-delivery-rows";
 import { listDeliveryRoutes } from "@/lib/delivery-route";
 import { consolidateCaueDeliveries } from "@/lib/delivery-accountability";
 import { findBignottoOrigin } from "@/lib/delivery-route";
@@ -168,6 +169,10 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     window.setTimeout(() => document.getElementById("manager-selected-details")?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
   };
   const selected = visible.find(d => d.id === selectedId) ?? visible[0] ?? null;
+  // Exibir todas as notas vinculadas à linha unificada selecionada.
+  const selectedGroup = selected && selected.status !== "finalizada"
+    ? managerDeliveryRows(pending, "open").find(group => group.some(d => d.id === selected.id)) ?? [selected]
+    : selected ? [selected] : [];
   const address = selected?.source === "coleta" && selected.collectionAddress
     ? { client_code: "", address: selected.collectionAddress, neighborhood: "", city: "", state: "",
       ...(Number.isFinite(selected.collectionLatitude) && Number.isFinite(selected.collectionLongitude)
@@ -284,7 +289,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     </form>
 
     <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-      <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Ver no grid abaixo" />
+      <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Notas e coletas · unificadas no grid" />
       <Summary icon={CheckCircle2} label="Finalizadas hoje" value={finishedToday} hint="Entregas concluídas no dia" tone="success" />
       <Summary icon={CalendarDays} label="Turnos concluídos" value={completedShifts} hint="Entregador · dia · turno" />
       <Summary icon={MapPin} label="KM estimados" value={kmSummary.meters === null ? "—" :
@@ -335,8 +340,8 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             {statusBadge(selected)}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-            <div><p className="text-xs text-muted-foreground">Documento</p><p className="mt-1 font-semibold">{selected.source === "coleta" ? "Coleta (sem documento)" : selected.onlyDelivery ? "Somente entrega" : selected.document || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Valor</p><p className="mt-1 font-semibold">{selected.source === "coleta" && selected.collectionValueProvided === false ? "Não informado" : selected.onlyDelivery ? "Sem cobrança" : currency(selected.value)}</p></div>
+            <div><p className="text-xs text-muted-foreground">{selectedGroup.length > 1 ? "Documentos" : "Documento"}</p><p className="mt-1 break-words font-semibold">{selected.source === "coleta" ? "Coleta (sem documento)" : selectedGroup.map(d => d.onlyDelivery ? "Somente entrega" : d.document || "—").join(" · ")}</p></div>
+            <div><p className="text-xs text-muted-foreground">{selectedGroup.length > 1 ? "Valor total da entrega" : "Valor"}</p><p className="mt-1 font-semibold">{selected.source === "coleta" && selected.collectionValueProvided === false ? "Não informado" : selected.onlyDelivery && selectedGroup.length === 1 ? "Sem cobrança" : currency(selectedGroup.reduce((sum, d) => sum + (d.onlyDelivery ? 0 : Number(d.value) || 0), 0))}</p></div>
             <div><p className="text-xs text-muted-foreground">Entregador responsável</p><p className="mt-1 break-words font-semibold">{selected.driver || "Não atribuído"}</p></div>
              {selected.startedBy && selected.startedBy !== selected.driver && <div><p className="text-xs text-muted-foreground">Operação iniciada por</p><p className="mt-1 break-words font-semibold">{selected.startedBy}</p></div>}
              {selected.lastActionBy && selected.lastActionBy !== selected.driver && <div><p className="text-xs text-muted-foreground">Última ação executada por</p><p className="mt-1 break-words font-semibold">{selected.lastActionBy}</p></div>}
@@ -349,6 +354,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
           </div>
 
+          {selectedGroup.length > 1 && <div className="mt-5 rounded-lg border border-sky-400/30 bg-sky-500/10 p-4">
+            <h4 className="text-sm font-bold text-sky-200">Entrega unificada · {selectedGroup.length} notas</h4>
+            <div className="mt-2 space-y-1">
+              {selectedGroup.map(d => <div key={d.id} className="flex flex-wrap justify-between gap-2 text-xs">
+                <span>{d.onlyDelivery ? "Somente entrega" : "Nota " + (d.document || "—")}</span>
+                <span className="font-bold">{d.onlyDelivery ? "Sem cobrança" : currency(d.value)}</span>
+              </div>)}
+            </div>
+          </div>}
           <div className="mt-5 rounded-lg border border-border bg-background/40 p-4">
             <h4 className="flex items-center gap-2 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" /> Endereço e localização</h4>
             {address ? <>
