@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
 import { normalizeDeliveryClientCode, type DeliveryClientAddress } from "@/lib/delivery-addresses";
 import { fullDeliveryAddress, getRouteStops, googleRouteSegments, listDeliveryRoutes, type RouteStop } from "@/lib/delivery-route";
+import { shiftLabel } from "@/lib/expedition-schedule";
 import { DeliveryRouteMap } from "./DeliveryRouteMap";
 import { GoogleMapsAddressConfirm } from "./GoogleMapsAddressConfirm";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
@@ -84,15 +85,18 @@ function StopCard({
 }
 
 export function DeliveryRoutePanel({
-  deliveries, addresses, onSaveAddress, onConfirmLocation,
+  deliveries, addresses, storeOrigin, originError, onSaveAddress, onConfirmLocation,
 }: {
   deliveries: Delivery[];
   addresses: DeliveryClientAddress[];
+  storeOrigin?: DeliveryClientAddress;
+  originError?: boolean;
   onSaveAddress: (address: DeliveryClientAddress) => Promise<void>;
   onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [routeKey, setRouteKey] = useState("");
+  const [roadDistance, setRoadDistance] = useState<number | null>(null);
   const [form, setForm] = useState({ address: "", neighborhood: "", city: "", state: "SP" });
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -103,10 +107,11 @@ export function DeliveryRoutePanel({
   // A rota independe da entrega selecionada no grid (que pode estar pendente).
   const routes = useMemo(() => listDeliveryRoutes(deliveries), [deliveries]);
   const activeRoute = routes.find(route => route.key === routeKey) ?? routes[0] ?? null;
-  const stopsSnapshot = JSON.stringify(activeRoute ? getRouteStops(deliveries, activeRoute.selected, addresses) : []);
+  const stopsSnapshot = JSON.stringify(activeRoute ? getRouteStops(deliveries, activeRoute.selected, addresses, storeOrigin) : []);
   const stops = useMemo(() => JSON.parse(stopsSnapshot) as RouteStop[], [stopsSnapshot]);
+  const visitStops = stops.filter(stop => stop.kind !== "origin");
   const routeSegments = useMemo(() => googleRouteSegments(stops), [stops]);
-  const missing = stops.filter(stop => !stop.address);
+  const missing = visitStops.filter(stop => !stop.address);
   const located = stops.filter(stop => !!stop.address);
   const routeDate = activeRoute?.day.split("-").reverse().join("/") ?? "";
   const openEdit = (stop: RouteStop, index: number) => {
@@ -137,26 +142,34 @@ export function DeliveryRoutePanel({
         <div>
           <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.15em] text-[#a8c8f0]"><Navigation2 className="h-4 w-4" /> Percurso do entregador</div>
           <h4 className="mt-1 flex items-center gap-2 text-lg font-extrabold sm:text-xl"><Route className="h-5 w-5 text-[#78b5ff]" /> Rota realizada</h4>
-          <p className="mt-1 text-xs text-[#ceddf0]">{activeRoute ? activeRoute.name + " · " + routeDate : "Nenhuma rota finalizada disponível"}</p>
+          <p className="mt-1 text-xs text-[#ceddf0]">{activeRoute ? activeRoute.name + " · " + routeDate + " · " + shiftLabel(activeRoute.shift) : "Nenhuma rota finalizada disponível"}</p>
         </div>
         <span className="rounded-xl border border-[#4f7195] bg-[#1b4068] px-3 py-2 text-center text-xs font-bold text-white">
-          <span className="block text-2xl font-black">{stops.length}</span> {stops.length === 1 ? "parada" : "paradas"}
+          <span className="block text-2xl font-black">{visitStops.length}</span> {visitStops.length === 1 ? "parada" : "paradas"}
         </span>
       </div>
     </header>
     <div className="space-y-4 p-3 sm:p-4">
       {routes.length > 0 && <label className="block space-y-1.5 text-sm font-bold">
-        <span>Selecionar entregador e dia</span>
-        <select aria-label="Rota finalizada por entregador e data" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); }}
+        <span>Selecionar entregador, dia e turno</span>
+        <select aria-label="Rota finalizada por entregador, dia e turno" value={activeRoute?.key ?? ""} onChange={e => { setRouteKey(e.target.value); setEditing(null); }}
           className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground">
-          {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {route.count} {route.count === 1 ? "operação" : "operações"} finalizadas</option>)}
+          {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {shiftLabel(route.shift)} · {route.count} {route.count === 1 ? "operação" : "operações"} finalizadas</option>)}
         </select>
       </label>}
-      {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved} />}
+      {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved}
+        onRoadDistanceChange={setRoadDistance} />}
       {!located.length && stops.length > 0 && <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
         <MapPin className="h-7 w-7 text-[#245ddc]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
       </div>}
       <p className="text-xs text-muted-foreground">A linha azul acompanha as ruas calculadas a partir dos endereços, seguindo a ordem das entregas confirmadas. Não é uma gravação do GPS do veículo. Quando o roteamento falha, aparecem trechos pontilhados estimados.</p>
+      {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+        <TriangleAlert className="mr-1 inline h-4 w-4" /> A origem fixa é a BIGNOTTO FERRAMENTAS, na Av. Ampélio Gazetta. {originError ? "Não foi possível consultar o cadastro." : "Confira o cadastro da loja e seu endereço; não será inventado um ponto no mapa."}
+      </p>}
+      {!!activeRoute && <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs font-semibold">
+        <strong>Origem de cada turno:</strong> BIGNOTTO FERRAMENTAS {storeOrigin ? "· " + fullDeliveryAddress(storeOrigin) : "· Av. Ampélio Gazetta (endereço a confirmar)"}
+        <span className="mt-1 block text-muted-foreground">Distância estimada pelas ruas (desde a loja): {roadDistance === null || !storeOrigin ? "Indisponível ou trajeto incompleto" : (roadDistance / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " km"}. Não é a quilometragem medida pelo GPS.</span>
+      </div>}
       {missing.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
         <TriangleAlert className="mr-1 inline h-4 w-4" /> {missing.length} {missing.length === 1 ? "parada está sem endereço" : "paradas estão sem endereço"}: {missing.map(stop => stop.company).join(", ")}. Nenhuma parada é retirada da lista.
       </p>}
@@ -168,14 +181,20 @@ export function DeliveryRoutePanel({
       </div>}
       {routeSegments.length > 0 && <p className="text-xs text-muted-foreground">O Google Maps calcula as vias atuais entre as paradas, na ordem registrada. O caminho não é um histórico GPS.</p>}
       <div className="rounded-xl bg-[#e9f2ff] px-3 py-2 text-xs font-semibold text-[#315d93] dark:bg-[#183251] dark:text-[#b8d6f5]">
-        Sequência de entregas e coletas confirmadas · {stops.length} {stops.length === 1 ? "visita" : "visitas"} · {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0)} {stops.reduce((sum, stop) => sum + stop.deliveries.length, 0) === 1 ? "operação" : "operações"}
+        Sequência de entregas e coletas confirmadas · {visitStops.length} {visitStops.length === 1 ? "visita" : "visitas"} · {visitStops.reduce((sum, stop) => sum + stop.deliveries.length, 0)} {visitStops.reduce((sum, stop) => sum + stop.deliveries.length, 0) === 1 ? "operação" : "operações"}
       </div>
       <div className="relative">
-        {stops.map((stop, index) => <StopCard key={stop.key + ":" + stop.at + ":" + index} stop={stop} index={index}
+        {stops.filter(stop => stop.kind === "origin").map(stop =>
+          <div key={stop.key} className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-[#06a247] text-sm font-black text-white">L</span>
+            <div className="min-w-0"><strong className="text-sm">ORIGEM · BIGNOTTO FERRAMENTAS</strong>
+              <p className="mt-1 break-words text-xs text-muted-foreground">{stop.address ? fullDeliveryAddress(stop.address) : "Av. Ampélio Gazetta"}</p></div>
+          </div>)}
+        {visitStops.map((stop, index) => <StopCard key={stop.key + ":" + stop.at + ":" + index} stop={stop} index={index}
           editing={editing === index} openEdit={() => openEdit(stop, index)}
           form={form} setForm={setForm} saveEdit={() => { void saveEdit(stop); }}
           closeEdit={() => setEditing(null)} busy={busy} saveError={saveError}
-          unresolved={unresolved.includes(index)} onConfirmLocation={onConfirmLocation} />)}
+          unresolved={unresolved.includes(index + (storeOrigin ? 1 : 0))} onConfirmLocation={onConfirmLocation} />)}
         {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada com entregador e horário foi encontrada. O mapa será preenchido após as confirmações.</p>}
       </div>
     </div>
