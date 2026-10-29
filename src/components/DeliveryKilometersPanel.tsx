@@ -142,7 +142,7 @@ export function DeliveryKilometersPanel({
     </p>}
     {!storeOrigin && selectedTrips.length > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
       <TriangleAlert className="mr-1 inline h-4 w-4" />
-      Cadastre a loja BIGNOTTO FERRAMENTAS na Av. Ampélio Gazetta nos endereços para calcular a partida de cada turno.
+      O cliente de código 1 (BIGNOTTO FERRAMENTAS) não possui endereço válido na base de endereços importada. Importe ou corrija o endereço do código 1 para calcular a partida dos turnos.
     </p>}
     {missing.length > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
       {missing.length} rota(s) não puderam ser calculadas integralmente. O total acima inclui apenas as rotas completas; não contabiliza como zero os trechos desconhecidos.
