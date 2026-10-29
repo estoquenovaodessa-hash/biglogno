@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarDays, CheckCheck, ChevronDown, ChevronRight, Clock3, PackageCheck, RotateCcw, Truck } from "lucide-react";
 import type { Delivery } from "@/lib/deliveries";
-import { deliveryResponsibleName } from "@/lib/delivery-accountability";
+import { deliveryResponsibleName, isCaue } from "@/lib/delivery-accountability";
 import type { Pickup } from "@/lib/pickups";
 import { listCompletedPickups } from "@/lib/pickups.functions";
 import {
@@ -103,7 +103,7 @@ function CompletedRows({ mode, deliveries, pickups }: {
                       <Detail label="Pausado em" value={expeditionDateTime(delivery.pausedAt)} />
                       <Detail label="Tempo de pausa" value={delivery.pausedMs != null ? Math.round(delivery.pausedMs / 1000) + " s" : "—"} />
                       <Detail label="Entregador responsável (ID)" value={text(delivery.driverEmployeeId)} />
-                       <Detail label="Iniciado por" value={text(delivery.startedBy ?? (delivery.driver?.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().startsWith("caue") ? delivery.driver : undefined))} />
+                       <Detail label="Iniciado por" value={text(delivery.startedBy ?? (isCaue(delivery.driver) ? delivery.driver : undefined))} />
                        <Detail label="Última ação por" value={text(delivery.lastActionBy)} />
                       <Detail label="Posição original" value={String(delivery.position)} />
                       <Detail label="Notas separadas" value={delivery.separate ? "Sim" : "Não"} />
