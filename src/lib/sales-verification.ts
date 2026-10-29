@@ -12,6 +12,8 @@ export type ErrorReason = typeof ERROR_REASONS[number];
 export const verificationSchema = z.object({
   requestId: z.string().uuid(), document: z.string().trim().regex(/^\d{4,20}$/, "Documento deve ter de 4 a 20 dígitos."),
   items: z.number().int().min(1).max(100000), clientCode: codeSchema, verifierCode: codeSchema,
+  /** Somente cliente CONSUMIDOR (100): identificação opcional por documento. */
+  consumerName: z.string().trim().max(100, "Nome do consumidor deve ter no máximo 100 caracteres.").optional(),
   value: z.number().finite().min(0).max(100000000), correct: z.boolean(),
   seller: z.enum([...SELLERS, "EXPEDIÇÃO"]), durationSeconds: z.number().int().min(0).max(86400),
   errorReason: z.enum(ERROR_REASONS).optional(),
@@ -20,6 +22,10 @@ export const verificationSchema = z.object({
   /** Encaminhamento opcional exclusivo do Balcão: sem seleção = somente Conferência. */
   balcaoDestination: z.enum(["entrega", "retira"]).optional(),
 }).superRefine((record, ctx) => {
+  if (canonicalCode(record.clientCode) !== "100" && record.consumerName?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["consumerName"],
+      message: "O nome do consumidor é exclusivo do cliente código 100." });
+  }
   const reasons = record.errorReasons?.length || record.errorReason;
   if (!record.correct && !reasons) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["errorReasons"], message: "Selecione MATERIAL, QUANTIDADE ou CPF." });
   if (record.correct && reasons) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["errorReasons"], message: "Uma conferência certa não pode ter motivo de erro." });
@@ -44,6 +50,16 @@ export function verificationEditKind(
 export type VerificationRecord = Omit<VerificationInput, "seller" | "durationSeconds"> & { seller: VerificationInput["seller"] | "NÃO INFORMADO"; durationSeconds: number | null; id: string; createdAt: string; clientName: string; verifierName: string; employeeId?: string; channel?: "balcao" | "expedicao"; observation?: string; source?: "csv" };
 export function verificationChannel(record: Pick<VerificationRecord, "seller" | "channel">) { return record.channel ?? (record.seller === "EXPEDIÇÃO" ? "expedicao" : "balcao"); }
 export function canonicalCode(code: string) { return code.replace(/^0+(?=\d)/, ""); }
+/** O código 100 mantém a identidade CONSUMIDOR, com um nome opcional
+ * individual para reconhecer a pessoa nos cards e no histórico. */
+export function verificationClientDisplayName(
+  client: Pick<SalesClient, "code" | "name">,
+  consumerName?: string | null,
+): string {
+  if (canonicalCode(client.code) !== "100") return client.name;
+  const name = consumerName?.trim();
+  return name ? `CONSUMIDOR (${name})` : "CONSUMIDOR";
+}
 /** "27" → 27; "360" → 360; "27,5" → 27.5; "1.234,56" → 1234.56. Sem vírgula = reais inteiros. */
 export function parseMoneyInput(raw: string): number {
   const s = raw.trim();
