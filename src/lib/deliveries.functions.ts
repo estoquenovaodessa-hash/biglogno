@@ -61,11 +61,18 @@ export const setExpeditionSchedule = createServerFn({ method: 'POST' })
       throw new Error('O turno não pode ser alterado depois que a operação começou.');
     if (data.scheduledDate !== undefined && targets.some(row => row.source !== 'coleta'))
       throw new Error('Data específica é permitida somente para coletas.');
+    // A primeira atribuição de turno sela um lote. Notas que chegarem após
+    // a separação continuam sem turno e nunca herdam a assinatura deste lote.
+    // Reatribuir/remover turno preserva o ID, para não unificar lotes antigos.
+    const batchId = data.shift
+      ? targets.find(row => row.expeditionBatchId)?.expeditionBatchId ?? crypto.randomUUID()
+      : undefined;
     const changes = targets.map(row => ({
       id: row.id, position: row.position,
       payload: payloadOf({
         ...row,
         expeditionShift: data.shift ?? undefined,
+        expeditionBatchId: row.expeditionBatchId ?? batchId,
         ...(data.scheduledDate === undefined ? {} : { scheduledDate: data.scheduledDate ?? undefined }),
       }),
     }));
