@@ -78,8 +78,19 @@ export function getRouteStops(deliveries: Delivery[], selected: Delivery, addres
         clientCode: delivery.source === "coleta" ? "" : code,
         at: deliveryVisitTime(delivery),
         deliveries: [delivery],
-        address: delivery.source === "coleta" && delivery.collectionAddress
-          ? { client_code: "", address: delivery.collectionAddress, neighborhood: "", city: "", state: "" }
+        address: delivery.source === "coleta"
+          ? (delivery.collectionAddress || delivery.collectionConfirmedAddress)
+            ? {
+              client_code: "",
+              address: delivery.collectionConfirmedAddress || delivery.collectionAddress || "",
+              neighborhood: "", city: "", state: "",
+              ...(Number.isFinite(delivery.collectionLatitude) && Number.isFinite(delivery.collectionLongitude)
+                ? { latitude: delivery.collectionLatitude, longitude: delivery.collectionLongitude,
+                  locationSource: "google_maps" as const,
+                  locationConfirmedAt: delivery.collectionLocationConfirmedAt }
+                : {}),
+            }
+            : undefined
           : code ? known.get(code) : undefined,
       });
     }
