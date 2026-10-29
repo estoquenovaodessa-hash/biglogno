@@ -425,14 +425,6 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
       }
 
       const name = (index: number) => stops[index]?.kind === "origin" ? "LOJA" : stops[index]?.company ?? "Parada";
-      const signatures = legs.map(leg => JSON.stringify([
-        stops[leg.from]?.key, stops[leg.to]?.key,
-        leg.line[0], leg.line[leg.line.length - 1], leg.meters,
-      ]));
-      const saved = remembered.current;
-      const resume = routeAnimationResumeIndex(
-        saved?.routeKey, routeKey, saved?.signatures ?? [], signatures, saved?.completed ?? 0,
-      );
       const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
       // Suspende a animação quando o gestor pausa ou troca de aba. Todos
@@ -477,50 +469,69 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
         }
       }
 
-      let firstPass = true;
-      while (!cancelled) {
-        const begin = firstPass ? resume : 0;
-        firstPass = false;
+      // O mapa abre estático, com TODA a rota e os KM já calculados.
+      // Não inicia nem repete a animação sem clique explícito do gestor.
+      roadLayer.clearLayers();
+      legs.forEach(drawCompleted);
+      setAnimationReady(true);
+
+      let running = false;
+      async function animateOnce() {
+        if (cancelled || running) return;
+        running = true;
+        pausedRef.current = false;
+        setPaused(false);
+        setAnimating(true);
+        setPlayback(null);
         roadLayer.clearLayers();
         let accumulated = 0;
-        for (let i = 0; i < begin; i++) {
-          drawCompleted(legs[i]);
-          accumulated += legs[i].meters ?? 0;
+        try {
+          for (let i = 0; i < legs.length; i++) {
+            if (cancelled) return;
+            const leg = legs[i];
+            const nextAccumulated = accumulated + (leg.meters ?? 0);
+            const state = {
+              index: i + 1, total: legs.length,
+              from: name(leg.from), to: name(leg.to),
+              meters: leg.meters, accumulated: nextAccumulated,
+            };
+            setPlayback({ ...state, phase: "tracing" });
+            const white = leg.meters === null ? null
+              : L.polyline([leg.line[0]], { color: "#fff", weight: 9, opacity: 0.95 }).addTo(roadLayer);
+            const blue = L.polyline([leg.line[0]], leg.meters === null
+              ? { color: "#6d86b6", weight: 3, dashArray: "7 9" }
+              : { color: "#2864df", weight: 5.5, opacity: 1 }).addTo(roadLayer);
+            if (!reduceMotion) await animateFor(720, fraction => {
+              const partial = progressiveRoadLine(leg.line, fraction);
+              white?.setLatLngs(partial);
+              blue.setLatLngs(partial);
+            });
+            if (cancelled) return;
+            white?.setLatLngs(leg.line);
+            blue.setLatLngs(leg.line);
+            addKmMarker(leg);
+            accumulated = nextAccumulated;
+            setPlayback({ ...state, phase: "reading" });
+            if (!reduceMotion) await animateFor(1180, () => {});
+          }
+          if (!cancelled) {
+            setPlayback(current => current ? { ...current, phase: "finished" } : current);
+          }
+        } finally {
+          running = false;
+          if (!cancelled) {
+            // Finaliza após uma execução: não há loop e nem novas consultas.
+            pausedRef.current = false;
+            setPaused(false);
+            setAnimating(false);
+          }
         }
-        for (let i = begin; i < legs.length; i++) {
-          if (cancelled) return;
-          const leg = legs[i];
-          const nextAccumulated = accumulated + (leg.meters ?? 0);
-          const state = {
-            index: i + 1, total: legs.length,
-            from: name(leg.from), to: name(leg.to),
-            meters: leg.meters, accumulated: nextAccumulated,
-          };
-          setPlayback({ ...state, phase: "tracing" });
-          const white = leg.meters === null ? null
-            : L.polyline([leg.line[0]], { color: "#fff", weight: 9, opacity: 0.95 }).addTo(roadLayer);
-          const blue = L.polyline([leg.line[0]], leg.meters === null
-            ? { color: "#6d86b6", weight: 3, dashArray: "7 9" }
-            : { color: "#2864df", weight: 5.5, opacity: 1 }).addTo(roadLayer);
-          if (!reduceMotion) await animateFor(720, fraction => {
-            const partial = progressiveRoadLine(leg.line, fraction);
-            white?.setLatLngs(partial);
-            blue.setLatLngs(partial);
-          });
-          if (cancelled) return;
-          white?.setLatLngs(leg.line);
-          blue.setLatLngs(leg.line);
-          addKmMarker(leg);
-          accumulated = nextAccumulated;
-          remembered.current = { routeKey, signatures, completed: i + 1 };
-          setPlayback({ ...state, phase: "reading" });
-          if (!reduceMotion) await animateFor(1180, () => {});
-        }
-        if (cancelled || reduceMotion) return;
-        setPlayback(current => current ? { ...current, phase: "repeating" } : current);
-        await animateFor(900, () => {});
-        remembered.current = { routeKey, signatures, completed: 0 };
       }
+      animateRef.current = () => {
+        void animateOnce().catch(cause => {
+          if (!cancelled) setError(cause instanceof Error ? cause.message : "Falha ao animar rota.");
+        });
+      };
     }
 
     void renderMap().catch(cause => {
@@ -532,6 +543,7 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
     return () => {
       cancelled = true; controller.abort();
       if (frameId !== null) cancelAnimationFrame(frameId);
+      animateRef.current = null;
       if (leafletMap.current === map) leafletMap.current = null;
       map?.remove();
     };
