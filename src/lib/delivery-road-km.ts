@@ -122,7 +122,8 @@ export async function calculateEstimatedTripKm(
       const legs = await roadLegs(chunk, signal);
       lengths.push(...legs);
     }
-    return completedRouteKilometers(stops, lengths);
+    const result = completedRouteKilometers(stops, lengths);
+    return result.meters === null ? result : { ...result, legs: lengths };
   } catch (error) {
     if (signal.aborted) throw error;
     return { meters: null, reason: error instanceof Error ? error.message : "Falha ao calcular percurso pelas ruas." };
