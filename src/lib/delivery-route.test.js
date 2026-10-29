@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getRouteStops, googleRouteSegments, listDeliveryRoutes, saoPauloDay } from "./delivery-route";
+import { getRouteStops, googleRouteSegments, listDeliveryRoutes, saoPauloDay, findBignottoOrigin } from "./delivery-route";
 
 const address = code => ({
   client_code: code, address: "Rua Teste, 10", neighborhood: "Centro",
@@ -30,6 +30,51 @@ describe("seleção de rotas no painel do gestor", () => {
   });
 });
 
+describe("rota por turno e origem fixa da Bignotto", () => {
+  test("separa manhã e tarde do mesmo entregador no mesmo dia", () => {
+    const morning = done("1", "Cliente X", "2026-10-26T13:20:00Z", { expeditionShift: "manha", driverEmployeeId: "entregador-a" });
+    const afternoon = done("2", "Cliente Y", "2026-10-26T19:00:00Z", { expeditionShift: "tarde", driverEmployeeId: "entregador-a" });
+    const pending = done("3", "Cliente Z", "2026-10-26T19:00:00Z", { status: "nao_iniciada" });
+    const routes = listDeliveryRoutes([afternoon, pending, morning]);
+    expect(routes).toHaveLength(2);
+    expect(routes.map(route => route.shift)).toEqual(["tarde", "manha"]);
+    expect(getRouteStops([afternoon, morning], morning, [address("1"), address("2")])
+      .map(stop => stop.company)).toEqual(["Cliente X"]);
+    expect(getRouteStops([afternoon, morning], afternoon, [address("1"), address("2")])
+      .map(stop => stop.company)).toEqual(["Cliente Y"]);
+  });
+  test("mesmo período sem turno definido não se mistura com manhã nem tarde", () => {
+    const unmarked = done("1", "Sem turno", "2026-10-26T13:00:00Z");
+    const marked = done("2", "Manhã", "2026-10-26T13:10:00Z", { expeditionShift: "manha" });
+    expect(listDeliveryRoutes([unmarked, marked]).map(row => row.shift).sort()).toEqual(["indefinido", "manha"]);
+  });
+  test("resolve a loja pelo nome e código do cadastro e pelo endereço correto", () => {
+    const clients = [
+      { code: "500", name: "Empresa X" },
+      { code: "00017", name: "BIGNOTTO FERRAMENTAS LTDA" },
+    ];
+    const origin = { ...address("17"), address: "Av. Ampelio Gazzetta, 101", city: "Nova Odessa" };
+    expect(findBignottoOrigin(clients, [address("500"), origin])).toEqual(origin);
+    expect(findBignottoOrigin(clients, [address("500")])).toBeUndefined();
+    expect(findBignottoOrigin(clients, [ { ...origin, address: "Rua Outra" } ])).toBeUndefined();
+  });
+  test("cada turno inicia com a Loja, e a loja não conta como entrega", () => {
+    const clients = [{ code: "17", name: "Bignotto Ferramentas" }];
+    const origin = findBignottoOrigin(clients, [
+      { ...address("17"), address: "Av. Ampélio Gazetta, 200" },
+    ]);
+    const morning = done("1", "X", "2026-10-26T13:00:00Z", { expeditionShift: "manha" });
+    const afternoon = done("2", "Y", "2026-10-26T19:00:00Z", { expeditionShift: "tarde" });
+    for (const selected of [morning, afternoon]) {
+      const stops = getRouteStops([morning, afternoon], selected, [address("1"), address("2")], origin);
+      expect(stops.map(stop => stop.company)).toEqual(["BIGNOTTO FERRAMENTAS", selected.company]);
+      expect(stops[0].kind).toBe("origin");
+      expect(stops[0].deliveries).toHaveLength(0);
+      expect(stops[1].deliveries).toHaveLength(1);
+      expect(googleRouteSegments(stops)).toHaveLength(1);
+    }
+  });
+});
 describe("sequência de paradas do gestor", () => {
   test("usa a conclusão real das entregas, não a posição da fila nem a hora de chegada", () => {
     const first = done("1", "Primeiro", "2026-10-26T14:20:00Z", { position: 100, arrivedAt: "2026-10-26T14:01:00Z" });
