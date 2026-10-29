@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Navigation2, Route, Save, TriangleAlert, UserRound } from "lucide-react";
+import { CalendarDays, Flag, Sun, CheckCircle2, Clock3, ExternalLink, MapPin, Navigation2, Route, Save, TriangleAlert, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fmtBrasilia, type Delivery } from "@/lib/deliveries";
@@ -136,7 +136,7 @@ export function DeliveryRoutePanel({
     finally { setBusy(false); }
   };
 
-  return <section className="mt-5 overflow-hidden rounded-2xl border border-border bg-background/40" aria-label="Rota de entregas do motorista">
+  return <section className="manager-route-panel mt-5 overflow-hidden rounded-2xl border border-border bg-background/40" aria-label="Rota de entregas do motorista">
     <header className="bg-[#122b4b] px-4 py-4 text-white sm:px-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -157,19 +157,59 @@ export function DeliveryRoutePanel({
           {routes.map(route => <option key={route.key} value={route.key}>{route.name} · {route.day.split("-").reverse().join("/")} · {shiftLabel(route.shift)} · {route.count} {route.count === 1 ? "operação" : "operações"} finalizadas</option>)}
         </select>
       </label>}
-      {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved}
-        onRoadDistanceChange={setRoadDistance} />}
-      {!located.length && stops.length > 0 && <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-5 text-center">
-        <MapPin className="h-7 w-7 text-[#245ddc]" /><p className="mt-2 text-sm font-semibold">Cadastre os endereços para mostrar os piquetes no mapa.</p>
-      </div>}
-      <p className="text-xs text-muted-foreground">A linha azul acompanha as ruas calculadas a partir dos endereços, seguindo a ordem das entregas confirmadas. Não é uma gravação do GPS do veículo. Quando o roteamento falha, aparecem trechos pontilhados estimados.</p>
-      {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-        <TriangleAlert className="mr-1 inline h-4 w-4" /> Origem fixa: BIGNOTTO FERRAMENTAS, cliente código 1. {originError ? "Não foi possível consultar os endereços." : "O endereço do cliente 1 não foi encontrado na base de endereços. Importe ou corrija o endereço do código 1 para incluir a loja no mapa."}
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.65fr)]">
+        <div className="min-w-0">
+          {located.length > 0 && <DeliveryRouteMap stops={stops} onUnresolvedChange={reportUnresolved}
+            onRoadDistanceChange={setRoadDistance} />}
+          {!located.length && <div className="flex min-h-[310px] flex-col items-center justify-center rounded-xl border border-dashed border-[#3a628d] bg-[#0a2846] p-5 text-center">
+            <MapPin className="h-8 w-8 text-[#5cb7ff]" />
+            <p className="mt-3 text-sm font-semibold">{activeRoute ? "Cadastre os endereços para mostrar a rota." : "O mapa aparecerá após a primeira entrega finalizada."}</p>
+          </div>}
+        </div>
+        <aside className="space-y-3 rounded-xl border border-[#244a70] bg-[#0a213d] p-3" aria-label="Resumo da rota por turno">
+          <div className="flex items-start gap-2 text-sm">
+            <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#4dbeff]" />
+            <div><p className="text-[11px] text-[#92b4dc]">Dia</p>
+              <p className="font-bold text-white">{routeDate || "—"}</p></div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[#4dbeff]" />
+            <div><p className="text-[11px] text-[#92b4dc]">Entregador</p>
+              <p className="break-words font-bold text-white">{activeRoute?.name ?? "—"}</p></div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <Sun className="mt-0.5 h-4 w-4 shrink-0 text-[#4dbeff]" />
+            <div><p className="text-[11px] text-[#92b4dc]">Turno</p>
+              <p className="font-bold text-white">{activeRoute ? shiftLabel(activeRoute.shift) : "—"}</p></div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#4dbeff]" />
+            <div><p className="text-[11px] text-[#92b4dc]">Paradas</p>
+              <p className="font-bold text-white">{visitStops.length} confirmadas</p></div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <Flag className="mt-0.5 h-4 w-4 shrink-0 text-[#4dbeff]" />
+            <div><p className="text-[11px] text-[#92b4dc]">Origem fixa</p>
+              <p className="font-bold text-white">BIGNOTTO FERRAMENTAS</p>
+              <p className="text-xs text-[#a4c0e3]">{storeOrigin ? fullDeliveryAddress(storeOrigin) : "Cliente código 1 · Endereço não localizado"}</p>
+            </div>
+          </div>
+          <div className="border-t border-[#29567e] pt-2 text-xs">
+            <p className="text-[#93b7de]">KM estimados desde a loja</p>
+            <p className="mt-1 text-lg font-extrabold text-[#68d7ff]">
+              {roadDistance === null || !storeOrigin ? "Indisponível" :
+                (roadDistance / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " km"}
+            </p>
+          </div>
+        </aside>
+      </div>
+      <p className="text-[11px] text-[#96b5d9]">A linha azul segue as ruas calculadas pelos endereços, na ordem das entregas finalizadas. Não é rastreamento GPS.</p>
+      {!!activeRoute && !storeOrigin && <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+        <TriangleAlert className="mr-1 inline h-4 w-4" /> O endereço do cliente 1 (origem BIGNOTTO FERRAMENTAS) não foi localizado. {originError ? "Falha ao consultar os endereços." : "Importe ou corrija o código 1 no cadastro de endereços."}
       </p>}
-      {!!activeRoute && <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs font-semibold">
-        <strong>Origem de cada turno:</strong> BIGNOTTO FERRAMENTAS {storeOrigin ? "· " + fullDeliveryAddress(storeOrigin) : "· Av. Ampélio Gazetta (endereço a confirmar)"}
-        <span className="mt-1 block text-muted-foreground">Distância estimada pelas ruas (desde a loja): {roadDistance === null || !storeOrigin ? "Indisponível ou trajeto incompleto" : (roadDistance / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " km"}. Não é a quilometragem medida pelo GPS.</span>
-      </div>}
+      <details className="rounded-xl border border-[#2a5078] bg-[#0c2848] p-3">
+        <summary className="cursor-pointer text-sm font-bold text-[#9cdbff]">Ver sequência completa, endereços e links do trajeto</summary>
+        <div className="mt-3 space-y-3">
       {missing.length > 0 && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
         <TriangleAlert className="mr-1 inline h-4 w-4" /> {missing.length} {missing.length === 1 ? "parada está sem endereço" : "paradas estão sem endereço"}: {missing.map(stop => stop.company).join(", ")}. Nenhuma parada é retirada da lista.
       </p>}
@@ -197,6 +237,8 @@ export function DeliveryRoutePanel({
           unresolved={unresolved.includes(index + (storeOrigin ? 1 : 0))} onConfirmLocation={onConfirmLocation} />)}
         {stops.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega finalizada com entregador e horário foi encontrada. O mapa será preenchido após as confirmações.</p>}
       </div>
+        </div>
+      </details>
     </div>
   </section>;
 }
