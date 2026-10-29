@@ -554,17 +554,18 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
     <div className="pointer-events-none absolute left-3 top-3 z-[500] max-w-[45%] rounded-xl border border-white/90 bg-white/95 px-2.5 py-2 text-[11px] font-semibold text-slate-800 shadow-md">
       <span className="inline-flex items-center gap-2">
         <span className="h-3 w-3 rounded-full bg-[#2864df]" />
-        {routeState === "road" ? "Trajeto animado pelas ruas" : routeState === "partial" ? "Alguns trechos sem KM" : "Preparando animação"}
+        {routeState === "road" ? "Trajeto estimado pelas ruas" : routeState === "partial" ? "Alguns trechos sem KM" : "Preparando percurso"}
       </span>
       {progress.total > 0 && progress.done < progress.total
         ? <span className="mt-1 block text-slate-500">Localizando {progress.done}/{progress.total} endereços...</span>
         : <span className="mt-1 block text-slate-500">{progress.found} de {stops.length} paradas no mapa</span>}
       {routeState === "partial" && <span className="mt-1 block text-slate-500">Linhas pontilhadas não seguem necessariamente as ruas.</span>}
+      {animationReady && !animating && <span className="mt-1 block text-[11px] font-bold text-slate-700">Animação desligada · clique em Animar para reproduzir uma vez.</span>}
     </div>
     {playback && <div className="biglogno-route-playback pointer-events-none absolute right-3 top-3 z-[600] w-[min(52%,235px)] rounded-xl border-2 border-[#8ec7ff] bg-[#071c39]/95 px-3 py-3 text-white shadow-[0_8px_24px_rgba(0,17,54,.45)]"
       role="status" aria-live="off" aria-label="Quilometragem do trecho atual">
       <p className="text-[10px] font-bold uppercase tracking-widest text-[#9fd3ff]">
-        {playback.phase === "repeating" ? "Recomeçando o ciclo..." : "Trecho " + playback.index + " de " + playback.total}
+        {playback.phase === "finished" ? "Animação concluída" : "Trecho " + playback.index + " de " + playback.total}
       </p>
       <p className="mt-1 break-words text-[11px] font-bold leading-snug text-[#d3e9ff]">{playback.from} → {playback.to}</p>
       <p className="mt-1 text-xl font-black tabular-nums tracking-tight text-[#76e6ff] sm:text-2xl">
@@ -594,7 +595,14 @@ export function DeliveryRouteMap({ stops, routeKey, onUnresolvedChange, onRoadDi
           (viewMode === "fullscreen" ? "bg-[#1775ce] text-white" : "text-[#c5e3ff] hover:bg-[#174572]")}>
         <Maximize2 className="h-4 w-4" /> Tela cheia
       </button>
-      {routeState !== "loading" && playback && <button type="button" aria-pressed={paused}
+      <button type="button" disabled={!animationReady || animating}
+        onClick={() => animateRef.current?.()}
+        aria-label={animating ? "Animação da rota em execução" : "Animar rota uma vez"}
+        title="Animar uma vez o trajeto, da loja até a última parada"
+        className="h-9 rounded-lg border border-[#64d5d1] bg-[#087f8c] px-3 text-xs font-extrabold text-white hover:bg-[#0b98a9] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff]">
+        {animating ? "▶ Animando…" : "▶ Animar"}
+      </button>
+      {animating && playback && <button type="button" aria-pressed={paused}
         aria-label={paused ? "Continuar animação da rota" : "Pausar animação da rota"}
         onClick={() => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current); }}
         className="h-9 rounded-lg border border-[#4e83ae] bg-[#123f6e] px-2.5 text-xs font-bold text-white hover:bg-[#1a548f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#92e1ff]">
