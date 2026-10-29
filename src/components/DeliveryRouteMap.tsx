@@ -8,7 +8,7 @@ type LocatedStop = { index: number; stop: RouteStop; point: Point };
 type LookupEntry = { at: number; point: Point | null };
 type RouteResponse = {
   code?: string;
-  routes?: Array<{ geometry?: { type?: string; coordinates?: number[][] } }>;
+  routes?: Array<{ distance?: number; geometry?: { type?: string; coordinates?: number[][] } }>;
 };
 const CACHE_PREFIX = "biglogno:route-geocode:v2:";
 const PREVIOUS_CACHE_PREFIX = "biglogno:route-geocode:v1:";
@@ -148,12 +148,13 @@ async function locate(stop: RouteStop, signal: AbortSignal): Promise<Point | nul
 
 /** Consulta a geometria viária pela ordem dada. Nunca usa otimização de rota,
  * pois ela mudaria a sequência efetivamente registrada nas entregas. */
-async function drivingGeometry(points: Point[], signal: AbortSignal): Promise<[number, number][]> {
+async function drivingGeometry(points: Point[], signal: AbortSignal): Promise<{ line: [number, number][]; meters: number }> {
   const query = points.map(point => point.lng.toFixed(6) + "," + point.lat.toFixed(6)).join(";");
   const cacheKey = ROUTE_CACHE_PREFIX + query;
   try {
-    const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null") as { at: number; coordinates: [number, number][] } | null;
-    if (cached?.coordinates?.length && Date.now() - cached.at < ROAD_TTL) return cached.coordinates;
+    const cached = JSON.parse(localStorage.getItem(cacheKey) ?? "null") as { at: number; coordinates: [number, number][]; meters?: number } | null;
+    if (cached?.coordinates?.length && Number.isFinite(cached.meters) && cached.meters! >= 0 && Date.now() - cached.at < ROAD_TTL)
+      return { line: cached.coordinates, meters: cached.meters! };
   } catch { /* Seguir com consulta on-line. */ }
 
   const url = "https://router.project-osrm.org/route/v1/driving/" + query
@@ -163,17 +164,19 @@ async function drivingGeometry(points: Point[], signal: AbortSignal): Promise<[n
   const result = (await response.json()) as RouteResponse;
   if (result.code !== "Ok") throw new Error("Não foi possível calcular o trajeto pelas ruas.");
   const coordinates = result.routes?.[0]?.geometry?.coordinates;
+  const meters = result.routes?.[0]?.distance;
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     throw new Error("O serviço de rotas não retornou um percurso válido.");
   }
   const geometry = coordinates.map(pair => [pair[1], pair[0]] as [number, number])
     .filter(pair => pair.length === 2 && pair.every(Number.isFinite));
-  if (geometry.length < 2) throw new Error("Geometria da rota inválida.");
+  if (geometry.length < 2 || !Number.isFinite(meters) || meters! < 0)
+    throw new Error("Distância viária indisponível para este trecho.");
   try {
-    const value = JSON.stringify({ at: Date.now(), coordinates: geometry });
+    const value = JSON.stringify({ at: Date.now(), coordinates: geometry, meters });
     if (value.length < 240000) localStorage.setItem(cacheKey, value);
   } catch { /* Cache opcional. */ }
-  return geometry;
+  return { line: geometry, meters: meters! };
 }
 
 /** Quando um endereço estiver ausente, não liga os pontos através dele:
@@ -194,9 +197,11 @@ function consecutiveGroups(stops: RouteStop[], located: LocatedStop[]): LocatedS
   return groups;
 }
 
-export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
+export function DeliveryRouteMap({ stops, onUnresolvedChange, onRoadDistanceChange }: {
   stops: RouteStop[];
   onUnresolvedChange?: (indexes: number[]) => void;
+  /** Distância calculada pelo serviço viário, não pelo GPS do entregador. */
+  onRoadDistanceChange?: (meters: number | null) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState({ done: 0, found: 0, total: 0 });
@@ -213,6 +218,7 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
     const validCount = stops.filter(stop => !!stop.address).length;
     setProgress({ done: 0, found: 0, total: validCount });
     setRouteState("loading");
+    onRoadDistanceChange?.(null);
     setError("");
     onUnresolvedChange?.([]);
     setNotLocated([]);
@@ -252,25 +258,29 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
         }
         if (point) {
           located.push({ index, stop, point });
+          const isOrigin = stop.kind === "origin";
+          const hasOrigin = stops[0]?.kind === "origin";
+          const number = isOrigin ? 0 : index + (hasOrigin ? 0 : 1);
           const isFirst = index === 0;
           const icon = L.divIcon({
             className: "biglogno-route-marker",
-            html: '<span class="biglogno-route-pin ' + (isFirst ? "biglogno-route-pin--start" : "biglogno-route-pin--stop") + '"><span>' + (index + 1) + '</span></span>',
+            html: '<span class="biglogno-route-pin ' + (isFirst ? "biglogno-route-pin--start" : "biglogno-route-pin--stop") + '"><span>' + (isOrigin ? "L" : number) + '</span></span>',
             iconSize: [40, 40], iconAnchor: [20, 20], popupAnchor: [0, -23],
           });
           const marker = L.marker([point.lat, point.lng], {
             icon, zIndexOffset: 1000 + index,
-            title: (index + 1) + "ª parada: " + stop.company,
+            title: isOrigin ? "Origem: BIGNOTTO FERRAMENTAS" : number + "ª parada: " + stop.company,
           }).addTo(markerLayer);
           const popup = document.createElement("div");
           const heading = document.createElement("strong");
-          heading.textContent = (index + 1) + "ª parada · " + stop.company;
+          heading.textContent = isOrigin ? "ORIGEM · BIGNOTTO FERRAMENTAS" : number + "ª parada · " + stop.company;
           const addressText = document.createElement("p");
           addressText.textContent = fullDeliveryAddress(stop.address);
           const docs = document.createElement("p");
           docs.textContent = "Notas: " + stop.deliveries.map(delivery =>
             delivery.onlyDelivery ? "Somente entrega" : delivery.document).join(", ");
-          popup.append(heading, addressText, docs);
+          popup.append(heading, addressText);
+          if (!isOrigin) popup.append(docs);
           marker.bindPopup(popup);
           const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
           if (coordinates.length === 1) map.setView(coordinates[0], 13);
@@ -288,6 +298,7 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
       const groups = consecutiveGroups(stops, located);
       let roadsDrawn = 0;
       let failures = 0;
+      let totalRoadMeters = 0;
       // Até 10 paradas por consulta, com uma parada repetida entre trechos,
       // preservando a ordem das visitas sem reordenar os pontos.
       for (const group of groups) {
@@ -297,10 +308,11 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
           if (chunk.length < 2) continue;
           const points = chunk.map(entry => entry.point);
           try {
-            const line = await drivingGeometry(points, controller.signal);
+            const route = await drivingGeometry(points, controller.signal);
             if (cancelled) return;
-            L.polyline(line, { color: "#ffffff", weight: 9, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
-            L.polyline(line, { color: "#2864df", weight: 5.5, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
+            totalRoadMeters += route.meters;
+            L.polyline(route.line, { color: "#ffffff", weight: 9, opacity: 0.95, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
+            L.polyline(route.line, { color: "#2864df", weight: 5.5, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(roadLayer);
             roadsDrawn++;
           } catch (cause) {
             if (cancelled) return;
@@ -319,12 +331,18 @@ export function DeliveryRouteMap({ stops, onUnresolvedChange }: {
       const coordinates = located.map(entry => [entry.point.lat, entry.point.lng] as [number, number]);
       if (coordinates.length > 1) map.fitBounds(L.latLngBounds(coordinates), { padding: [60, 60], maxZoom: 14 });
       const expected = groups.reduce((sum, group) => sum + Math.ceil((group.length - 1) / (MAX_WAYPOINTS - 1)), 0);
-      setRouteState(!expected ? "unavailable" : failures ? "partial" : roadsDrawn ? "road" : "unavailable");
+      const complete = expected > 0 && failures === 0 && roadsDrawn === expected
+        && stops.every(stop => !!stop.address) && located.length === stops.length;
+      onRoadDistanceChange?.(complete ? totalRoadMeters : null);
+      setRouteState(!expected ? "unavailable" : !complete ? "partial" : "road");
       if (!expected && located.length > 1) setError("Endereços intermediários ausentes: não é possível ligar as paradas com segurança.");
     }
 
     void renderMap().catch(cause => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : "Mapa indisponível.");
+      if (!cancelled) {
+        onRoadDistanceChange?.(null);
+        setError(cause instanceof Error ? cause.message : "Mapa indisponível.");
+      }
     });
     return () => { cancelled = true; controller.abort(); map?.remove(); };
   }, [stops]);
