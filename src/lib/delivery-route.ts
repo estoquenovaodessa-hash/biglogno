@@ -118,23 +118,17 @@ export function listDeliveryRoutes(deliveries: Delivery[]) {
 
 /** Encontra a origem fixa pelo cadastro de clientes E pelo endereço confirmado
  * da Av. Ampélio Gazzetta. Nunca usa um ponto inventado no mapa. */
+/** Origem fixa da loja é o cliente CÓDIGO 1 no cadastro de endereços.
+ * Não depende do nome fantasia/razão social nem de grafia da avenida.
+ * Os endereços podem ser importados com zeros à esquerda (0001 = 1).
+ * Se estiver ausente, não inventar coordenadas ou outro cliente. */
 export function findBignottoOrigin(
-  clients: { code: string; name: string }[],
   addresses: DeliveryClientAddress[],
 ): DeliveryClientAddress | undefined {
-  const normalize = (value: string) => value.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "").toLocaleUpperCase("pt-BR").replace(/[^A-Z0-9]/g, "");
-  const store = clients.find(client => {
-    const name = normalize(client.name);
-    return name.includes("BIGNOTTO") && name.includes("FERRAMENTAS");
-  });
-  if (!store) return undefined;
-  const address = addresses.find(row =>
-    normalizeDeliveryClientCode(row.client_code) === normalizeDeliveryClientCode(store.code));
-  // O estabelecimento é fixo. Rejeita cadastro incorreto ou endereço trocado
-  // em vez de desenhar uma origem incorreta.
-  const street = address ? normalize(address.address) : "";
-  return street.includes("AMPELIO") && street.includes("GAZET") ? address : undefined;
+  return addresses.find(row =>
+    normalizeDeliveryClientCode(row.client_code) === "1"
+    && !!row.address?.trim() && !!row.city?.trim() && !!row.state?.trim()
+  );
 }
 
 /** Limita a cinco paradas por link para funcionar também no Google Maps móvel. */
