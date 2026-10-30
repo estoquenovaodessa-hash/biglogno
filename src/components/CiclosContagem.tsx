@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import {
   Lightbulb, ClipboardList, ArrowLeft, ShieldCheck, CheckCircle2, Search, Trash2, Layers,
   FolderOpen, RotateCcw, CalendarDays, Clock3, Package, AlertTriangle, Target, Coins,
-  TrendingUp, BarChart3, Info, type LucideIcon,
+  TrendingUp, BarChart3, Info, Download, FileText, FileSpreadsheet, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
-import { coletarEContar, itensColeta } from "@/lib/coletar";
+import { coletarEContar, itensColeta, exportarArquivosColeta } from "@/lib/coletar";
 import { listarParados, exportarLoteParados, selecionarLote } from "@/lib/parados";
 import {
   useCiclos, tituloCiclo, proximoNumero, podeCriar, aplicarFinalizacao, metricasCiclo, excluirCiclo,
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { COUNTING_FILES, type CountingFileKind } from "@/lib/format";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
@@ -109,6 +110,7 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
   const [mostrandoSugestoes, setMostrandoSugestoes] = useState(false);
   const [tipoSelecao, setTipoSelecao] = useState<TipoSelecao>("linha");
   const [buscaSelecao, setBuscaSelecao] = useState("");
+  const [arquivosCiclo, setArquivosCiclo] = useState<{ ciclo: Ciclo; etapa: "primeiro" | "reinventario" } | null>(null);
 
   const statusPorSelecao = useMemo(() => {
     const status = new Map<string, { estado: Ciclo["status"]; criadoEm: string }>();
@@ -194,7 +196,9 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
       codigo: i.codigo, descricao: i.descricao, endereco: i.endereco || "",
       saldo: i.qtdEstoque, contagem: null, diferenca: 0, custo: 0, vrDiferenca: 0,
     })));
-    toast.success(`${c.titulo} criada com ${lista.length} itens (arquivos baixados).`);
+    setAbertoId(c.id);
+    setArquivosCiclo({ ciclo: c, etapa: "primeiro" });
+    toast.success(`${c.titulo} criada com ${lista.length} itens. Verifique os downloads individuais.`);
   };
 
   const onSelecao = (selecao: SelecaoContagem) => {
@@ -222,7 +226,8 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
     })), selecao);
     setSelecionando(false);
     setAbertoId(c.id);
-    toast.success(`${c.titulo} criado · ${nome} · ${lista.length} itens (arquivos baixados).`);
+    setArquivosCiclo({ ciclo: c, etapa: "primeiro" });
+    toast.success(`${c.titulo} criado · ${nome} · ${lista.length} itens. Confira os downloads.`);
   };
 
   const finalizar = async (comPdf: boolean) => {
@@ -249,6 +254,39 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
     }
   };
 
+  /** Cada botão da janela gera exatamente UM arquivo (sem ZIP). */
+  const baixarArquivoSeparado = (c: Ciclo, kind: CountingFileKind, etapa: "primeiro" | "reinventario") => {
+    try {
+      const lista = c.itens.map(i => ({
+        codigo: i.codigo, descricao: i.descricao, endereco: i.endereco || "",
+        linha: enderecoBase.registros[i.codigo]?.linha || "", ultimaContagem: "",
+      }));
+      if (etapa === "reinventario") {
+        exportarLoteParados(lista.map(i => ({
+          ...i, ultimaContagem: c.finalizadoEm?.slice(0, 10) ?? "",
+        })), lista.length, { titulo: c.titulo + " · Reinventário", arquivo: "reinventario-" + c.numero }, kind);
+      } else if (c.tipo === "apuracao") {
+        const datas: Record<string, string> = {};
+        for (const z of zonaSegura) {
+          const d = String(z.dataCorrecao ?? "");
+          if (d && (!datas[z.codigo] || d > datas[z.codigo])) datas[z.codigo] = d;
+        }
+        exportarArquivosColeta(lista, datas, kind);
+      } else {
+        const sel = c.selecao;
+        const slug = sel?.valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 60) || "ciclo-" + c.numero;
+        const last = new Map(parados.map(i => [i.codigo, i.ultimaContagem]));
+        exportarLoteParados(lista.map(i => ({ ...i, ultimaContagem: last.get(i.codigo) ?? "" })),
+          lista.length, { titulo: sel ? (sel.tipo === "linha" ? "Linha: " : "Grupo: ") + sel.valor : c.titulo,
+            arquivo: sel ? sel.tipo + "-" + slug : slug }, kind);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Não foi possível gerar este arquivo. Tente novamente.");
+    }
+  };
+
   const baixarArquivosReinventario = (c: Ciclo) => {
     const arquivo = `reinventario-${c.numero}`;
     const titulo = `${c.titulo} · Reinventário`;
@@ -271,7 +309,8 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
     const atualizado = iniciarReinventario(c);
     substituirCiclo(atualizado);
     baixarArquivosReinventario(c);
-    toast.success(`Arquivos do reinventário de ${c.titulo} baixados. Após concluir a nova contagem, clique em "Finalizar reinventário".`);
+    setArquivosCiclo({ ciclo: atualizado, etapa: "reinventario" });
+    toast.success(`Reinventário de ${c.titulo} aberto. Confira os downloads individuais.`);
   };
 
   const finalizarReinventario = async (comPdf: boolean) => {
@@ -366,7 +405,7 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
       </div>
 
       {aberto ? (
-        <CicloDetalhe c={aberto} onVoltar={() => setAbertoId(null)}
+        <CicloDetalhe c={aberto} onArquivos={() => setArquivosCiclo({ ciclo: aberto, etapa: "primeiro" })} onVoltar={() => setAbertoId(null)}
           onFinalizar={() => setFinalizando(aberto)} onZona={() => enviarZona(aberto)} canOperate={canOperate}
           onReinventariar={() => onReinventariar(aberto)} onExcluir={() => setExcluindo(aberto)} />
       ) : (
@@ -419,7 +458,10 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
                     <span className="mt-1 block text-[11px] text-muted-foreground">Clique para consultar os detalhes do ciclo</span>
                   </button>
                   <div className="counting-cycle-actions flex flex-wrap items-center gap-2">
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                    <Button size="sm" variant="outline" onClick={() => setArquivosCiclo({ ciclo: c, etapa: "primeiro" })}>
+                       <Download className="h-4 w-4" /> Arquivos
+                     </Button>
+                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
                       aria-label={`Excluir ciclo ${c.titulo}`} title="Excluir ciclo" disabled={!canOperate} onClick={() => setExcluindo(c)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -600,6 +642,35 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!arquivosCiclo} onOpenChange={(open) => { if (!open) setArquivosCiclo(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Arquivos · {arquivosCiclo?.ciclo.titulo}</DialogTitle>
+            <DialogDescription>
+              Os quatro arquivos são separados, sem ZIP. Se o navegador bloqueou algum
+              download automático, clique no botão específico para baixá-lo.
+            </DialogDescription>
+          </DialogHeader>
+          {(arquivosCiclo?.ciclo.reinventarios?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant={arquivosCiclo?.etapa === "primeiro" ? "default" : "outline"}
+                onClick={() => setArquivosCiclo(previous => previous && { ...previous, etapa: "primeiro" })}>1º inventário</Button>
+              <Button size="sm" variant={arquivosCiclo?.etapa === "reinventario" ? "default" : "outline"}
+                onClick={() => setArquivosCiclo(previous => previous && { ...previous, etapa: "reinventario" })}>Reinventário</Button>
+            </div>
+          )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {COUNTING_FILES.map(({ kind, name }) => (
+              <Button key={kind} type="button" variant="outline" className="h-auto min-h-12 justify-start gap-2 py-3"
+                onClick={() => { if (arquivosCiclo) baixarArquivoSeparado(arquivosCiclo.ciclo, kind, arquivosCiclo.etapa); }}>
+                {kind === "pdf" ? <FileText className="h-4 w-4 shrink-0" /> : <FileSpreadsheet className="h-4 w-4 shrink-0" />}
+                {name}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter><Button onClick={() => setArquivosCiclo(null)}>Concluído</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!excluindo} onOpenChange={(o) => { if (!o) setExcluindo(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -658,8 +729,8 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
   );
 }
 
-function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir, canOperate }: {
-  c: Ciclo; canOperate: boolean; onVoltar: () => void; onFinalizar: () => void; onZona: () => void; onReinventariar: () => void; onExcluir: () => void;
+function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir, onArquivos, canOperate }: {
+  c: Ciclo; canOperate: boolean; onVoltar: () => void; onFinalizar: () => void; onZona: () => void; onReinventariar: () => void; onExcluir: () => void; onArquivos: () => void;
 }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todos" | "div" | "ok">("todos");
@@ -683,6 +754,7 @@ function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExc
         </span>
         {reinvAberto && <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">Reinventário em andamento</span>}
         <div className="counting-detail-actions ml-auto flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onArquivos}><Download className="h-4 w-4" /> Arquivos</Button>
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={!canOperate} onClick={onExcluir}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
           {!fin && <Button size="sm" variant="outline" disabled={!canOperate} onClick={onFinalizar}><CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo</Button>}
           {fin && <Button size="sm" disabled={!canOperate} onClick={onReinventariar}><RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}</Button>}

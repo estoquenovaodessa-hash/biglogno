@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { EnderecoBase, RawMovimento, ZonaSeguraRecord, ConferenciaState } from "./types";
 import { parseAddress, compareAddress } from "./address";
-import { downloadCSV, nowParts } from "./format";
+import { downloadCSV, nowParts, type CountingFileKind } from "./format";
 
 export interface ParadoItem {
   codigo: string;
@@ -63,12 +63,12 @@ export function selecionarLote(todos: ParadoItem[], tamanho: number): ParadoItem
     );
 }
 
-export function exportarLoteParados(todos: ParadoItem[], tamanho: number, selecao?: { titulo: string; arquivo: string }): number {
+export function exportarLoteParados(todos: ParadoItem[], tamanho: number, selecao?: { titulo: string; arquivo: string }, only?: CountingFileKind): number {
   const lote = selecionarLote(todos, tamanho);
   const { data, dataBR, hora } = nowParts();
   const arquivo = selecao?.arquivo ?? "parados";
 
-  downloadCSV(`contar-${arquivo}-${data}.csv`, [
+  if (!only || only === "contagem") downloadCSV(`contar-${arquivo}-${data}.csv`, [
     ["Código", "Descrição", "Localização", "Contagem"],
     ...lote.map((i) => [i.codigo, i.descricao, i.endereco, BLANK]),
   ]);
@@ -79,9 +79,10 @@ export function exportarLoteParados(todos: ParadoItem[], tamanho: number, seleca
       l[22] = v;
       return l;
     });
-  downloadCSV(`Travar-${arquivo}.csv`, trava("N"));
-  downloadCSV(`Destravar-${arquivo}.csv`, trava("S"));
+  if (!only || only === "travar") downloadCSV(`Travar-${arquivo}.csv`, trava("N"));
+  if (!only || only === "destravar") downloadCSV(`Destravar-${arquivo}.csv`, trava("S"));
 
+  if (!only || only === "pdf") {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   doc.setFontSize(12);
   doc.text(selecao ? doc.splitTextToSize(selecao.titulo, 192)[0] : "Contar Parados — lote do dia, por ordem de endereço", 8, 10);
@@ -106,5 +107,6 @@ export function exportarLoteParados(todos: ParadoItem[], tamanho: number, seleca
     },
   });
   doc.save(`contar-${arquivo}-${data}.pdf`);
+  }
   return lote.length;
 }

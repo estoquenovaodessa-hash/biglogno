@@ -94,6 +94,18 @@ export function downloadCSV(filename: string, rows: (string | number)[][]) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Alguns navegadores iniciam o salvamento após o fim do clique.
+  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
+
+// Os quatro formatos da Contagem continuam sendo arquivos independentes.
+export type CountingFileKind = "contagem" | "travar" | "destravar" | "pdf";
+export const COUNTING_FILES: ReadonlyArray<{ kind: CountingFileKind; name: string }> = [
+  { kind: "contagem", name: "CSV de contagem" },
+  { kind: "travar", name: "CSV Travar" },
+  { kind: "destravar", name: "CSV Destravar" },
+  { kind: "pdf", name: "Relatório PDF" },
+];

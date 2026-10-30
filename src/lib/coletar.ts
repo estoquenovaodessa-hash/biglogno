@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { AnalyzedItem } from "./types";
 import { sortByAddress, isZerado, isBaixo, isNegativo } from "./analysis";
-import { downloadCSV, nowParts } from "./format";
+import { downloadCSV, nowParts, type CountingFileKind } from "./format";
 
 const BLANK = "__________________";
 
@@ -10,7 +10,7 @@ export function itensColeta(items: AnalyzedItem[]): AnalyzedItem[] {
   return sortByAddress(items.filter((i) => isZerado(i) || isBaixo(i) || isNegativo(i)));
 }
 
-function linhasTrava(lista: AnalyzedItem[], valor: string): string[][] {
+function linhasTrava(lista: Array<Pick<AnalyzedItem, "codigo">>, valor: string): string[][] {
   // Coluna A = código do item; colunas B..V vazias; coluna W = valor (N/S)
   return lista.map((i) => {
     const linha = new Array<string>(23).fill("");
@@ -26,21 +26,27 @@ function fmtData(d?: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
 }
 
-export function coletarEContar(
-  items: AnalyzedItem[],
+export function coletarEContar(items: AnalyzedItem[], datasApuracao: Record<string, string> = {}): number {
+  return exportarArquivosColeta(itensColeta(items), datasApuracao);
+}
+
+/** Reexportação independente dos arquivos de um ciclo já criado. */
+export function exportarArquivosColeta(
+  lista: Array<Pick<AnalyzedItem, "codigo" | "descricao" | "endereco">>,
   datasApuracao: Record<string, string> = {},
+  only?: CountingFileKind,
 ): number {
-  const lista = itensColeta(items);
   const { data, dataBR, hora } = nowParts();
 
-  downloadCSV(`coletar-e-contar-${data}.csv`, [
+  if (!only || only === "contagem") downloadCSV(`coletar-e-contar-${data}.csv`, [
     ["Código", "Descrição", "Localização", "Contagem"],
     ...lista.map((i) => [i.codigo, i.descricao, i.endereco || "", BLANK]),
   ]);
 
-  downloadCSV("Travar.csv", linhasTrava(lista, "N"));
-  downloadCSV("Destravar.csv", linhasTrava(lista, "S"));
+  if (!only || only === "travar") downloadCSV("Travar.csv", linhasTrava(lista, "N"));
+  if (!only || only === "destravar") downloadCSV("Destravar.csv", linhasTrava(lista, "S"));
 
+  if (!only || only === "pdf") {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   doc.setFontSize(12);
   doc.text("Coletar e Contar — por ordem de endereço", 8, 10);
@@ -78,5 +84,6 @@ export function coletarEContar(
     },
   });
   doc.save(`coletar-e-contar-${data}.pdf`);
+  }
   return lista.length;
 }
