@@ -31,6 +31,7 @@ import {
   UserRound,
   LogOut,
   Truck,
+  RotateCcw,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ import { FuroEstoqueNotifier } from "@/components/FuroEstoque";
 import { Historico } from "@/components/Historico";
 import { Enderecamento } from "@/components/Enderecamento";
 import { Entregas } from "@/components/Entregas";
+import { LogisticaReversa } from "@/components/LogisticaReversa";
 import { ExpedicaoOperador } from "@/components/ExpedicaoOperador";
 import { CiclosContagem } from "@/components/CiclosContagem";
 import { ApuracaoGeral } from "@/components/ApuracaoGeral";
@@ -108,6 +110,7 @@ const TABS = [
   { key: "Conferência", icon: ClipboardCheck },
   { key: "Expedição", icon: PackageCheck },
   { key: "Entregas", icon: Truck },
+  { key: "Logística Reversa", icon: RotateCcw },
   { key: "Apuração Geral", icon: ChartColumnIncreasing },
   { key: "Cadastro de Funcionários", icon: UsersRound },
 ] as const;
@@ -179,6 +182,8 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
         return role === "gestor" ? <ExpedicaoOperador readOnly /> : null;
       case "Entregas":
         return <Entregas role={role} />;
+      case "Logística Reversa":
+        return role === "gestor" ? <LogisticaReversa /> : null;
       case "Apuração Geral":
         return role === "gestor" ? <ApuracaoGeral /> : null;
       case "Cadastro de Funcionários":
@@ -202,6 +207,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
     "Conferência",
     "Expedição",
     "Entregas",
+    "Logística Reversa",
     "Apuração Geral",
     "Cadastro de Funcionários",
     "Zona Segura",
