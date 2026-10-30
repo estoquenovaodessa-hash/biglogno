@@ -100,6 +100,7 @@ export const saveReverseQuantities = createServerFn({method:"POST"}).inputValida
     const known=new Set(current.items.map(i=>i.codigo));
     if (data.items.some(i=>!known.has(i.codigo))) throw new Error("Foi informado um código que não pertence ao ciclo.");
     const next={...current,items:current.items.map(i=>({...i,quantidade:quantities.get(i.codigo)??0}))};
+    if (current.status==="finalizado" && !reverseIncluded(next.items).length) throw new Error("Um ciclo finalizado precisa ter ao menos um item com quantidade.");
     return persist(next,data.version);
   });
 export const finishReverseCycle = createServerFn({method:"POST"}).inputValidator(reverseFinishSchema)
@@ -111,6 +112,14 @@ export const finishReverseCycle = createServerFn({method:"POST"}).inputValidator
     if (!reverseIncluded(current.items).length) throw new Error("Adicione quantidade a pelo menos um item antes de finalizar.");
     return persist({...current,status:"finalizado",supplier:data.supplier,finishedAt:new Date().toISOString(),
       treatmentStatus:"aguardando_coleta",statusChangedAt:new Date().toISOString()},data.version);
+  });
+export const renameReverseSupplier = createServerFn({method:"POST"}).inputValidator(reverseFinishSchema)
+  .handler(async ({data})=>{
+    await access(true);
+    const current=await loadOne(data.id);
+    if (current.version!==data.version) throw new Error("O ciclo foi alterado. Atualize antes de editar o fornecedor.");
+    if (current.status!=="finalizado") throw new Error("Finalize o ciclo antes de editar o fornecedor.");
+    return persist({...current,supplier:data.supplier},data.version);
   });
 export const saveReverseTreatment = createServerFn({method:"POST"}).inputValidator(reverseTreatmentSchema)
   .handler(async ({data})=>{

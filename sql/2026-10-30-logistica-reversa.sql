@@ -15,6 +15,6 @@ CREATE INDEX IF NOT EXISTS reverse_logistics_cycles_created_idx
 ALTER TABLE public.reverse_logistics_cycles ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.reverse_logistics_cycles FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.reverse_logistics_cycles TO service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.reverse_logistics_cycles_number_seq TO service_role;
 COMMIT;
 SELECT to_regclass('public.reverse_logistics_cycles') IS NOT NULL AS modulo_instalado;

@@ -13,7 +13,7 @@ export async function reverseExportPdf(c:ReverseCycle) {
   pdf.setFillColor(12,46,88);pdf.rect(0,0,297,34,"F");pdf.setTextColor(255);pdf.setFont("helvetica","bold");pdf.setFontSize(18);
   pdf.text("BIGLOGNO - LOGISTICA REVERSA N "+c.number,14,14);
   pdf.setFontSize(10);pdf.text("Fornecedor: "+(c.supplier||"A informar"),14,22);
-  pdf.text("NFD: "+(c.nfd||"-")+" | Status: "+(c.treatmentStatus||"Em contagem"),14,29);
+  pdf.text("NFD: "+(c.nfd||"-")+" | Status: "+(c.treatmentStatus||"Em contagem")+(c.returnMode?" | "+(c.returnMode==="abatimento_boleto"?"Abatimento em boleto":"Devolucao em material"):"")+(c.returnNfe?" | NF-e: "+c.returnNfe:""),14,29);
   const rows=reverseIncluded(c.items);
   autoTable(pdf,{startY:41,head:[["Codigo","Descricao","Linha","Grupo","Quantidade"]],
     body:rows.map(i=>[i.codigo,i.descricao,i.linha,i.grupo,String(i.quantidade)]),
