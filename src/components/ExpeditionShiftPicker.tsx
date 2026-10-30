@@ -3,9 +3,10 @@ import { CalendarDays, Sun, Sunset, Clock3, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shiftLabel, scheduledDateLabel, type ExpeditionShift, type ShiftSection } from "@/lib/expedition-schedule";
 
-export function ExpeditionShiftPicker({ ids, shift, readOnly, disabled, onSetShift, placement = "section" }: {
+export function ExpeditionShiftPicker({ ids, shift, date, readOnly, disabled, onSetShift, placement = "section" }: {
   ids: string[];
   shift: ShiftSection;
+  date?: string;
   readOnly: boolean;
   disabled: boolean;
   onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
@@ -19,9 +20,12 @@ export function ExpeditionShiftPicker({ ids, shift, readOnly, disabled, onSetShi
       <span className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
         <Clock3 className="h-3.5 w-3.5" /> Turno programado
       </span>
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+      {date && shift !== "indefinido" && <span className="inline-flex items-center gap-1 text-[11px] font-bold text-muted-foreground"><CalendarDays className="h-3 w-3" /> {scheduledDateLabel(date)}</span>}
       <span className={`rounded-full border px-2 py-1 text-[11px] font-extrabold ${shift === "indefinido"
         ? "border-border bg-muted/50 text-muted-foreground"
         : "border-sky-500/30 bg-sky-500/10 text-sky-800 dark:text-sky-200"}`}>{shiftLabel(shift)}</span>
+      </div>
     </div>
     {!readOnly && <div className="grid grid-cols-2 gap-2">
       {(["manha", "tarde"] as const).map(value => <Button type="button" key={value} size="sm"

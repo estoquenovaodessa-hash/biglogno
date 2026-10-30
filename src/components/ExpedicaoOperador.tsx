@@ -98,7 +98,7 @@ function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onEdit, onSetS
   const driver = deliveryResponsibleName(first) || (orders.find(item => item.driver)?.driver ?? "");
   return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
     <ExpeditionShiftPicker placement="top" ids={orders.map(order => order.id)}
-      shift={shiftOf(first)} readOnly={readOnly}
+      shift={shiftOf(first)} date={first.expeditionShiftDate} readOnly={readOnly}
       disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
       onSetShift={onSetShift} />
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -398,7 +398,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
             Escolha o turno da entrega. A alteração será aplicada às notas deste grupo.
           </p>
           <ExpeditionShiftPicker ids={editingDeliveries.map(row => row.id)}
-            shift={shiftOf(editingDeliveries[0])} readOnly={false}
+            shift={shiftOf(editingDeliveries[0])} date={editingDeliveries[0].expeditionShiftDate} readOnly={false}
             disabled={busy || !canTransfer || editingDeliveries.some(row => row.status !== "nao_iniciada")}
             onSetShift={updateSchedule} />
           {editTransferable.length > 0 && <div className="border-t border-border pt-3">

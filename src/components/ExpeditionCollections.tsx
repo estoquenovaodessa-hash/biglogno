@@ -121,7 +121,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
       {notice && <p role="status" className="text-xs font-medium text-emerald-600">{notice}</p>}
       {error && !companyDialog && !collectionDialog && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {collections.map(order => <article key={order.id} className="rounded-lg border border-orange-400/40 bg-orange-500/[0.10] p-3">
-        <ExpeditionShiftPicker placement="top" ids={[order.id]} shift={shiftOf(order)}
+        <ExpeditionShiftPicker placement="top" ids={[order.id]} shift={shiftOf(order)} date={order.scheduledDate || order.expeditionShiftDate}
           readOnly={readOnly} disabled={!canWrite || busy || scheduleBusy || order.status !== "nao_iniciada"}
           onSetShift={onSetShift} />
         {order.scheduledDate && <div className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-orange-800 dark:text-orange-200">
