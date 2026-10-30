@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { logisticsCommitError } from './logistics-commit-error';
-import { expeditionScheduleInputSchema } from './expedition-schedule';
+import { expeditionScheduleInputSchema, advanceExpeditionShift } from './expedition-schedule';
+import { expeditionLocalDay } from './expedition-history';
 import { applyDeliveryGroupAction, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
 
 type Row = { id: string; created_at: string; position: number; payload: unknown };
@@ -10,13 +11,19 @@ const payloadOf = ({ id: _i, position: _p, createdAt: _c, ...rest }: Delivery) =
 async function loadAll() {
   const { logisticsClient } = await import('./logistics.server');
   const db = await logisticsClient();
+  // Reconcilia o turno ao consultar (também quando o cron ainda não executou).
+  // O agendamento SQL executa independentemente de alguém estar online.
+  const { error: rolloverError } = await db.rpc('rollover_logistics_shifts');
+  if (rolloverError && !['PGRST202', '42883'].includes(rolloverError.code ?? ''))
+    console.error('[Turnos] Não foi possível aplicar o rollover', rolloverError.code);
   const rows: Row[] = [];
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await db.from('deliveries').select('id,created_at,position,payload').order('position').order('id').range(offset, offset + 999);
     if (error) throw new Error('Não foi possível carregar as entregas.');
     rows.push(...(data ?? [])); if (!data || data.length < 1000) break;
   }
-  return { db, rows, list: rows.map(toDelivery) };
+  const now = new Date();
+  return { db, rows, list: rows.map(toDelivery).map(d => advanceExpeditionShift(d, now)) };
 }
 export const listDeliveries = createServerFn({ method: 'GET' }).handler(async () => {
   const { requireAccess } = await import('./access.server'); await requireAccess();
@@ -105,11 +112,17 @@ export const setExpeditionSchedule = createServerFn({ method: 'POST' })
     const batchId = data.shift
       ? targets.find(row => row.expeditionBatchId)?.expeditionBatchId ?? crypto.randomUUID()
       : undefined;
+    const today = expeditionLocalDay(new Date().toISOString());
     const changes = targets.map(row => ({
       id: row.id, position: row.position,
       payload: payloadOf({
         ...row,
         expeditionShift: data.shift ?? undefined,
+        expeditionShiftDate: data.shift
+          ? row.source === 'coleta'
+            ? (data.scheduledDate === undefined ? row.scheduledDate : data.scheduledDate) || today
+            : today
+          : undefined,
         expeditionBatchId: row.expeditionBatchId ?? batchId,
         ...(data.scheduledDate === undefined ? {} : { scheduledDate: data.scheduledDate ?? undefined }),
       }),

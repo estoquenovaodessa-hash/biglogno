@@ -80,7 +80,7 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
               {finished && d.source !== "coleta" ? d.receiver || "—" : d.driver || "—"}
             </td>
             <td className="whitespace-nowrap">{shiftLabel(shiftOf(d))}
-              {d.source === "coleta" && d.scheduledDate && <span className="block text-[10px] text-[#9fb6d8]">{scheduledDateLabel(d.scheduledDate)}</span>}
+              {!finished && (d.expeditionShiftDate || (d.source === "coleta" && d.scheduledDate)) && <span className="block text-[10px] text-[#9fb6d8]">{scheduledDateLabel((d.source === "coleta" && d.scheduledDate) || d.expeditionShiftDate)}</span>}
             </td>
             {finished && <td>
               {(() => {

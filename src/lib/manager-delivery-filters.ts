@@ -13,6 +13,9 @@ export function managerDeliveryDay(record: Delivery): string {
   if (record.status === "finalizada") {
     return expeditionLocalDay(record.finishedAt || record.arrivedAt || record.startedAt || record.createdAt);
   }
+  // A virada automática também aparece no filtro "Hoje" do gestor.
+  if (record.status !== "finalizada" && record.expeditionShiftDate)
+    return record.source === "coleta" && record.scheduledDate ? record.scheduledDate : record.expeditionShiftDate;
   if (record.status === "no_destino") {
     return expeditionLocalDay(record.arrivedAt || record.startedAt || record.createdAt);
   }

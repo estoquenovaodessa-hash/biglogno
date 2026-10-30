@@ -37,5 +37,7 @@ jobs:
         run: bun test src/lib/manager-welcome-data.test.js
       - name: Testar novos filtros Ontem e Anteontem na Conferência
         run: bun test src/lib/sales-conference-period.test.js
+      - name: Testar mudança automática de turnos
+        run: bun test src/lib/expedition-schedule.test.js
       - name: Executar build de producao
         run: npm run build

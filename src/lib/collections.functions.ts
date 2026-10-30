@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { expeditionLocalDay } from "./expedition-history";
 import { createCollectionCompanySchema, createCollectionSchema, editCollectionSchema, deleteCollectionSchema, collectionCompanySchema } from "./collections";
 import { z } from "zod";
 
@@ -66,6 +67,7 @@ export const addCollection = createServerFn({ method: "POST" })
         collectionLocationConfirmedAt: confirmed.confirmedAt } : {}),
       collectionContact: data.contact, collectionPayment: data.payment,
       expeditionShift: data.shift ?? undefined,
+      expeditionShiftDate: data.shift ? (data.scheduledDate || expeditionLocalDay(new Date().toISOString())) : undefined,
       scheduledDate: data.scheduledDate || undefined, onlyDelivery: false,
     };
     const { error } = await db.from("deliveries").upsert({

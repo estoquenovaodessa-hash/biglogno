@@ -26,6 +26,39 @@ export function shiftOf(record: Pick<Delivery, "expeditionShift">): ShiftSection
 export const shiftLabel = (shift: ShiftSection) =>
   shift === "manha" ? "MANHÃ" : shift === "tarde" ? "TARDE" : "TURNO INDEFINIDO";
 
+/** A partir das 12h31, manhã vira tarde; após 17h30, tarde (ou manhã
+ * atrasada) vira manhã do dia seguinte. Função pura e idempotente.
+ * A agenda futura da coleta tem prioridade sobre uma data antiga do turno. */
+export function advanceExpeditionShift<T extends Delivery>(record: T, now: Date = new Date()): T {
+  if (record.status === "finalizada" || !record.expeditionShift) return record;
+  const today = expeditionLocalDay(now.toISOString());
+  const timeParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (name: string) => Number(timeParts.find(p => p.type === name)?.value ?? 0);
+  const minute = part("hour") * 60 + part("minute");
+  const base = (record.source === "coleta" && record.scheduledDate)
+    || record.expeditionShiftDate || expeditionLocalDay(record.createdAt);
+  if (!today || !base || base > today) return record;
+  const next = new Date(today + "T12:00:00Z"); next.setUTCDate(next.getUTCDate() + 1);
+  const tomorrow = next.toISOString().slice(0, 10);
+  let date = base;
+  let shift: ExpeditionShift = record.expeditionShift;
+  if (base < today) {
+    shift = minute >= 17 * 60 + 31 ? "manha" : minute >= 12 * 60 + 31 ? "tarde" : "manha";
+    date = minute >= 17 * 60 + 31 ? tomorrow : today;
+  } else if (minute >= 17 * 60 + 31) {
+    shift = "manha"; date = tomorrow;
+  } else if (minute >= 12 * 60 + 31 && record.expeditionShift === "manha") {
+    shift = "tarde";
+  }
+  if (date === base && shift === record.expeditionShift) return record;
+  return { ...record, expeditionShift: shift, expeditionShiftDate: date,
+    expeditionShiftMovedAt: now.toISOString(),
+    ...(record.source === "coleta" && (record.scheduledDate || date !== base)
+      ? { scheduledDate: date } : {}) };
+}
+
 /** Data civil de São Paulo, independente do fuso do aparelho.
  * Formata apenas a apresentação: o valor persistido continua AAAA-MM-DD. */
 export function scheduledDateLabel(date?: string, now: Date = new Date()): string {

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { deliveryGroups } from "./deliveries";
 import {
   expeditionScheduleInputSchema, scheduledDateSchema, shiftOf, shiftLabel,
-  scheduledDateLabel, operatorShiftSections,
+  scheduledDateLabel, operatorShiftSections, advanceExpeditionShift,
 } from "./expedition-schedule";
 
 const id = (n) => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");
@@ -21,6 +21,46 @@ describe("programação de turnos da Expedição", () => {
     expect(expeditionScheduleInputSchema.safeParse({ ids: [id(1)], shift: null }).success).toBe(true);
     expect(expeditionScheduleInputSchema.safeParse({ ids: [id(1)], shift: "noite" }).success).toBe(false);
     expect(expeditionScheduleInputSchema.safeParse({ ids: [id(1)], shift: "tarde", scheduledDate: "2026-10-29" }).success).toBe(true);
+  });
+
+  test("12h30 permanece manhã; 12h31 vira tarde", () => {
+    const row = order(1, { expeditionShift: "manha", expeditionShiftDate: "2026-10-30" });
+    expect(advanceExpeditionShift(row, new Date("2026-10-30T15:30:59Z"))).toBe(row);
+    const moved = advanceExpeditionShift(row, new Date("2026-10-30T15:31:00Z"));
+    expect(moved.expeditionShift).toBe("tarde");
+    expect(moved.expeditionShiftDate).toBe("2026-10-30");
+    expect(moved.id).toBe(row.id);
+  });
+  test("17h30 permanece tarde; 17h31 transfere para manhã do dia seguinte", () => {
+    const row = order(1, { expeditionShift: "tarde", expeditionShiftDate: "2026-10-30" });
+    expect(advanceExpeditionShift(row, new Date("2026-10-30T20:30:59Z"))).toBe(row);
+    const moved = advanceExpeditionShift(row, new Date("2026-10-30T20:31:00Z"));
+    expect(moved.expeditionShift).toBe("manha");
+    expect(moved.expeditionShiftDate).toBe("2026-10-31");
+    expect(advanceExpeditionShift(moved, new Date("2026-10-31T12:00:00Z"))).toBe(moved);
+  });
+  test("inclui viagens em rota, e atravessa fim de mês/ano", () => {
+    const row = order(1, { expeditionShift: "tarde", expeditionShiftDate: "2026-12-31", status: "em_rota" });
+    const moved = advanceExpeditionShift(row, new Date("2027-01-01T12:00:00Z"));
+    expect(moved.expeditionShift).toBe("manha");
+    expect(moved.expeditionShiftDate).toBe("2027-01-01");
+    const next = advanceExpeditionShift(row, new Date("2027-01-01T21:00:00Z"));
+    expect(next.expeditionShiftDate).toBe("2027-01-02");
+  });
+  test("coleta atrasada acompanha novo dia, mas coleta futura não é antecipada", () => {
+    const row = order(1, { source: "coleta", expeditionShift: "tarde", scheduledDate: "2026-10-30" });
+    const moved = advanceExpeditionShift(row, new Date("2026-10-30T20:31:00Z"));
+    expect(moved.scheduledDate).toBe("2026-10-31");
+    expect(moved.expeditionShift).toBe("manha");
+    const future = order(2, { source: "coleta", expeditionShift: "manha", scheduledDate: "2026-11-03" });
+    expect(advanceExpeditionShift(future, new Date("2026-10-30T20:31:00Z"))).toBe(future);
+  });
+  test("nunca muda finalizadas ou turno indefinido", () => {
+    const done = order(1, { status: "finalizada", expeditionShift: "manha", expeditionShiftDate: "2026-10-29" });
+    const noShift = order(2);
+    const now = new Date("2026-10-30T20:31:00Z");
+    expect(advanceExpeditionShift(done, now)).toBe(done);
+    expect(advanceExpeditionShift(noShift, now)).toBe(noShift);
   });
   test("entregas do mesmo cliente só unificam dentro do mesmo turno", () => {
     const all = [

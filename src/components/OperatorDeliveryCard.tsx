@@ -53,8 +53,8 @@ export function OperatorDeliveryCard({
   return (
     <article className={`relative overflow-hidden rounded-xl border p-4 text-[#f5f8ff] shadow-[0_7px_24px_rgba(0,0,0,0.18)] sm:p-5 ${collection ? "border-orange-400/70 bg-gradient-to-br from-orange-900/95 via-[#392718]/95 to-[#101c2e] shadow-[0_0_0_1px_rgba(251,146,60,0.20)]" : inProgress ? "border-[#459bff] bg-[#101c2e] shadow-[0_0_0_1px_rgba(69,155,255,0.18)]" : "border-[#365a88] bg-[#101c2e]"}`}>
       <div className={`mb-3 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs font-extrabold ${collection ? "border-orange-400/45 bg-orange-400/15 text-orange-100" : "border-sky-400/25 bg-sky-400/10 text-sky-200"}`}>
-        {collection && <CalendarDays className="h-4 w-4 shrink-0" />}
-        <span>{collection ? (order.scheduledDate ? scheduledDateLabel(order.scheduledDate) + " • " : "COLETA • ") + shiftLabel(shiftOf(order)) : shiftLabel(shiftOf(order))}</span>
+        {(collection || order.expeditionShiftDate) && <CalendarDays className="h-4 w-4 shrink-0" />}
+        <span>{((collection && order.scheduledDate) || order.expeditionShiftDate ? scheduledDateLabel((collection && order.scheduledDate) || order.expeditionShiftDate) + " • " : collection ? "COLETA • " : "") + shiftLabel(shiftOf(order))}</span>
         {collection && <span className="ml-auto rounded-md border border-orange-400/30 px-2 py-0.5">{order.collectionPayment === "faturado" ? "FATURADO" : order.collectionPayment === "dinheiro" ? "DINHEIRO" : "PAGAMENTO NÃO INFORMADO"}</span>}
       </div>
       <div className="flex items-start gap-3">
