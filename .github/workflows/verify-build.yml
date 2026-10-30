@@ -39,5 +39,7 @@ jobs:
         run: bun test src/lib/sales-conference-period.test.js
       - name: Testar mudança automática de turnos
         run: bun test src/lib/expedition-schedule.test.js
+      - name: Testar ciclos e regras da Logística Reversa
+        run: bun test src/lib/reverse-logistics.test.js
       - name: Executar build de producao
         run: npm run build
