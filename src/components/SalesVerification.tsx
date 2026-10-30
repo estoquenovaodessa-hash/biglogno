@@ -16,11 +16,10 @@ import { SalesSellerDetail } from "./SalesSellerDetail";
 import { sellerCountKey } from "@/lib/sales-verification";
 import { SalesWeeklyAnalysis } from "./SalesWeeklyAnalysis";
 import { SalesHistoryImport } from "./SalesHistoryImport";
-import { salesDay } from "@/lib/sales-weekly";
+import { conferencePeriodKey, conferencePeriodContains, conferencePeriodLabel, conferenceMonthOptions } from "@/lib/sales-conference-period";
 
 const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const number = (n: number) => n.toLocaleString("pt-BR");
-const localDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 // Os códigos 101 e 102 continuam registrados no banco, mas o gestor
 // visualiza a área operacional. Histórico antigo sem setor identificado
@@ -61,8 +60,9 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     void queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] });
   }} /><Retira role={role} clients={data.clients} /></div>;
   // O período escolhido é a base dos relatórios e da quantidade total de vendas.
-  const periodRecords = data.records.filter(r => period === "all" || (period === "today" ? salesDay(r.createdAt) === salesDay(new Date()) : salesDay(r.createdAt).startsWith(period)));
-  const periodKey = period === "today" ? localDay(new Date()) : period;
+  const periodKey = conferencePeriodKey(period, new Date());
+  const periodRecords = data.records.filter(r => conferencePeriodContains(r.createdAt, periodKey));
+  const monthOptions = conferenceMonthOptions(new Date());
   const savedSalesCount = Number(data.periodCounts[periodKey] ?? 0);
   const salesCount = Number(sales ?? savedSalesCount);
   const salesInputValid = sales !== "" && Number.isSafeInteger(salesCount) && salesCount >= 0 && salesCount <= 100000000;
@@ -108,7 +108,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   function resetFilters() {
     setSellerFilter("all"); setVerifierFilter("all"); setClientFilter("all"); setStatusFilter("all"); setRecordSearch(""); setRecordLimit(200);
   }
-  const periodLabel = period === "all" ? "Todo o período" : period === "today" ? "Hoje" : new Date(`${period}-02T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const periodLabel = conferencePeriodLabel(period);
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
   function exportReport() { createSalesReport(periodRecords, periodLabel, savedSalesCount).save("bignotto-relatorio-conferencia.pdf"); }
   async function persistSalesCount() {
@@ -172,8 +172,9 @@ export function SalesVerification({ role }: { role: AccessRole }) {
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Período
             <select aria-label="Período" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={period} onChange={e => { setPeriod(e.target.value); setSales(null); resetFilters(); setSelectedSeller(null); }}>
               <option value="all">Todo o período</option><option value="today">Hoje</option>
-              <option value={localDay(new Date()).slice(0, 7)}>Mês atual</option>
-              <option value={localDay(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)).slice(0, 7)}>Mês anterior</option>
+              <option value="yesterday">Ontem</option><option value="dayBeforeYesterday">Anteontem</option>
+              <option value={monthOptions.current}>Mês atual</option>
+              <option value={monthOptions.previous}>Mês anterior</option>
             </select>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Vendedor

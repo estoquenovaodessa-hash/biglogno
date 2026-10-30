@@ -35,5 +35,7 @@ jobs:
         run: bun test src/lib/manager-delivery-time-totals.test.js
       - name: Testar números da apresentação do gestor
         run: bun test src/lib/manager-welcome-data.test.js
+      - name: Testar novos filtros Ontem e Anteontem na Conferência
+        run: bun test src/lib/sales-conference-period.test.js
       - name: Executar build de producao
         run: npm run build
