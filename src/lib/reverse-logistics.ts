@@ -52,6 +52,45 @@ export function reverseGroups(base: EnderecoBase): Array<{ key: string; linha: s
   return [...result.values()].sort((a,b) => a.linha.localeCompare(b.linha, "pt-BR", {numeric:true})
     || a.grupo.localeCompare(b.grupo, "pt-BR", {numeric:true}));
 }
+/** Um único índice de pesquisa para todos os grupos, criado apenas quando
+ * o relatório base muda. Evita percorrer todos os produtos para CADA grupo
+ * e para CADA caractere digitado no campo de pesquisa. */
+export function reverseGroupSearchIndex(base: EnderecoBase): ReadonlyMap<string, string> {
+  const parts = new Map<string, string[]>();
+  for (const record of Object.values(base.registros ?? {})) {
+    if (!record.codigo?.trim() || !record.descricao?.trim()) continue;
+    const key = reverseGroupKey(record);
+    let entries = parts.get(key);
+    if (!entries) {
+      entries = [reverseNormalizeSearch((record.linha?.trim() || "Sem linha") + " " +
+        (record.grupo?.trim() || "Sem grupo"))];
+      parts.set(key, entries);
+    }
+    entries.push(reverseNormalizeSearch(record.codigo + " " + record.descricao));
+  }
+  return new Map([...parts].map(([key, entries]) => [key, entries.join(" ")]));
+}
+
+/** Pesquisa linear SOMENTE nos grupos já indexados; cria até limit
+ * elementos de interface e informa o total para paginação incremental. */
+export function reverseSearchGroups(
+  groups: ReturnType<typeof reverseGroups>,
+  index: ReadonlyMap<string, string>,
+  rawQuery: string,
+  limit = 80,
+): { visible: ReturnType<typeof reverseGroups>; total: number } {
+  const query = reverseNormalizeSearch(rawQuery);
+  const visible: ReturnType<typeof reverseGroups> = [];
+  let total = 0;
+  for (const group of groups) {
+    if (query && !(index.get(group.key) ??
+      reverseNormalizeSearch(group.linha + " " + group.grupo)).includes(query)) continue;
+    total++;
+    if (visible.length < limit) visible.push(group);
+  }
+  return { visible, total };
+}
+
 export function reverseItemsForGroups(base: EnderecoBase, groups: string[]): ReverseItem[] {
   const keys = new Set(groups);
   const byCode = new Map<string, ReverseItem>();

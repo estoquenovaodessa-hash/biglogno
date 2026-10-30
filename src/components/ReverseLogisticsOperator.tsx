@@ -1,10 +1,11 @@
-import {useMemo,useState} from "react";
+import {useDeferredValue,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {useServerFn} from "@tanstack/react-start";
 import {ArrowLeft,CheckCircle2,ClipboardList,Download,FileDown,Minus,Plus,RotateCcw,Search,Trash2,Pencil,Save,PackagePlus} from "lucide-react";
 import {toast} from "sonner";
 import {useStore} from "@/lib/store";
-import {reverseGroups,reverseGroupKey,reverseIncluded,reverseTotal,reverseNormalizeSearch,reverseStatusLabel,type ReverseCycle,type ReverseStage,type ReverseReturnMode} from "@/lib/reverse-logistics";
+import {reverseGroups,reverseGroupSearchIndex,reverseIncluded,reverseTotal,reverseNormalizeSearch,reverseStatusLabel,type ReverseCycle,type ReverseStage,type ReverseReturnMode} from "@/lib/reverse-logistics";
+import {ReverseGroupPicker} from "@/components/ReverseGroupPicker";
 import {listReverseCycles,createReverseCycle,saveReverseQuantities,finishReverseCycle,renameReverseSupplier,saveReverseTreatment,deleteReverseCycle} from "@/lib/reverse-logistics.functions";
 import {reverseDownloadCsv,reverseExportPdf} from "@/lib/reverse-logistics-export";
 import {Dialog,DialogContent,DialogHeader,DialogTitle} from "@/components/ui/dialog";
@@ -22,18 +23,23 @@ export function ReverseLogisticsOperator(){
  const q=useQuery({queryKey:["reverse-logistics-cycles"],queryFn:()=>list(),refetchInterval:15000});
  const cycles=q.data??[];
  const groups=useMemo(()=>reverseGroups(enderecoBase),[enderecoBase]);
- const source=Object.values(enderecoBase.registros??{});
- const [groupDialog,setGroupDialog]=useState(false),[groupQuery,setGroupQuery]=useState(""),[selected,setSelected]=useState<string[]>([]);
+ // A descrição e o código de cada item são indexados UMA única vez ao importar.
+ const groupSearchIndex=useMemo(()=>reverseGroupSearchIndex(enderecoBase),[enderecoBase]);
+ const [groupDialog,setGroupDialog]=useState(false);
  const [activeId,setActiveId]=useState<string|null>(null),[itemQuery,setItemQuery]=useState(""),[counts,setCounts]=useState<Record<string,number>>({}),[dirty,setDirty]=useState(false);
+ const [itemLimit,setItemLimit]=useState(100);
+ const deferredItemQuery=useDeferredValue(itemQuery);
  const [finishDialog,setFinishDialog]=useState(false),[supplier,setSupplier]=useState("");
  const [treatId,setTreatId]=useState<string|null>(null),[nfd,setNfd]=useState(""),[status,setStatus]=useState<ReverseStage>("aguardando_coleta"),[mode,setMode]=useState<ReverseReturnMode|undefined>(),[nfe,setNfe]=useState("");
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const active=cycles.find(c=>c.id===activeId)??null,treatment=cycles.find(c=>c.id===treatId)??null;
- const edited=active?.items.map(i=>({...i,quantidade:counts[i.codigo]??i.quantidade}))??[];
- const query=reverseNormalizeSearch(itemQuery);
- const visible=edited.filter(i=>reverseNormalizeSearch(i.codigo+" "+i.descricao+" "+i.linha+" "+i.grupo).includes(query));
- const shownGroups=groups.filter(g=>{const q=reverseNormalizeSearch(groupQuery);return !q||reverseNormalizeSearch(g.linha+" "+g.grupo+" "+source.filter(i=>reverseGroupKey(i)===g.key).map(i=>i.codigo+" "+i.descricao).join(" ")).includes(q);});
- const selectCycle=(c:ReverseCycle)=>{setActiveId(c.id);setCounts(Object.fromEntries(c.items.map(i=>[i.codigo,i.quantidade])));setDirty(false);setItemQuery("");setError("");};
+ const edited=useMemo(()=>active?.items.map(i=>({...i,quantidade:counts[i.codigo]??i.quantidade}))??[],[active,counts]);
+ const itemSearchIndex=useMemo(()=>new Map(active?.items.map(i=>[i.codigo,
+   reverseNormalizeSearch(i.codigo+" "+i.descricao+" "+i.linha+" "+i.grupo)])??[]),[active]);
+ const visible=useMemo(()=>{const query=reverseNormalizeSearch(deferredItemQuery);
+   return query?edited.filter(i=>itemSearchIndex.get(i.codigo)?.includes(query)):edited;
+ },[edited,itemSearchIndex,deferredItemQuery]);
+ const selectCycle=(c:ReverseCycle)=>{setActiveId(c.id);setCounts(Object.fromEntries(c.items.map(i=>[i.codigo,i.quantidade])));setDirty(false);setItemQuery("");setItemLimit(100);setError("");};
  async function operation(fn:()=>Promise<void>){if(busy)return;setBusy(true);setError("");try{await fn();await q.refetch();}catch(e){const message=e instanceof Error?e.message:"Falha na operação.";setError(message);toast.error(message);}finally{setBusy(false);}}
  const change=(code:string,n:number)=>{if(!Number.isSafeInteger(n)||n<0||n>10000000)return;setCounts(p=>({...p,[code]:n}));setDirty(true);};
  const saveCounts=async(c:ReverseCycle)=>{const next=await save({data:{id:c.id,version:c.version,items:edited.map(i=>({codigo:i.codigo,quantidade:i.quantidade}))}});setCounts(Object.fromEntries(next.items.map(i=>[i.codigo,i.quantidade])));setDirty(false);toast.success("Quantidades salvas.");};
@@ -42,7 +48,7 @@ export function ReverseLogisticsOperator(){
  return <section className="mx-auto max-w-[1440px] space-y-5 text-[#e9f5ff]" aria-label="Logística Reversa do operador">
   <header className="rounded-2xl border border-sky-500/40 bg-gradient-to-r from-[#123f76] to-[#071c37] p-5 sm:p-7">
    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><RotateCcw className="h-9 w-9 text-sky-300"/><div><h1 className="text-2xl font-extrabold text-white">Logística Reversa</h1><p className="text-sm text-[#bed7f2]">Controle de saída para fornecedores</p></div></div>
-    <Button className="gap-2 bg-sky-600 text-white hover:bg-sky-500" disabled={!baseReady||!groups.length||busy} onClick={()=>{setSelected([]);setGroupQuery("");setGroupDialog(true);}}><PackagePlus size={18}/> Abrir grupo(s) / Novo ciclo</Button></div>
+    <Button className="gap-2 bg-sky-600 text-white hover:bg-sky-500" disabled={!baseReady||!groups.length||busy} onClick={()=>setGroupDialog(true)}><PackagePlus size={18}/> Abrir grupo(s) / Novo ciclo</Button></div>
    <p className="mt-3 text-xs text-[#a4c5e6]">{baseReady?groups.length+" linhas/grupos disponíveis no relatório da Contagem.":"Carregando base da Contagem..."}</p>
   </header>
   {error&&<p role="alert" className="rounded-lg border border-red-400/50 bg-red-950/30 p-3 text-red-200">{error}</p>}
@@ -51,8 +57,13 @@ export function ReverseLogisticsOperator(){
     <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs uppercase text-sky-300">{active.status==="aberto"?"Ciclo em contagem":"Ciclo finalizado · edição permitida"}</p><h2 className="text-xl font-extrabold text-white">{cycleTitle(active.number)}</h2><p className="text-xs text-sky-200">{active.groups.length} grupo(s) · {active.items.length} itens · {dateText(active.createdAt)}</p></div>
       <Button variant="outline" className={outline} onClick={()=>{if(dirty&&!window.confirm("Quantidades não salvas. Sair?"))return;setActiveId(null);setDirty(false);}}><ArrowLeft className="mr-2 h-4 w-4"/> Voltar</Button></div>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{[["Códigos separados",reverseIncluded(edited).length],["Quantidade total",reverseTotal(edited)],["Fornecedor",active.supplier||"A informar"]].map(([k,v])=><div key={k} className="rounded-xl border border-sky-400/25 bg-[#153d63] p-3"><span className="block text-xs text-sky-200">{k}</span><strong className="block break-words text-xl">{v}</strong></div>)}</div>
-    <label className="relative block"><Search className="absolute left-3 top-3 h-4 w-4 text-sky-300"/><Input className={field+" pl-10"} value={itemQuery} onChange={e=>setItemQuery(e.target.value)} placeholder="Pesquisar item: código, descrição, linha ou grupo..."/></label>
-    <div className="max-h-[470px] overflow-auto rounded-xl border border-[#2b537b]"><table className="w-full min-w-[570px] text-left text-sm"><thead className="sticky top-0 bg-[#175080] text-white"><tr>{["Linha / Grupo","Código","Descrição","Quantidade"].map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y divide-sky-600/20">{visible.map(i=><tr key={i.codigo} className={i.quantidade>0?"bg-sky-500/15":"bg-[#0b2441]"}><td className="p-3 text-xs text-sky-200">{i.linha}<span className="block opacity-70">{i.grupo}</span></td><td className="p-3 font-extrabold">{i.codigo}</td><td className="p-3">{i.descricao}</td><td className="p-2"><div className="flex min-w-[150px] items-center gap-1"><Button size="icon" variant="outline" className={outline} disabled={busy||!i.quantidade} aria-label={"Retirar "+i.codigo} onClick={()=>change(i.codigo,i.quantidade-1)}><Minus size={15}/></Button><Input type="number" inputMode="numeric" min="0" max="10000000" step="1" className={field+" w-[75px] text-center font-bold"} value={i.quantidade} disabled={busy} aria-label={"Quantidade "+i.codigo} onChange={ev=>change(i.codigo,Number(ev.target.value))}/><Button size="icon" variant="outline" className={outline} disabled={busy||i.quantidade>=10000000} aria-label={"Adicionar "+i.codigo} onClick={()=>change(i.codigo,i.quantidade+1)}><Plus size={15}/></Button></div></td></tr>)}</tbody></table>{!visible.length&&<p className="p-5 text-center">Nenhum item encontrado.</p>}</div>
+    <label className="relative block"><Search className="absolute left-3 top-3 h-4 w-4 text-sky-300"/><Input className={field+" pl-10"} value={itemQuery} onChange={e=>{setItemQuery(e.target.value);setItemLimit(100);}} placeholder="Pesquisar item: código, descrição, linha ou grupo..."/></label>
+    <div className="max-h-[470px] overflow-auto rounded-xl border border-[#2b537b]"><table className="w-full min-w-[570px] text-left text-sm"><thead className="sticky top-0 bg-[#175080] text-white"><tr>{["Linha / Grupo","Código","Descrição","Quantidade"].map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y divide-sky-600/20">{visible.slice(0,itemLimit).map(i=><tr key={i.codigo} className={i.quantidade>0?"bg-sky-500/15":"bg-[#0b2441]"}><td className="p-3 text-xs text-sky-200">{i.linha}<span className="block opacity-70">{i.grupo}</span></td><td className="p-3 font-extrabold">{i.codigo}</td><td className="p-3">{i.descricao}</td><td className="p-2"><div className="flex min-w-[150px] items-center gap-1"><Button size="icon" variant="outline" className={outline} disabled={busy||!i.quantidade} aria-label={"Retirar "+i.codigo} onClick={()=>change(i.codigo,i.quantidade-1)}><Minus size={15}/></Button><Input type="number" inputMode="numeric" min="0" max="10000000" step="1" className={field+" w-[75px] text-center font-bold"} value={i.quantidade} disabled={busy} aria-label={"Quantidade "+i.codigo} onChange={ev=>change(i.codigo,Number(ev.target.value))}/><Button size="icon" variant="outline" className={outline} disabled={busy||i.quantidade>=10000000} aria-label={"Adicionar "+i.codigo} onClick={()=>change(i.codigo,i.quantidade+1)}><Plus size={15}/></Button></div></td></tr>)}</tbody></table>{!visible.length&&<p className="p-5 text-center">Nenhum item encontrado.</p>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-sky-200">
+      <span>{Math.min(visible.length,itemLimit)} de {visible.length} itens exibidos</span>
+      {visible.length>itemLimit&&<Button variant="outline" size="sm" className={outline}
+        onClick={()=>setItemLimit(current=>current+100)}>Mostrar mais itens</Button>}
+    </div>
     <div className="flex flex-wrap gap-2"><Button disabled={busy||!dirty} className="bg-sky-600 text-white" onClick={()=>void operation(()=>saveCounts(active))}><Save size={16} className="mr-2"/>{dirty?"Salvar quantidades *":"Quantidades salvas"}</Button>
      <Button variant="outline" className={outline} disabled={dirty||busy||!reverseIncluded(active.items).length} onClick={()=>exportCycle(active,"pdf")}><FileDown size={16} className="mr-1"/> PDF</Button>
      <Button variant="outline" className={outline} disabled={dirty||busy||!reverseIncluded(active.items).length} onClick={()=>exportCycle(active,"csv")}><Download size={16} className="mr-1"/> CSV</Button>
@@ -70,12 +81,10 @@ export function ReverseLogisticsOperator(){
      <Button variant="outline" className={outline} disabled={busy||!reverseIncluded(c.items).length} onClick={()=>exportCycle(c,"csv")}>CSV</Button>
      <Button variant="outline" className="border-red-500/40 bg-red-950/30 text-red-200" disabled={busy} onClick={()=>{if(!window.confirm("Excluir "+cycleTitle(c.number)+" permanentemente?"))return;void operation(async()=>{await remove({data:{id:c.id,version:c.version}});if(activeId===c.id)setActiveId(null);toast.success("Ciclo excluído.");});}}><Trash2 size={15} className="mr-1"/> Excluir</Button></div>
    </article>)}</div>{!cycles.length&&!q.isLoading&&!q.isError&&<p className="rounded-xl border border-dashed border-sky-400/30 bg-[#0d2948] p-5 text-center">Nenhum ciclo aberto. Selecione linhas/grupos para iniciar o ciclo nº 1.</p>}</div>
-  <Dialog open={groupDialog} onOpenChange={o=>!busy&&setGroupDialog(o)}><DialogContent className="max-h-[90dvh] w-[calc(100%-1rem)] max-w-3xl overflow-y-auto border-sky-400/40 bg-[#0b2949] text-white"><DialogHeader><DialogTitle>Selecionar linhas e grupos</DialogTitle></DialogHeader>
-   <p className="text-sm text-sky-200">Selecione um ou vários grupos da mesma base utilizada na Contagem.</p>
-   <Input className={field} value={groupQuery} onChange={e=>setGroupQuery(e.target.value)} placeholder="Buscar linha, grupo, código ou descrição..."/>
-   <div className="max-h-[400px] overflow-y-auto rounded-xl border border-sky-400/30">{shownGroups.map(g=><label key={g.key} className="flex cursor-pointer items-center gap-3 border-b border-sky-400/15 p-3 hover:bg-sky-500/10"><input type="checkbox" className="h-5 w-5 accent-sky-500" checked={selected.includes(g.key)} onChange={ev=>setSelected(p=>ev.target.checked?[...p,g.key]:p.filter(k=>k!==g.key))}/><span className="flex-1 text-sm"><strong className="block">Linha {g.linha}</strong><small className="text-sky-200">Grupo {g.grupo}</small></span><span className="text-xs">{g.count} itens</span></label>)}{!shownGroups.length&&<p className="p-4 text-center">Nenhum grupo encontrado.</p>}</div>
-   <p className="text-xs">{selected.length} grupo(s) selecionados</p><Button className="bg-sky-600 text-white" disabled={busy||!selected.length||q.isError} onClick={()=>void operation(async()=>{const c=await create({data:{groups:selected}});setGroupDialog(false);selectCycle(c);toast.success(cycleTitle(c.number)+" criado.");})}><PackagePlus size={17} className="mr-2"/> Abrir ciclo de Logística Reversa</Button>
-   </DialogContent></Dialog>
+  {groupDialog&&<ReverseGroupPicker groups={groups} index={groupSearchIndex}
+    busy={busy||q.isError} onClose={()=>setGroupDialog(false)}
+    onCreate={selected=>void operation(async()=>{const c=await create({data:{groups:selected}});
+      setGroupDialog(false);selectCycle(c);toast.success(cycleTitle(c.number)+" criado.");})}/>}
   <Dialog open={finishDialog} onOpenChange={o=>!busy&&setFinishDialog(o)}><DialogContent className="border-sky-400/40 bg-[#0b2949] text-white"><DialogHeader><DialogTitle>{active?.status==="finalizado"?"Editar fornecedor":"Finalizar ciclo e identificar fornecedor"}</DialogTitle></DialogHeader><label className="space-y-2 text-sm">Nome do fornecedor<Input autoFocus maxLength={180} className={field} value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="Fornecedor destinatário"/></label><Button className="bg-emerald-600 text-white" disabled={busy||supplier.trim().length<2||!active} onClick={()=>{if(!active)return;void operation(async()=>{if(active.status==="finalizado")await renameSupplier({data:{id:active.id,version:active.version,supplier:supplier.trim()}});else await finish({data:{id:active.id,version:active.version,supplier:supplier.trim()}});setFinishDialog(false);toast.success(active.status==="finalizado"?"Fornecedor atualizado.":"Ciclo finalizado.");});}}>{active?.status==="finalizado"?"Salvar fornecedor":"Finalizar com fornecedor"}</Button></DialogContent></Dialog>
   <Dialog open={!!treatId} onOpenChange={o=>!busy&&!o&&setTreatId(null)}><DialogContent className="max-h-[90dvh] w-[calc(100%-1rem)] max-w-3xl overflow-y-auto border-sky-300/50 bg-[#092b52]/95 text-white shadow-2xl backdrop-blur-xl"><DialogHeader><DialogTitle>Tratativas · {treatment?cycleTitle(treatment.number):""}</DialogTitle></DialogHeader>
    <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Nº de NFD<Input className={field} value={nfd} maxLength={80} onChange={e=>setNfd(e.target.value)} placeholder="NFD"/></label><label className="space-y-1 text-sm">Status<select className={"h-10 w-full rounded-lg border px-3 "+field} value={status} onChange={e=>setStatus(e.target.value as ReverseStage)}><option value="aguardando_coleta">Aguardando coleta</option><option value="coletado">Coletado</option><option value="devolvido">Devolvido</option></select></label>
