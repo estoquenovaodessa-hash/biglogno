@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardCheck, Users, UserRoundCheck, RefreshCw, Upload, Plus, Pencil, Trash2, FileDown, Save, ChevronRight, ChartNoAxesCombined, Package, CheckCircle2, AlertTriangle, Target, CircleDollarSign, Search, RotateCcw, ListChecks, CalendarDays, type LucideIcon } from "lucide-react";
+import { ClipboardCheck, Users, UserRoundCheck, RefreshCw, Upload, Plus, Pencil, Trash2, FileDown, Printer, Save, ChevronRight, ChartNoAxesCombined, Package, CheckCircle2, AlertTriangle, Target, CircleDollarSign, Search, RotateCcw, ListChecks, CalendarDays, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -11,6 +11,7 @@ import { SalesVerificationForm } from "./SalesVerificationForm";
 import { Retira } from "./Retira";
 import type { AccessRole } from "@/lib/access-policy";
 import { createSalesReport } from "@/lib/pdfSalesVerification";
+import { createConferenceLabelPdf, conferenceLabelFilename } from "@/lib/conference-label";
 import { Percent, SalesDataTable as DataTable } from "./SalesDataTable";
 import { SalesSellerDetail } from "./SalesSellerDetail";
 import { sellerCountKey } from "@/lib/sales-verification";
@@ -110,6 +111,23 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   }
   const periodLabel = conferencePeriodLabel(period);
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
+  const labelActions = (r: VerificationRecord) => <div className="flex flex-wrap items-center gap-1">
+    <Button type="button" variant="outline" size="sm" className="gap-1.5 whitespace-nowrap"
+      title="Gerar etiqueta Argox de 3,5 x 1,5 polegadas, em preto e branco"
+      aria-label={`Gerar etiqueta Argox da conferência ${r.document}`}
+      onClick={() => {
+        try {
+          setError("");
+          createConferenceLabelPdf(r).save(conferenceLabelFilename(r));
+        } catch (cause) {
+          console.error("Falha ao gerar etiqueta Argox", cause);
+          setError("Não foi possível gerar a etiqueta. Tente novamente.");
+        }
+      }}>
+      <Printer className="h-4 w-4" /> Etiqueta
+    </Button>
+    {deletionButton(r)}
+  </div>;
   function exportReport() { createSalesReport(periodRecords, periodLabel, savedSalesCount).save("bignotto-relatorio-conferencia.pdf"); }
   async function persistSalesCount() {
     if (!salesInputValid) { setError("Informe a quantidade inteira de vendas no período."); return; }
@@ -254,7 +272,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
             <Input aria-label="Buscar nos registros de conferência" placeholder="Buscar documento, cliente ou conferente…" value={recordSearch} onChange={e => { setRecordSearch(e.target.value); setRecordLimit(200); }} className="pl-9" />
           </label>
         </div>
-        <DataTable headers={["Data", "Documento", "Cliente", "Conferente", "Qtd. itens", "Situação", "Vendedor", "Valor", "Ações"]} rows={searchedRecords.slice(0, recordLimit).map(r => [new Date(r.createdAt).toLocaleString("pt-BR"), r.document, r.clientName, r.verifierName, number(r.items), <span className={r.correct ? "inline-flex rounded-md bg-success/10 px-2 py-1 text-xs font-bold text-success" : "inline-flex rounded-md bg-destructive/10 px-2 py-1 text-xs font-bold text-destructive"}>{r.correct ? "Certo" : "Errado"}</span>, r.seller, money(r.value), deletionButton(r)])} />
+        <DataTable headers={["Data", "Documento", "Cliente", "Conferente", "Qtd. itens", "Situação", "Vendedor", "Valor", "Ações"]} rows={searchedRecords.slice(0, recordLimit).map(r => [new Date(r.createdAt).toLocaleString("pt-BR"), r.document, r.clientName, r.verifierName, number(r.items), <span className={r.correct ? "inline-flex rounded-md bg-success/10 px-2 py-1 text-xs font-bold text-success" : "inline-flex rounded-md bg-destructive/10 px-2 py-1 text-xs font-bold text-destructive"}>{r.correct ? "Certo" : "Errado"}</span>, r.seller, money(r.value), labelActions(r)])} />
         {searchedRecords.length > recordLimit && <div className="mt-4 flex justify-center"><Button variant="outline" onClick={() => setRecordLimit(n => n + 200)}>Carregar mais registros</Button></div>}
       </section>
     </>}
