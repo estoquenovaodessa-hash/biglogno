@@ -72,7 +72,8 @@ describe("histórico somente leitura da Expedição", () => {
   });
   test("filtra datas inicial e final inclusive", () => {
     const one = completedDeliveryHistory(deliveries, { from: "2026-10-27", to: "2026-10-27" });
-    expect(one.map(d => d.id)).toEqual(["4"]);
+    // 02h15 UTC ainda é 27/10 em São Paulo: ambos os registros pertencem ao dia.
+    expect(one.map(d => d.id)).toEqual(["2", "4"]);
   });
   test("o grid principal mostra apenas retiradas pendentes; concluídas aparecem apenas em Retirados", () => {
     const originalIds = pickups.map(p => p.id);
