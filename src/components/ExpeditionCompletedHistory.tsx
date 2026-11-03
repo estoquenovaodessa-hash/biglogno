@@ -184,7 +184,7 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
             <span className="block text-base font-extrabold text-foreground">{title}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
             {key === "entregues" && <span className="mt-1 block text-xs font-semibold text-sky-700 dark:text-sky-300">{deliveriesFinished.length} registros concluídos</span>}
-             {key === "coletados" && <span className="mt-1 block text-xs font-semibold text-orange-700 dark:text-orange-300">{totalDoneCollections} coletas realizadas</span>
+             {key === "coletados" && <span className="mt-1 block text-xs font-semibold text-orange-700 dark:text-orange-300">{totalDoneCollections} coletas realizadas</span>}
           </span>
           {active ? <ChevronDown className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" /> : <ChevronRight className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" />}
         </button>;
