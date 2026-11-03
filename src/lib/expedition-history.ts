@@ -43,6 +43,16 @@ export function pendingExpeditionPickups(records: Pickup[]): Pickup[] {
     .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** Histórico de coletas concluídas na mesma tabela original de entregas. */
+export function completedCollectionHistory(records: Delivery[], range: ExpeditionDateRange): Delivery[] {
+  return records.filter(d => d.source === "coleta" && d.status === "finalizada"
+    && expeditionWithinPeriod(d.finishedAt, range)).slice().sort(byFinishedDesc);
+}
+/** Fila operacional contém apenas coletas que ainda exigem atendimento. */
+export function pendingExpeditionCollections(records: Delivery[]): Delivery[] {
+  return records.filter(d => d.source === "coleta" && d.status !== "finalizada")
+    .slice().sort((x,y) => y.createdAt.localeCompare(x.createdAt) || x.id.localeCompare(y.id));
+}
 export function completedPickupHistory(records: Pickup[], range: ExpeditionDateRange): Pickup[] {
   return records.filter(item => item.status === "finalizada" && expeditionWithinPeriod(item.finishedAt, range))
     .slice().sort(byFinishedDesc);

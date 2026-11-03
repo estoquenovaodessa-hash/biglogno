@@ -7,12 +7,12 @@ import { deliveryResponsibleName, isCaue } from "@/lib/delivery-accountability";
 import type { Pickup } from "@/lib/pickups";
 import { listCompletedPickups } from "@/lib/pickups.functions";
 import {
-  completedDeliveryHistory, completedPickupHistory, expeditionDateTime, expeditionLocalDay,
+  completedDeliveryHistory, completedPickupHistory, completedCollectionHistory, expeditionDateTime, expeditionLocalDay,
   type ExpeditionDateRange,
 } from "@/lib/expedition-history";
 import { Button } from "@/components/ui/button";
 
-type Mode = "retirados" | "entregues";
+type Mode = "retirados" | "entregues" | "coletados";
 const MONEY = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const price = (value?: number, noCharge = false) =>
   noCharge ? "Somente entrega" : value == null ? "—" : MONEY.format(value);
@@ -37,6 +37,7 @@ function CompletedRows({ mode, deliveries, pickups }: {
   const [expanded, setExpanded] = useState<string[]>([]);
   const [limit, setLimit] = useState(100);
   const isPickup = mode === "retirados";
+  const isCollection = mode === "coletados";
   const count = isPickup ? pickups.length : deliveries.length;
   const rows = isPickup ? pickups : deliveries;
   const visible = rows.slice(0, limit);
@@ -50,8 +51,9 @@ function CompletedRows({ mode, deliveries, pickups }: {
         <thead className="bg-sky-700/[0.12] text-sky-950 dark:bg-sky-400/15 dark:text-sky-100">
           <tr>
             {[
-              "Concluído em", "Cliente / Retirador", "Documento", "Origem", "Valor",
-              ...(isPickup ? ["Quem retirou", "Entregue por"] : ["Entregador", "Recebido por", "Chegada"]),
+              isCollection ? "Coletado em" : "Concluído em", isCollection ? "Empresa de coleta" : "Cliente / Retirador",
+              isCollection ? "Endereço" : "Documento", isCollection ? "Transporte" : "Origem", "Valor",
+              ...(isPickup ? ["Quem retirou", "Entregue por"] : isCollection ? ["Responsável", "Contato", "Chegada"] : ["Entregador", "Recebido por", "Chegada"]),
               "Detalhes",
             ].map(column => <th key={column} scope="col" className="whitespace-nowrap border-b border-sky-500/20 px-3 py-3 text-xs font-extrabold">{column}</th>)}
           </tr>
@@ -65,11 +67,11 @@ function CompletedRows({ mode, deliveries, pickups }: {
               <tr className={`border-b border-sky-500/15 align-top transition-colors hover:bg-sky-300/15 ${index % 2 ? "bg-sky-300/[0.07]" : "bg-transparent"}`}>
                 <td className="whitespace-nowrap px-3 py-3 font-bold tabular-nums">{expeditionDateTime(item.finishedAt)}</td>
                 <td className="max-w-[220px] px-3 py-3 font-semibold [overflow-wrap:anywhere]">{text(item.company)}</td>
-                <td className="px-3 py-3">{document(item)}</td>
-                <td className="px-3 py-3">{origin(item)}</td>
+                <td className="max-w-[260px] break-words px-3 py-3">{isCollection ? text(delivery?.collectionAddress) : document(item)}</td>
+                <td className="px-3 py-3">{isCollection ? delivery?.collectionTransport === "moto" ? "MOTO" : delivery?.collectionTransport === "carro" ? "CARRO" : "—" : origin(item)}</td>
                 <td className="whitespace-nowrap px-3 py-3 font-semibold tabular-nums">{price(item.value, Boolean(delivery?.onlyDelivery))}</td>
                 <td className="px-3 py-3">{text(pickup?.receiver ?? (delivery ? deliveryResponsibleName(delivery) : undefined))}</td>
-                <td className="px-3 py-3">{text(pickup?.handedBy ?? delivery?.receiver)}</td>
+                <td className="px-3 py-3">{isCollection ? text(delivery?.collectionContact) : text(pickup?.handedBy ?? delivery?.receiver)}</td>
                 {!isPickup && <td className="whitespace-nowrap px-3 py-3">{expeditionDateTime(delivery?.arrivedAt)}</td>}
                 <td className="px-3 py-2">
                   <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-sky-800 hover:text-sky-900 dark:text-sky-200"
@@ -84,8 +86,8 @@ function CompletedRows({ mode, deliveries, pickups }: {
                   <dl className="grid grid-cols-2 gap-x-5 gap-y-3 rounded-lg border border-sky-400/20 bg-background/35 p-3 md:grid-cols-4 xl:grid-cols-5">
                     <Detail label="Cliente" value={text(item.company)} />
                     <Detail label="Código cliente" value={text(item.companyCode)} />
-                    <Detail label="Documento" value={document(item)} />
-                    <Detail label="Tipo / origem" value={origin(item)} />
+                    {!isCollection && <Detail label="Documento" value={document(item)} />}
+                    <Detail label="Tipo / origem" value={isCollection ? "COLETA" : origin(item)} />
                     <Detail label="Valor" value={price(item.value, Boolean(delivery?.onlyDelivery))} />
                     <Detail label="Registro / separação" value={expeditionDateTime(item.createdAt)} />
                     <Detail label="Finalizado" value={expeditionDateTime(item.finishedAt)} />
@@ -96,7 +98,18 @@ function CompletedRows({ mode, deliveries, pickups }: {
                       <Detail label="Preparado em (legado)" value={expeditionDateTime(pickup.preparedAt)} />
                       <Detail label="Preparado por (legado)" value={text(pickup.preparedBy)} />
                     </> : delivery ? <>
-                      <Detail label="Entregador responsável" value={text(deliveryResponsibleName(delivery))} />
+                      
+                       {isCollection && <>
+                         <Detail label="Situação" value="COLETADO" />
+                         <Detail label="Endereço da coleta" value={text(delivery.collectionAddress)} />
+                         <Detail label="Endereço confirmado" value={text(delivery.collectionConfirmedAddress)} />
+                         <Detail label="Falar com" value={text(delivery.collectionContact)} />
+                         <Detail label="Meio de transporte" value={delivery.collectionTransport === "moto" ? "MOTO" : delivery.collectionTransport === "carro" ? "CARRO" : "—"} />
+                         <Detail label="Pagamento" value={delivery.collectionPayment === "faturado" ? "Faturado" : delivery.collectionPayment === "dinheiro" ? "Dinheiro" : "—"} />
+                         <Detail label="Data agendada" value={delivery.scheduledDate ? delivery.scheduledDate.split("-").reverse().join("/") : "—"} />
+                         <Detail label="Turno" value={delivery.expeditionShift === "manha" ? "Manhã" : delivery.expeditionShift === "tarde" ? "Tarde" : "Indefinido"} />
+                       </>}
+                       <Detail label={isCollection ? "Responsável pela coleta" : "Entregador responsável"} value={text(deliveryResponsibleName(delivery) || delivery.driver)} />
                       <Detail label="Recebido por" value={text(delivery.receiver)} />
                       <Detail label="Saiu para entrega" value={expeditionDateTime(delivery.startedAt)} />
                       <Detail label="Chegou ao destino" value={expeditionDateTime(delivery.arrivedAt)} />
@@ -148,14 +161,17 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
   const deliveriesFinished = completedDeliveryHistory(deliveries, { from: "", to: "" });
   const delivered = completedDeliveryHistory(deliveries, range);
   const collected = completedPickupHistory(pickupsQuery.data ?? [], range);
+  const doneCollections = completedCollectionHistory(deliveries, range);
+  const totalDoneCollections = completedCollectionHistory(deliveries, { from: "", to: "" }).length;
   const isDateInvalid = Boolean(range.from && range.to && range.from > range.to);
   const today = expeditionLocalDay(new Date().toISOString());
   const cards = [
     { key: "retirados" as const, title: "Retirados", description: "Histórico de pedidos retirados", icon: PackageCheck },
     { key: "entregues" as const, title: "Entregues", description: "Histórico de entregas concluídas", icon: Truck },
+    { key: "coletados" as const, title: "Coletados", description: "Histórico de coletas realizadas", icon: PackageCheck },
   ];
   return <section className="space-y-3" aria-label="Histórico da Expedição">
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-3">
       {cards.map(({ key, title, description, icon: Icon }) => {
         const active = view === key;
         return <button key={key} type="button" aria-controls="expedition-history-grid" aria-expanded={active}
@@ -168,6 +184,7 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
             <span className="block text-base font-extrabold text-foreground">{title}</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
             {key === "entregues" && <span className="mt-1 block text-xs font-semibold text-sky-700 dark:text-sky-300">{deliveriesFinished.length} registros concluídos</span>}
+             {key === "coletados" && <span className="mt-1 block text-xs font-semibold text-orange-700 dark:text-orange-300">{totalDoneCollections} coletas realizadas</span>
           </span>
           {active ? <ChevronDown className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" /> : <ChevronRight className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" />}
         </button>;
@@ -177,9 +194,9 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {view === "retirados" ? <PackageCheck className="h-5 w-5 text-sky-700 dark:text-sky-300" /> : <CheckCheck className="h-5 w-5 text-sky-700 dark:text-sky-300" />}
-          <h3 className="text-lg font-extrabold">{view === "retirados" ? "Retirados" : "Entregues"}</h3>
+          <h3 className="text-lg font-extrabold">{view === "retirados" ? "Retirados" : view === "coletados" ? "Coletados" : "Entregues"}</h3>
           <span className="rounded-full bg-sky-600/10 px-2 py-1 text-xs font-bold text-sky-900 dark:text-sky-200">
-            {view === "retirados" ? collected.length : delivered.length} registros
+            {view === "retirados" ? collected.length : view === "coletados" ? doneCollections.length : delivered.length} registros
           </span>
         </div>
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" /> Consulta, sem edição</span>
@@ -205,7 +222,7 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
             ? <div role="alert" className="space-y-2 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">
                 Não foi possível consultar as retiradas. <Button type="button" size="sm" variant="outline" onClick={() => { void pickupsQuery.refetch(); }}>Tentar novamente</Button>
               </div>
-            : <CompletedRows key={view + "|" + range.from + "|" + range.to} mode={view} deliveries={delivered} pickups={collected} />}
+            : <CompletedRows key={view + "|" + range.from + "|" + range.to} mode={view} deliveries={view === "coletados" ? doneCollections : delivered} pickups={collected} />}
       <p className="text-xs text-muted-foreground">O filtro considera a data de conclusão no horário de Brasília. O histórico é somente para consulta e não altera os pedidos.</p>
     </div>}
   </section>;

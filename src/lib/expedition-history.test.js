@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   completedDeliveryHistory, completedPickupHistory, pendingExpeditionPickups,
+  completedCollectionHistory, pendingExpeditionCollections,
   expeditionDateTime, expeditionLocalDay, expeditionWithinPeriod,
 } from "./expedition-history";
 
@@ -43,6 +44,31 @@ describe("histórico somente leitura da Expedição", () => {
       finishedAt: "2026-10-27T12:00:00Z", position: 10 };
     expect(completedDeliveryHistory([...deliveries, collection], { from: "", to: "" })
       .map(item => item.id)).toEqual(["2", "4", "1"]);
+  });
+
+  test("coletas realizadas ficam no botão Coletados, sem perder registros", () => {
+    const coletas=[
+      {id:"c0",source:"coleta",company:"Fornecedor em rota",status:"em_rota",createdAt:"2026-10-27T14:00:00Z"},
+      {id:"c1",source:"coleta",company:"Fornecedor A",status:"finalizada",
+       createdAt:"2026-10-26T12:00:00Z",finishedAt:"2026-10-27T02:59:00Z",
+       collectionAddress:"Rua Alfa, 10",collectionContact:"João",driver:"Maria",value:20},
+      {id:"c2",source:"coleta",company:"Fornecedor B",status:"finalizada",
+       createdAt:"2026-10-26T12:00:00Z",finishedAt:"2026-10-27T03:01:00Z"}
+    ];
+    const original=coletas.map(x=>x.id);
+    expect(pendingExpeditionCollections(coletas).map(x=>x.id)).toEqual(["c0"]);
+    const complete=completedCollectionHistory(coletas,{from:"",to:""});
+    expect(complete.map(x=>x.id)).toEqual(["c2","c1"]);
+    expect(complete[1]).toMatchObject({collectionAddress:"Rua Alfa, 10",collectionContact:"João",driver:"Maria",value:20});
+    expect(completedCollectionHistory(coletas,{from:"2026-10-26",to:"2026-10-26"}).map(x=>x.id)).toEqual(["c1"]);
+    expect(completedCollectionHistory(coletas,{from:"2026-10-27",to:"2026-10-27"}).map(x=>x.id)).toEqual(["c2"]);
+    expect(completedDeliveryHistory([...deliveries,...coletas],{from:"",to:""}).map(x=>x.id)).toEqual(["2","4","1"]);
+    expect(coletas.map(x=>x.id)).toEqual(original);
+  });
+  test("coletas finalizadas sem horário são consultáveis no histórico total", () => {
+    const old={id:"old",source:"coleta",status:"finalizada",createdAt:"2026-10-26T12:00:00Z"};
+    expect(completedCollectionHistory([old],{from:"",to:""})).toHaveLength(1);
+    expect(completedCollectionHistory([old],{from:"2026-10-26",to:"2026-10-26"})).toHaveLength(0);
   });
   test("filtra datas inicial e final inclusive", () => {
     const one = completedDeliveryHistory(deliveries, { from: "2026-10-27", to: "2026-10-27" });

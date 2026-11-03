@@ -12,6 +12,7 @@ import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
 import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
+import { pendingExpeditionCollections } from "@/lib/expedition-history";
 import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
 import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
 import { Sun, Sunset, CalendarDays } from "lucide-react";
@@ -57,10 +58,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const requestId = useRef<string | null>(null);
-  const collections = records.filter(order => order.source === "coleta").slice()
-    .sort((a, b) => a.status === "finalizada" && b.status !== "finalizada" ? 1
-      : b.status === "finalizada" && a.status !== "finalizada" ? -1
-        : b.createdAt.localeCompare(a.createdAt));
+  const collections = pendingExpeditionCollections(records);
   const moneyNumber = value.trim() ? parseMoneyInput(value) : undefined;
   const validValue = moneyNumber === undefined || (Number.isFinite(moneyNumber) && moneyNumber >= 0 && moneyNumber <= 100000000);
   const canWrite = canManage && !readOnly;
@@ -152,7 +150,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           </Button>
         </div>}
       </article>)}
-      {!collections.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma coleta cadastrada.</p>}
+      {!collections.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma coleta pendente. Veja as concluídas no botão "Coletados" acima.</p>}
     </div>
     {!readOnly && <>
       {editing && <ExpeditionCollectionEditor key={editing.id} record={editing}

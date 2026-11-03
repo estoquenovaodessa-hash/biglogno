@@ -43,5 +43,7 @@ jobs:
         run: bun test src/lib/reverse-logistics.test.js
       - name: Testar arquivos separados da Contagem
         run: bun test src/lib/counting-downloads.test.js
+      - name: Testar histórico Coletados da Expedição
+        run: bun test src/lib/expedition-history.test.js
       - name: Executar build de producao
         run: npm run build
