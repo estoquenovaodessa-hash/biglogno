@@ -10,13 +10,14 @@ const record = {
 };
 
 describe("etiqueta Argox de Conferência", () => {
-  test("tamanho físico exato de 3,5 x 1,5 polegadas e apenas uma etiqueta por PDF", () => {
-    expect(CONFERENCE_LABEL_WIDTH_MM).toBeCloseTo(88.9, 4);
-    expect(CONFERENCE_LABEL_HEIGHT_MM).toBeCloseTo(38.1, 4);
+  test("tamanho físico exato de 60 x 30 mm, sem avançar várias etiquetas", () => {
+    expect(CONFERENCE_LABEL_WIDTH_MM).toBe(60);
+    expect(CONFERENCE_LABEL_HEIGHT_MM).toBe(30);
     const pdf = createConferenceLabelPdf(record);
-    expect(pdf.internal.pageSize.getWidth()).toBeCloseTo(88.9, 1);
-    expect(pdf.internal.pageSize.getHeight()).toBeCloseTo(38.1, 1);
+    expect(pdf.internal.pageSize.getWidth()).toBeCloseTo(60, 2);
+    expect(pdf.internal.pageSize.getHeight()).toBeCloseTo(30, 2);
     expect(pdf.getNumberOfPages()).toBe(1);
+    expect(pdf.internal.pageSize.getWidth()).toBeGreaterThan(pdf.internal.pageSize.getHeight());
     expect(pdf.output("arraybuffer").byteLength).toBeGreaterThan(700);
   });
   test("campos do registro real, inclusive quantidade, fornecedor e data de São Paulo", () => {

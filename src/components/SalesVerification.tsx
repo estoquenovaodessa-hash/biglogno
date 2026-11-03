@@ -113,7 +113,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
   const labelActions = (r: VerificationRecord) => <div className="flex flex-wrap items-center gap-1">
     <Button type="button" variant="outline" size="sm" className="gap-1.5 whitespace-nowrap"
-      title="Gerar etiqueta Argox de 3,5 x 1,5 polegadas, em preto e branco"
+      title="Gerar etiqueta Argox 60 × 30 mm, em preto e branco (uma etiqueta por página)"
       aria-label={`Gerar etiqueta Argox da conferência ${r.document}`}
       onClick={() => {
         try {
