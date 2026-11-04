@@ -96,11 +96,33 @@ export function cloudGetAll(): Promise<Record<string, unknown>> {
   return initialRequest;
 }
 
-// Gravações existentes são mantidas; nenhum dado é eliminado na otimização.
+// Serializa escritas da MESMA chave e consolida mudanças rápidas. Um leitor
+// de código de barras pode registrar vários itens antes da resposta HTTP
+// anterior; sem fila, uma resposta atrasada poderia sobrescrever a contagem
+// mais recente com uma versão antiga.
+const pendingWrites = new Map<CloudKey, unknown>();
+const writingKeys = new Set<CloudKey>();
+async function flushCloudWrite(key: CloudKey): Promise<void> {
+  if (writingKeys.has(key)) return;
+  writingKeys.add(key);
+  try {
+    while (pendingWrites.has(key)) {
+      const value = pendingWrites.get(key);
+      pendingWrites.delete(key);
+      try {
+        await writeProtectedState({ data: { key, value } });
+      } catch {
+        toast.error("Não foi possível salvar. Verifique seu acesso e tente novamente.");
+      }
+    }
+  } finally {
+    writingKeys.delete(key);
+    if (pendingWrites.has(key)) void flushCloudWrite(key);
+  }
+}
 export function cloudSet(key: CloudKey, value: unknown): void {
-  void writeProtectedState({ data: { key, value: encodeCloudValue(value) } }).catch(() => {
-    toast.error("Não foi possível salvar. Verifique seu acesso e tente novamente.");
-  });
+  pendingWrites.set(key, encodeCloudValue(value));
+  void flushCloudWrite(key);
 }
 
 // Um único temporizador atende TODOS os componentes inscritos.
