@@ -10,12 +10,14 @@ export async function reverseExportPdf(c:ReverseCycle) {
   const [{default:jsPDF},{default:autoTable}]=await Promise.all([import("jspdf"),import("jspdf-autotable")]);
   const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
   pdf.setProperties({title:"Logistica Reversa n "+c.number});
-  pdf.setFillColor(12,46,88);pdf.rect(0,0,297,34,"F");pdf.setTextColor(255);pdf.setFont("helvetica","bold");pdf.setFontSize(18);
+  pdf.setFillColor(12,46,88);pdf.rect(0,0,297,40,"F");pdf.setTextColor(255);pdf.setFont("helvetica","bold");pdf.setFontSize(18);
   pdf.text("BIGLOGNO - LOGISTICA REVERSA N "+c.number,14,14);
   pdf.setFontSize(10);pdf.text("Fornecedor: "+(c.supplier||"A informar"),14,22);
-  pdf.text("NFD: "+(c.nfd||"-")+" | Status: "+(c.treatmentStatus||"Em contagem")+(c.returnMode?" | "+(c.returnMode==="abatimento_boleto"?"Abatimento em boleto":"Devolucao em material"):"")+(c.returnNfe?" | NF-e: "+c.returnNfe:""),14,29);
+  pdf.setFont("helvetica","bold");pdf.setFontSize(12);pdf.text("MARCA: "+(c.brand||"A informar"),14,30);
+  pdf.setFont("helvetica","normal");pdf.setFontSize(9);
+  pdf.text("NFD: "+(c.nfd||"-")+" | Status: "+(c.treatmentStatus||"Em contagem")+(c.returnMode?" | "+(c.returnMode==="abatimento_boleto"?"Abatimento em boleto":"Devolucao em material"):"")+(c.returnNfe?" | NF-e: "+c.returnNfe:""),14,37);
   const rows=reverseIncluded(c.items);
-  autoTable(pdf,{startY:41,head:[["Codigo","Descricao","Linha","Grupo","Quantidade"]],
+  autoTable(pdf,{startY:46,head:[["Codigo","Descricao","Linha","Grupo","Quantidade"]],
     body:rows.map(i=>[i.codigo,i.descricao,i.linha,i.grupo,String(i.quantidade)]),
     headStyles:{fillColor:[18,82,150]},styles:{fontSize:9,cellPadding:3,overflow:"linebreak"},
     alternateRowStyles:{fillColor:[237,245,255]},margin:{left:14,right:14,bottom:18}});
