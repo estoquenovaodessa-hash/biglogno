@@ -35,6 +35,10 @@ describe("Coletor de ciclos",()=>{
     expect(good.result.ok).toBe(true);
     expect(good.state.quantidades["03610"]).toBe(1);
   });
+  test("bipagem finalizada fica travada até reabrir para correção",()=>{
+    const final=finalizeCollector({...createCollectorState(),quantidades:{"03610":2}});
+    expect(createCollectorState(final)).toEqual(final);
+  });
   test("finalizar habilita PDF, sem finalizar o ciclo normal",()=>{
     const state=finalizeCollector({...createCollectorState(),quantidades:{"03610":3}});
     const current={...cycle,coletor:state};

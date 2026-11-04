@@ -85,9 +85,11 @@ export function setCollectorCount(state:CollectorState,code:string,value:number)
   return {...state,quantidades:quantities,atualizadoEm:new Date().toISOString()};
 }
 export function createCollectorState(previous?:CollectorState):CollectorState{
-  return previous?.status==="em_andamento"?previous:{
-    status:"em_andamento",modo:previous?.modo??"livre",
-    quantidades:previous?.quantidades??{},iniciadoEm:previous?.iniciadoEm??new Date().toISOString(),
+  // Um ciclo com bipagem finalizada permanece somente leitura até o operador
+  // usar explicitamente "Reabrir bipagem para correção".
+  return previous??{
+    status:"em_andamento",modo:"livre",
+    quantidades:{},iniciadoEm:new Date().toISOString(),
     atualizadoEm:new Date().toISOString(),
   };
 }
