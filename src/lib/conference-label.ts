@@ -12,7 +12,7 @@ export const CONFERENCE_LABEL_WIDTH_MM = 60;
 export const CONFERENCE_LABEL_HEIGHT_MM = 30;
 
 // Ícone oficial fornecido pela Bignotto, monocromático.
-const LOGO_MONO_PNG =
+export const LOGO_MONO_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAvCAIAAADvkkQPAAAAhElEQVR42u2Y4QrAIAiEvfD9X9n9G0IThJmjdv6vrzzviGBm0l5DvihSz6SqiADogd1+oa6kkrpXSiStnaxM5lBXUt+Nkp9KLd89Y4SODs/eG/3I5dQoYdZSI/mXd/gR3DFNM1hrBYsuB8Av6csmfxrm8F9fMCXpT11JJXVbKvijdyT1AsACIWf/YDBHAAAAAElFTkSuQmCC";
 
 export type ConferenceLabelRecord = Pick<VerificationRecord,
