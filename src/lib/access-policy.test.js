@@ -21,8 +21,9 @@ describe("permissões por função", () => {
     expect(canAccessState(null, "ciclos-contagem")).toBe(false);
     expect(canAccessState(null, "zona-segura", true)).toBe(false);
   });
-  test("operador pode registrar ciclos mas não modificar importações", () => {
+  test("operador pode registrar ciclos e a planilha de códigos, mas não modificar outras importações", () => {
     expect(canAccessState("operador", "ciclos-contagem", true)).toBe(true);
+    expect(canAccessState("operador", "barcodes-base", true)).toBe(true);
     expect(canAccessState("operador", "current-movimentos", true)).toBe(false);
     expect(canAccessState("operador", "import-history")).toBe(false);
   });

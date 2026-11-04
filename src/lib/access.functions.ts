@@ -55,7 +55,7 @@ export const writeProtectedState = createServerFn({ method: "POST" })
     if (role === "operador") {
       const { requireOperatorPermission } = await import("./employees.functions");
       // Apenas edição: a leitura continua liberada para consulta.
-      if (["ciclos-contagem", "contagem-atual", "zona-segura"].includes(data.key)) {
+      if (["ciclos-contagem", "contagem-atual", "zona-segura", "barcodes-base"].includes(data.key)) {
         await requireOperatorPermission("contagem");
       } else if (data.key === "conferencia") {
         // O índice "conferencia" também é atualizado ao concluir contagens

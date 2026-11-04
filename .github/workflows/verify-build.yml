@@ -47,6 +47,8 @@ jobs:
         run: bun test src/lib/reverse-volume-labels.test.js
       - name: Testar arquivos separados da Contagem
         run: bun test src/lib/counting-downloads.test.js
+      - name: Testar coletor mobile, código de barras, modo restrito e PDF
+        run: bun test src/lib/counting-collector.test.js
       - name: Testar histórico Coletados da Expedição
         run: bun test src/lib/expedition-history.test.js
       - name: Testar elegibilidade e filtros de etiquetas Entrega ou Retira

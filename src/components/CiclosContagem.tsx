@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Lightbulb, ClipboardList, ArrowLeft, ShieldCheck, CheckCircle2, Search, Trash2, Layers,
   FolderOpen, RotateCcw, CalendarDays, Clock3, Package, AlertTriangle, Target, Coins,
-  TrendingUp, BarChart3, Info, Download, FileText, FileSpreadsheet, type LucideIcon,
+  TrendingUp, BarChart3, Info, Download, FileText, FileSpreadsheet, Barcode, Upload, Printer, type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { COUNTING_FILES, type CountingFileKind } from "@/lib/format";
+import { CountingCollector } from "./CountingCollector";
+import { createCollectorPdf, collectorPdfFilename, type CollectorState } from "@/lib/counting-collector";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
@@ -96,10 +98,15 @@ function ResumoCampo({ icon: Icon, label, value, tone, vazio = false }: {
   );
 }
 
-export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) {
-  const { items, zonaSegura, enderecoBase, movimentos, conferencia, adicionarConferidos } = useStore();
+export function CiclosContagem({ canOperate = true, showCollector = false }: { canOperate?: boolean; showCollector?: boolean }) {
+  const { items, zonaSegura, enderecoBase, movimentos, conferencia, adicionarConferidos, barcodesBase, importBarcodesBase } = useStore();
   const { ciclos, ready, salvar } = useCiclos();
   const [abertoId, setAbertoId] = useState<string | null>(null);
+  const [collectorOpen,setCollectorOpen]=useState(false);
+  const [collectorCycleId,setCollectorCycleId]=useState<string|null>(null);
+  const barcodeFileRef=useRef<HTMLInputElement>(null);
+  const cyclesRef=useRef(ciclos);
+  useEffect(()=>{cyclesRef.current=ciclos;},[ciclos]);
   const [finalizando, setFinalizando] = useState<Ciclo | null>(null);
   const [reinventarioDialogo, setReinventarioDialogo] = useState<Ciclo | null>(null);
   const [excluindo, setExcluindo] = useState<Ciclo | null>(null);
@@ -377,6 +384,46 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
 
   const aberto = ciclos.find((c) => c.id === abertoId) ?? null;
 
+  /** Atualiza apenas o campo do coletor. O ciclo permanece aberto até o
+   * fechamento normal. O ref evita perder bipes rápidos antes do re-render. */
+  const saveCollector=(id:string,coletor:CollectorState)=>{
+    if(!canOperate)return;
+    const latest=cyclesRef.current;
+    const current=latest.find(c=>c.id===id);
+    if(!current||current.status!=="aberto") {
+      toast.error("Este ciclo não está mais aberto.");return;
+    }
+    const updated=latest.map(c=>c.id===id?{...c,coletor}:c);
+    cyclesRef.current=updated;
+    salvar(updated);
+  };
+  const openCollector=(id:string|null=null)=>{
+    setCollectorCycleId(id);
+    setCollectorOpen(true);
+  };
+  const printCollector=(cycle:Ciclo)=>{
+    try{
+      createCollectorPdf(cycle).save(collectorPdfFilename(cycle));
+      toast.success("PDF de bipagem gerado.");
+    }catch(e){
+      toast.error(e instanceof Error?e.message:"Não foi possível gerar PDF de bipagem.");
+    }
+  };
+  const importCollectorBarcodes=async(file:File|undefined)=>{
+    if(!file||!canOperate)return;
+    try{
+      if(!/\.csv$/i.test(file.name)){toast.error("Selecione um arquivo CSV de produtos.");return;}
+      if(file.size>25*1024*1024){toast.error("O CSV deve ter no máximo 25 MB.");return;}
+      await importBarcodesBase(file);
+    }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível carregar a planilha de códigos.");}
+    finally{if(barcodeFileRef.current)barcodeFileRef.current.value="";}
+  };
+  if(collectorOpen&&showCollector){
+    return <CountingCollector cycles={ciclos} activeId={collectorCycleId}
+      onChoose={setCollectorCycleId} onBack={()=>setCollectorOpen(false)}
+      onSave={saveCollector} barcodeBase={barcodesBase} canOperate={canOperate}/>;
+  }
+
   const confirmarExclusao = () => {
     if (!excluindo) return;
     salvar(excluirCiclo(ciclos, excluindo.id));
@@ -388,6 +435,40 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
   return (
     <div className="counting-root space-y-4">
       {!canOperate && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Contagem. As ações dos ciclos estão bloqueadas.</p>}
+      {showCollector&&<section className="space-y-3 rounded-xl border border-sky-400/30 bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-extrabold">
+              <Barcode className="h-5 w-5 text-primary"/> Coletor de Contagem
+            </h2>
+            <p className="text-xs text-muted-foreground">Abra o ciclo na tela principal e conte os itens pelo celular.
+              O fechamento continua no processo padrão.</p>
+          </div>
+          <Button type="button" size="lg" disabled={!ready||!canOperate||!ciclos.some(c=>c.status==="aberto")}
+            className="gap-2 font-extrabold" onClick={()=>openCollector()}>
+            <Barcode className="h-5 w-5"/> Coletor
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold">Planilha fixa de códigos de barras · Colunas A / M</p>
+            <p className="mt-1 break-words text-xs text-muted-foreground">
+              {barcodesBase.nomeArquivo?
+                barcodesBase.nomeArquivo+" · "+Object.keys(barcodesBase.porBarcode??{}).length.toLocaleString("pt-BR")+" códigos cadastrados"
+                :"Nenhuma planilha anexada. Anexe produtos com código de barras (.csv)."}
+            </p>
+            {barcodesBase.atualizadoEm&&<p className="mt-1 text-[11px] text-muted-foreground">
+              Última importação: {dt(barcodesBase.atualizadoEm)} · Permanece salva até ser substituída.</p>}
+          </div>
+          <input ref={barcodeFileRef} type="file" accept=".csv,text/csv" className="hidden"
+            aria-label="Anexar planilha de códigos de barras"
+            onChange={e=>void importCollectorBarcodes(e.target.files?.[0])}/>
+          <Button type="button" variant="outline" className="gap-2" disabled={!canOperate}
+            onClick={()=>barcodeFileRef.current?.click()}>
+            <Upload className="h-4 w-4"/> {barcodesBase.nomeArquivo?"Trocar planilha":"Anexar planilha"}
+          </Button>
+        </div>
+      </section>}
       <div className="counting-toolbar flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="counting-suggestion-action flex items-center rounded-lg border border-border bg-card px-3 py-2">
           <Button size="sm" variant="secondary" className="gap-2" onClick={abrirSugestoes} disabled={!ready}>
@@ -407,7 +488,9 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
       {aberto ? (
         <CicloDetalhe c={aberto} onArquivos={() => setArquivosCiclo({ ciclo: aberto, etapa: "primeiro" })} onVoltar={() => setAbertoId(null)}
           onFinalizar={() => setFinalizando(aberto)} onZona={() => enviarZona(aberto)} canOperate={canOperate}
-          onReinventariar={() => onReinventariar(aberto)} onExcluir={() => setExcluindo(aberto)} />
+          onReinventariar={() => onReinventariar(aberto)} onExcluir={() => setExcluindo(aberto)}
+          onOpenCollector={showCollector&&aberto.status==="aberto"?()=>openCollector(aberto.id):undefined}
+          onCollectorPdf={aberto.coletor?.status==="finalizado"?()=>printCollector(aberto):undefined} />
       ) : (
         <div className="space-y-2">
           {!ready && <p className="text-sm text-muted-foreground">Carregando ciclos…</p>}
@@ -450,6 +533,8 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
                         </span>
                       )}
                     </span>
+                    {c.coletor?.status==="em_andamento"&&<span className="mt-1.5 block text-xs font-bold text-sky-600 dark:text-sky-300">Bipagem em andamento</span>}
+                    {c.coletor?.status==="finalizado"&&<span className="mt-1.5 block text-xs font-bold text-success">Bipagem finalizada · PDF disponível</span>}
                     {c.selecao && (
                       <span className="mt-1.5 block break-words text-sm font-semibold text-primary sm:text-base">
                         {c.selecao.tipo === "linha" ? "Linha" : "Grupo"}: {c.selecao.valor}
@@ -458,6 +543,14 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
                     <span className="mt-1 block text-[11px] text-muted-foreground">Clique para consultar os detalhes do ciclo</span>
                   </button>
                   <div className="counting-cycle-actions flex flex-wrap items-center gap-2">
+                    {showCollector&&c.status==="aberto"&&<Button size="sm" variant="outline"
+                      disabled={!canOperate} onClick={()=>openCollector(c.id)}>
+                      <Barcode className="h-4 w-4"/> Coletor
+                    </Button>}
+                    {c.coletor?.status==="finalizado"&&<Button size="sm" variant="outline"
+                      onClick={()=>printCollector(c)}>
+                      <FileText className="h-4 w-4"/> PDF de bipagem
+                    </Button>}
                     <Button size="sm" variant="outline" onClick={() => setArquivosCiclo({ ciclo: c, etapa: "primeiro" })}>
                        <Download className="h-4 w-4" /> Arquivos
                      </Button>
@@ -729,8 +822,9 @@ export function CiclosContagem({ canOperate = true }: { canOperate?: boolean }) 
   );
 }
 
-function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir, onArquivos, canOperate }: {
+function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExcluir, onArquivos, onOpenCollector, onCollectorPdf, canOperate }: {
   c: Ciclo; canOperate: boolean; onVoltar: () => void; onFinalizar: () => void; onZona: () => void; onReinventariar: () => void; onExcluir: () => void; onArquivos: () => void;
+  onOpenCollector?:()=>void; onCollectorPdf?:()=>void;
 }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"todos" | "div" | "ok">("todos");
@@ -756,6 +850,12 @@ function CicloDetalhe({ c, onVoltar, onFinalizar, onZona, onReinventariar, onExc
         <div className="counting-detail-actions ml-auto flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={onArquivos}><Download className="h-4 w-4" /> Arquivos</Button>
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={!canOperate} onClick={onExcluir}><Trash2 className="h-4 w-4" /> Excluir ciclo</Button>
+          {onOpenCollector&&<Button size="sm" variant="outline" disabled={!canOperate} onClick={onOpenCollector}>
+            <Barcode className="h-4 w-4"/> Coletor
+          </Button>}
+          {onCollectorPdf&&<Button size="sm" variant="outline" onClick={onCollectorPdf}>
+            <FileText className="h-4 w-4"/> PDF de bipagem
+          </Button>}
           {!fin && <Button size="sm" variant="outline" disabled={!canOperate} onClick={onFinalizar}><CheckCircle2 className="h-4 w-4" /> Finalizar Ciclo</Button>}
           {fin && <Button size="sm" disabled={!canOperate} onClick={onReinventariar}><RotateCcw className="h-4 w-4" /> {reinvAberto ? "Finalizar reinventário" : "Reinventariar"}</Button>}
           <Button size="sm" disabled={!canOperate || c.enviadoZona || !fin} onClick={onZona}>

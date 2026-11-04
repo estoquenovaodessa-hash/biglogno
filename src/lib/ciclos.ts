@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { cloudGetAll, cloudSet, subscribeCloud } from "./cloudState";
 import type { LinhaDivergencia } from "./pdfDivergencias";
 import type { EnderecoBase } from "./types";
+import type { CollectorState } from "./counting-collector";
 
 export type TipoCiclo = "apuracao" | "padrao";
 export type TipoSelecao = "linha" | "grupo";
@@ -59,6 +60,8 @@ export interface Ciclo {
   enviadoEm?: string;
   selecao?: SelecaoContagem;
   reinventarios?: Reinventario[];
+  /** Contagem via coletor: dados de bipagem independentes do fechamento tradicional. */
+  coletor?: CollectorState;
 }
 
 const KEY = "ciclos-contagem";

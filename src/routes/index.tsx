@@ -500,7 +500,7 @@ const brandHeader = (
           ) : (
             <Button variant="ghost" className="mb-5" onClick={() => setOperatorScreen(null)}>← Voltar</Button>
           )}
-          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem canOperate={rights.contagem} /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Logística Reversa" ? <ReverseLogisticsOperator /> : operatorScreen === "Expedição" ? <ExpedicaoOperador /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
+          {operatorScreen === "Contagem" ? <section className="operator-counting"><h1 className="mb-5 text-xl font-extrabold sm:mb-6 sm:text-2xl">Contagem</h1><CiclosContagem canOperate={rights.contagem} showCollector /></section> : operatorScreen === "Entregas" ? <Entregas role={role} /> : operatorScreen === "Logística Reversa" ? <ReverseLogisticsOperator /> : operatorScreen === "Expedição" ? <ExpedicaoOperador /> : operatorScreen === "Chat" ? <ChatOcorrencias /> : <SalesVerification role={role} />}
         </>}
       </main>
     </div>;

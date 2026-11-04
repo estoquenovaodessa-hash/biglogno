@@ -6,7 +6,7 @@ export function canAccessTab(role: AccessRole | null, tab: string): boolean {
 }
 
 const READ_KEYS = ["endereco-base", "current-movimentos", "current-meta", "zona-segura", "resolvidos-dia", "conferencia", "barcodes-base", "contagem-atual", "ciclos-contagem"];
-const WRITE_KEYS = ["ciclos-contagem", "zona-segura", "conferencia", "resolvidos-dia", "contagem-atual"];
+const WRITE_KEYS = ["ciclos-contagem", "zona-segura", "conferencia", "resolvidos-dia", "contagem-atual", "barcodes-base"];
 export function canAccessState(role: AccessRole | null, key: string, write = false): boolean {
   if (!role) return false;
   if (role === "gestor") return [...READ_KEYS, "import-history"].includes(key);
