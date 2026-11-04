@@ -1,9 +1,27 @@
 import {describe,expect,test} from "bun:test";
+import {parseBarcodes} from "./csv";
 import {adjustCollectorCount,collectorProgress,createCollectorState,finalizeCollector,scanCollector,resolveCollectorBarcode,setCollectorCount,createCollectorPdf} from "./counting-collector";
 const items=[{codigo:"03610",descricao:"Produto A",endereco:"A-01"},{codigo:"01162",descricao:"Produto B",endereco:"B-02"}];
 const barcodes={registros:{},porBarcode:{"7891234567890":"03610","7891040004973":"01162","47891040004971":"01162","9999999999999":"99999"}};
 const cycle={id:"ciclo1",tipo:"padrao",numero:1,titulo:"Padrão NR 1",criadoEm:"2026-11-04T13:00:00Z",status:"aberto",itens:items,enviadoZona:false};
 describe("Coletor de ciclos",()=>{
+  test("planilha PRODUTOS: coluna A liga aos múltiplos códigos da coluna M",()=>{
+    const csv=[
+      "BIGNOTTO FERRAMENTAS LTDA",
+      "",
+      "PRODUTOS 04/11/2026 13:59",
+      "",
+      "CÓDIGO;DESCRIÇÃO;REFERÊNCIA;CÓD. FABRICA;UN;UNIDADE;PESO;ABF;;FONECEDOR;MARCA;CLASSIF. IPI;CÓD. BARRAS;DATA CAD.;% COM. EXT.;% COM. INT.",
+      '"01162";"3M ADESIVO DE JUNTA PRA MOTOR";"";"";"UN";"UN";0,00;"001";"";"";"3M";"35061090";"| 7891040004973 | 47891040004971 |";01/02/2017;0,00;0,00',
+      '"03610";"FITA ISOLANTE";"";"";"UN";"UN";0,00;"001";"";"";"BIGNOTTO";"35061090";"| 7891234567890 |";01/02/2017;0,00;0,00',
+    ].join("\n");
+    const parsed=parseBarcodes(csv,"produtos com codigo de barras.csv");
+    expect(parsed.registros["01162"]?.barcodes).toEqual(["7891040004973","47891040004971"]);
+    expect(parsed.porBarcode["7891040004973"]).toBe("01162");
+    expect(parsed.porBarcode["47891040004971"]).toBe("01162");
+    expect(parsed.porBarcode["7891234567890"]).toBe("03610");
+    expect(parsed.nomeArquivo).toBe("produtos com codigo de barras.csv");
+  });
   test("aceita vários códigos de barras da coluna M para o mesmo item do ciclo",()=>{
     expect(resolveCollectorBarcode("47891040004971",barcodes,items).code).toBe("01162");
     expect(resolveCollectorBarcode("7891040004973",barcodes,items).code).toBe("01162");
