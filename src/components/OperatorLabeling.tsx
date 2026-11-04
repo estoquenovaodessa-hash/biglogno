@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from "react";
-import {ArrowLeft,CheckCircle2,FileDown,PackagePlus,Printer,ScanLine,Tag,Trash2,X} from "lucide-react";
+import {ArrowLeft,CheckCircle2,ClipboardCheck,FileDown,PackagePlus,Printer,ScanLine,Tag,Trash2,X} from "lucide-react";
 import {toast} from "sonner";
 import {useStore} from "@/lib/store";
 import {Button} from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   createSboLabelsPdf,sboLabelFilename,sboQuantityText,type SboUnit,type SboLabel,
 } from "@/lib/sbo-label";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
+import {OperatorConferenceLabels} from "./OperatorConferenceLabels";
 
 type SboRow={key:number;code:string;description:string;quantityText:string;unit:SboUnit};
 const unitOptions=SBO_UNITS;
@@ -23,7 +24,7 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
   const {barcodesBase,enderecoBase,items,ready}=useStore();
   const catalog=useMemo(()=>createSboCatalog(barcodesBase,enderecoBase,items),
     [barcodesBase,enderecoBase,items]);
-  const [sboOpen,setSboOpen]=useState(false);
+  const [mode,setMode]=useState<"sbo"|"conferencia"|null>(null);
   const [code,setCode]=useState("");
   const [quantity,setQuantity]=useState("1");
   const [userUnit,setUserUnit]=useState<SboUnit|null>(null);
@@ -36,7 +37,7 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
   const effectiveUnit=userUnit??product?.unit??"UN";
   const readyForPdf=rows.length>0&&rows.every(r=>toLabel(r)!==null);
 
-  useEffect(()=>{if(sboOpen)codeRef.current?.focus();},[sboOpen]);
+  useEffect(()=>{if(mode==="sbo")codeRef.current?.focus();},[mode]);
 
   function addRow(event?:React.FormEvent<HTMLFormElement>){
     event?.preventDefault();
@@ -87,25 +88,38 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
             <h1 className="text-lg font-black tracking-wide sm:text-2xl">ETIQUETAGEM</h1>
           </div>
         </div>
-        <Button type="button" size="lg" onClick={()=>setSboOpen(current=>!current)}
-          className="gap-2 font-black" aria-expanded={sboOpen} aria-controls="sbo-grid">
-          <ScanLine className="h-5 w-5"/> S.B.O
-        </Button>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Tipos de etiquetagem">
+          <Button type="button" size="lg" variant={mode==="sbo"?"default":"outline"}
+            onClick={()=>setMode(current=>current==="sbo"?null:"sbo")}
+            className="gap-2 font-black" aria-expanded={mode==="sbo"} aria-controls="sbo-grid">
+            <ScanLine className="h-5 w-5"/> S.B.O
+          </Button>
+          <Button type="button" size="lg" variant={mode==="conferencia"?"default":"outline"}
+            onClick={()=>setMode(current=>current==="conferencia"?null:"conferencia")}
+            className="gap-2 font-black" aria-expanded={mode==="conferencia"} aria-controls="conference-labeling">
+            <ClipboardCheck className="h-5 w-5"/> Conferência
+          </Button>
+        </div>
       </div>
     </header>
     <main className="mx-auto max-w-[1450px] space-y-5 px-3 py-5 sm:px-6 sm:py-8">
-      {!sboOpen?<div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card px-5 py-12 text-center shadow-sm">
+      {mode==="conferencia"?<OperatorConferenceLabels/>:mode!=="sbo"?<div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card px-5 py-12 text-center shadow-sm">
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Tag className="h-10 w-10"/>
         </div>
         <h2 className="mt-5 text-2xl font-extrabold">Etiquetagem de produtos</h2>
         <p className="mt-3 text-sm text-muted-foreground">
-          Esta área funcionará sem menu. Clique no botão <strong>S.B.O</strong> no topo para abrir
-          o grid e gerar etiquetas de identificação dos itens.
+          Esta área não possui menu lateral. Utilize <strong>S.B.O</strong> para etiquetas
+          de produtos ou <strong>Conferência</strong> para imprimir etiquetas de pedidos de Entrega e Retira.
         </p>
-        <Button type="button" className="mt-6 gap-2" size="lg" onClick={()=>setSboOpen(true)}>
-          <ScanLine className="h-5 w-5"/> Abrir S.B.O
-        </Button>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button type="button" className="gap-2" size="lg" onClick={()=>setMode("sbo")}>
+            <ScanLine className="h-5 w-5"/> Abrir S.B.O
+          </Button>
+          <Button type="button" variant="outline" className="gap-2" size="lg" onClick={()=>setMode("conferencia")}>
+            <ClipboardCheck className="h-5 w-5"/> Abrir Conferência
+          </Button>
+        </div>
       </div>:<section id="sbo-grid" className="space-y-5" aria-label="Grid de etiquetagem S.B.O">
         <div className="rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-card to-card p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
