@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import type { VerificationRecord } from "./sales-verification";
+import { conferenceLabelKind } from "./conference-label-selection";
 
 /**
  * Padrão aprovado da Argox OS-214 plus: etiqueta de 60 mm de largura
@@ -15,7 +16,8 @@ const LOGO_MONO_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACcAAAAvCAIAAADvkkQPAAAAhElEQVR42u2Y4QrAIAiEvfD9X9n9G0IThJmjdv6vrzzviGBm0l5DvihSz6SqiADogd1+oa6kkrpXSiStnaxM5lBXUt+Nkp9KLd89Y4SODs/eG/3I5dQoYdZSI/mXd/gR3DFNM1hrBYsuB8Av6csmfxrm8F9fMCXpT11JJXVbKvijdyT1AsACIWf/YDBHAAAAAElFTkSuQmCC";
 
 export type ConferenceLabelRecord = Pick<VerificationRecord,
-  "document" | "clientName" | "items" | "createdAt" | "verifierName">;
+  "document" | "clientName" | "items" | "createdAt" | "verifierName"
+    | "verifierCode" | "forDelivery" | "balcaoDestination" | "source">;
 
 export function conferenceLabelValues(record: ConferenceLabelRecord) {
   const stamp = new Date(record.createdAt);
@@ -62,23 +64,10 @@ export function conferenceLabelFilename(record: ConferenceLabelRecord): string {
 }
 
 
-/**
- * PDF pronto para a configuração de mídia 60 x 30 mm que foi testada
- * com sucesso na Argox. NÃO rotacionar a página para 30 x 60 mm.
- */
-export function createConferenceLabelPdf(record: ConferenceLabelRecord): jsPDF {
+/** Desenha uma etiqueta por página. Mantém o layout 60 x 30 mm que
+ * já foi testado na Argox, com distinção visual Entrega / Retira. */
+function drawConferenceLabel(pdf: jsPDF, record: ConferenceLabelRecord): void {
   const v = conferenceLabelValues(record);
-  const pdf = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: [CONFERENCE_LABEL_WIDTH_MM, CONFERENCE_LABEL_HEIGHT_MM],
-    compress: true,
-  });
-  pdf.setProperties({
-    title: "Etiqueta de Conferência - " + v.document,
-    subject: "Argox 60 x 30 mm - Bignotto Ferramentas",
-    author: "Bignotto Ferramentas",
-  });
   pdf.setTextColor(0, 0, 0);
   pdf.setDrawColor(0, 0, 0);
   pdf.setLineWidth(0.17);
@@ -99,7 +88,7 @@ export function createConferenceLabelPdf(record: ConferenceLabelRecord): jsPDF {
   // Destaque principal: número do documento, com quantidade à direita.
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(6.4);
-  pdf.text("Nº DO DOCUMENTO", 2.1, 10.45);
+  pdf.text(conferenceLabelKind(record) === "entrega" ? "ENTREGA - Nº DO DOCUMENTO" : "RETIRA - Nº DO DOCUMENTO", 2.1, 10.45);
   fitted(pdf, v.document, 2.0, 15.8, 40.0, 16.3, 8.2);
   pdf.setLineWidth(0.19);
   pdf.line(44.6, 9.1, 44.6, 17.0);
@@ -143,5 +132,40 @@ export function createConferenceLabelPdf(record: ConferenceLabelRecord): jsPDF {
   fitted(pdf, "Guarde a embalagem para", 35.3, 26.7, 22.2, 5.35, 4.25);
   fitted(pdf, "futura reclamação.", 35.3, 28.15, 22.2, 5.35, 4.25);
 
+}
+
+/** Um único PDF com N etiquetas, cada uma numa página física independente
+ * de 60 x 30 mm. Nunca combina várias etiquetas na mesma página. */
+export function createConferenceLabelsPdf(records: ConferenceLabelRecord[]): jsPDF {
+  if (!records.length) throw new Error("Não existem etiquetas selecionadas.");
+  if (records.some(record => !conferenceLabelKind(record)))
+    throw new Error("Somente conferências de Entrega ou Retira podem gerar etiquetas.");
+  const pdf = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: [CONFERENCE_LABEL_WIDTH_MM, CONFERENCE_LABEL_HEIGHT_MM],
+    compress: true,
+  });
+  for (let i = 0; i < records.length; i++) {
+    if (i) pdf.addPage([CONFERENCE_LABEL_WIDTH_MM, CONFERENCE_LABEL_HEIGHT_MM], "landscape");
+    drawConferenceLabel(pdf, records[i]);
+  }
+  pdf.setProperties({
+    title: "Etiquetas de Conferência - " + records.length + " documento(s)",
+    subject: "Argox 60 x 30 mm - 1 etiqueta por página",
+    author: "Bignotto Ferramentas",
+  });
   return pdf;
+}
+
+/** Compatibilidade do botão por documento na coluna Ações. */
+export function createConferenceLabelPdf(record: ConferenceLabelRecord): jsPDF {
+  return createConferenceLabelsPdf([record]);
+}
+
+/** Arquivos distintos para impressão do dia e impressão seletiva do histórico. */
+export function conferenceLabelsBatchFilename(mode: "hoje" | "selecionadas", day: string): string {
+  const safeDay = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "data";
+  return mode === "hoje" ? `etiquetas-conferencia-${safeDay}-argox.pdf`
+    : `etiquetas-conferencia-selecionadas-${safeDay}-argox.pdf`;
 }
