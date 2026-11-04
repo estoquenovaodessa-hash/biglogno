@@ -7,6 +7,7 @@ import {
   ChartNoAxesCombined,
   PackageSearch,
   ScanLine,
+  Tag,
   Warehouse,
   LocateFixed,
   CalendarClock,
@@ -65,6 +66,7 @@ import { Historico } from "@/components/Historico";
 import { Enderecamento } from "@/components/Enderecamento";
 import { Entregas } from "@/components/Entregas";
 import { ReverseLogisticsOperator } from "@/components/ReverseLogisticsOperator";
+import { OperatorLabeling } from "@/components/OperatorLabeling";
 import { LogisticaReversa } from "@/components/LogisticaReversa";
 import { ExpedicaoOperador } from "@/components/ExpedicaoOperador";
 import { CiclosContagem } from "@/components/CiclosContagem";
@@ -134,7 +136,7 @@ function OperationalApp({ role, onExit }: { role: AccessRole; onExit: () => void
   const lock = useServerFn(lockAccess);
   // A cada acesso ou atualização da página: novo roteiro, sem persistir preferência de pular.
   const [showManagerWelcome, setShowManagerWelcome] = useState(role === "gestor");
-  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Logística Reversa" | "Expedição" | "Chat" | null>(null);
+  const [operatorScreen, setOperatorScreen] = useState<"Contagem" | "Conferência" | "Entregas" | "Logística Reversa" | "Expedição" | "Etiquetagem" | "Chat" | null>(null);
   const [exiting, setExiting] = useState(false);
   const handleExit = async () => {
     setExiting(true);
@@ -374,6 +376,13 @@ const brandHeader = (
   }
 
   if (role === "operador") {
+    // Etiquetagem ocupa uma tela própria: sem menu lateral, com S.B.O no topo.
+    if (operatorScreen === "Etiquetagem") {
+      return <div className="min-h-screen w-full overflow-x-hidden bg-background">
+        <FriendlyPingBridge role={role} currentArea={operatorScreen} />
+        <OperatorLabeling onBack={() => setOperatorScreen(null)} />
+      </div>;
+    }
     // O Chat é um mensageiro em tela cheia: nenhum cabeçalho ou menu do painel.
     if (operatorScreen === "Chat") {
       return <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-[#10243a]">
@@ -457,6 +466,15 @@ const brandHeader = (
                 </span>
                 <span className="text-lg font-extrabold text-foreground">Expedição</span>
                 <span className="text-xs font-medium leading-snug text-muted-foreground">Controle de separação, entregas e retiras</span>
+              </Button>
+              <Button variant="outline"
+                className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-amber-500/40 border-t-4 border-t-amber-500 bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-500/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-amber-500"
+                onClick={() => setOperatorScreen("Etiquetagem")}>
+                <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Tag aria-hidden="true" className="h-8 w-8" />
+                </span>
+                <span className="text-lg font-extrabold text-foreground">ETIQUETAGEM</span>
+                <span className="text-xs font-medium leading-snug text-muted-foreground">S.B.O · Código do item, quantidade e etiqueta Argox</span>
               </Button>
               <Button variant="outline"
                 className="group h-auto min-h-44 flex-col justify-center gap-3 whitespace-normal rounded-2xl border border-emerald-500/35 border-t-4 border-t-emerald-500 bg-card px-4 py-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-500/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-500"
