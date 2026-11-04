@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { VerificationRecord } from "@/lib/sales-verification";
+import type { ConferenceLabelEntry } from "@/lib/conference-label-selection";
 import {
   eligibleConferenceLabelRecords, conferenceLabelsForDay,
   conferenceLabelKind, filterConferenceLabelRecords,
@@ -21,7 +21,7 @@ const dateText=(s:string)=>new Date(s).toLocaleDateString("pt-BR",{
 
 /** Impressão independente dos filtros do painel, inclusive para dias antigos.
  * PDF com um documento por página de 60x30mm. */
-export function ConferenceLabelBatchActions({records}:{records:VerificationRecord[]}){
+export function ConferenceLabelBatchActions({records}:{records:ConferenceLabelEntry[]}){
   const [open,setOpen]=useState(false);
   const [search,setSearch]=useState("");
   const deferredSearch=useDeferredValue(search);
@@ -62,7 +62,7 @@ export function ConferenceLabelBatchActions({records}:{records:VerificationRecor
       return next;
     });
   }
-  function download(rows:VerificationRecord[],mode:"hoje"|"selecionadas"){
+  function download(rows:ConferenceLabelEntry[],mode:"hoje"|"selecionadas"){
     if(!rows.length){toast.error("Não há pedidos de Entrega ou Retira selecionados.");return;}
     if(rows.length>600&&!window.confirm("O PDF terá "+rows.length+" etiquetas. Deseja continuar?"))return;
     setPrinting(true);

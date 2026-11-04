@@ -3,6 +3,11 @@ import { salesDay } from "./sales-weekly";
 
 export type ConferenceLabelKind = "entrega" | "retira";
 
+/** Dados mínimos necessários para impressão, sem vendas, valores ou comentários. */
+export type ConferenceLabelEntry=Pick<VerificationRecord,
+  "id"|"createdAt"|"document"|"clientName"|"clientCode"|"items"
+  |"verifierCode"|"verifierName"|"forDelivery"|"balcaoDestination"|"source">;
+
 /** O destino é a decisão registrada na conferência, não uma inferência
  * pelo nome do cliente, sufixo da nota ou situação atual da Expedição. */
 export function conferenceLabelKind(
@@ -15,11 +20,11 @@ export function conferenceLabelKind(
     : destination === "pickups" ? "retira" : null;
 }
 
-export function eligibleConferenceLabelRecords(records: VerificationRecord[]): VerificationRecord[] {
+export function eligibleConferenceLabelRecords(records: ConferenceLabelEntry[]): ConferenceLabelEntry[] {
   return records.filter(record => conferenceLabelKind(record) !== null);
 }
 
-export function conferenceLabelsForDay(records: VerificationRecord[], day: string): VerificationRecord[] {
+export function conferenceLabelsForDay(records: ConferenceLabelEntry[], day: string): ConferenceLabelEntry[] {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
   return eligibleConferenceLabelRecords(records).filter(record =>
     record.createdAt && Number.isFinite(Date.parse(record.createdAt))
@@ -35,8 +40,8 @@ export type ConferenceLabelFilters = {
 
 /** Consulta datas do histórico sem depender dos filtros do painel do gestor. */
 export function filterConferenceLabelRecords(
-  records: VerificationRecord[], filters: ConferenceLabelFilters,
-): VerificationRecord[] {
+  records: ConferenceLabelEntry[], filters: ConferenceLabelFilters,
+): ConferenceLabelEntry[] {
   const search = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().toLocaleLowerCase("pt-BR");
   const query = search(filters.query || "");
