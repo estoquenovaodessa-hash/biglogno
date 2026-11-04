@@ -1,5 +1,6 @@
 import {useDeferredValue,useMemo,useState} from "react";
-import {PackagePlus,Search} from "lucide-react";
+import {PackagePlus,Search,Building2} from "lucide-react";
+import type {ReverseSupplier} from "@/lib/reverse-logistics";
 import {Dialog,DialogContent,DialogHeader,DialogTitle} from "@/components/ui/dialog";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -10,17 +11,22 @@ type Group=ReturnType<typeof reverseGroups>[number];
 
 /** Janela isolada: digitar não causa renderização dos cards ou da contagem
  * abertos na tela principal do operador. */
-export function ReverseGroupPicker({groups,index,busy,onClose,onCreate}:{
+export function ReverseGroupPicker({groups,index,busy,suppliers,onOpenSuppliers,onClose,onCreate}:{
   groups:Group[];
   index:ReadonlyMap<string,string>;
   busy:boolean;
+  suppliers:ReverseSupplier[];
+  onOpenSuppliers:()=>void;
   onClose:()=>void;
-  onCreate:(keys:string[])=>void;
+  onCreate:(keys:string[],supplierId:string,brand:string)=>void;
 }){
   const [query,setQuery]=useState("");
   const deferredQuery=useDeferredValue(query);
   const [limit,setLimit]=useState(PAGE_SIZE);
   const [selected,setSelected]=useState<string[]>([]);
+  const [supplierId,setSupplierId]=useState("");
+  const [brand,setBrand]=useState("");
+  const supplier=suppliers.find(item=>item.id===supplierId);
   const chosen=useMemo(()=>new Set(selected),[selected]);
   const result=useMemo(()=>reverseSearchGroups(groups,index,deferredQuery,limit),
     [groups,index,deferredQuery,limit]);
@@ -64,8 +70,29 @@ export function ReverseGroupPicker({groups,index,busy,onClose,onCreate}:{
         Mostrar mais grupos ({result.total-result.visible.length} restantes)
       </Button>}
       <p className="text-xs text-sky-200">A seleção permanece marcada mesmo ao pesquisar outro grupo.</p>
-      <Button className="bg-sky-600 text-white" disabled={busy||!selected.length}
-        onClick={()=>onCreate(selected)}>
+      <div className="grid gap-2 rounded-xl border border-sky-400/30 bg-[#123b62]/70 p-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs font-bold text-sky-100">Fornecedor *
+          <select className="h-10 rounded-md border border-sky-400/40 bg-[#061a31] px-2 text-white"
+            aria-label="Fornecedor para devolução" value={supplierId} onChange={e=>{setSupplierId(e.target.value);setBrand("");}}>
+            <option value="">Selecione fornecedor...</option>
+            {suppliers.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-bold text-sky-100">Marca em tratativa *
+          <select className="h-10 rounded-md border border-sky-400/40 bg-[#061a31] px-2 text-white"
+            aria-label="Marca para devolução" value={brand} disabled={!supplierId}
+            onChange={e=>setBrand(e.target.value)}>
+            <option value="">Selecione a marca...</option>
+            {supplier?.brands.map(name=><option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <div className="sm:col-span-2">
+          <button type="button" className="flex items-center gap-2 text-xs font-semibold text-sky-200 underline"
+            onClick={onOpenSuppliers}><Building2 size={15}/> Cadastrar ou editar fornecedor e suas marcas</button>
+        </div>
+      </div>
+      <Button className="bg-sky-600 text-white" disabled={busy||!selected.length||!supplierId||!brand}
+        onClick={()=>onCreate(selected,supplierId,brand)}>
         <PackagePlus size={17} className="mr-2"/> Abrir ciclo de Logística Reversa ({selected.length} grupos)
       </Button>
     </DialogContent>
