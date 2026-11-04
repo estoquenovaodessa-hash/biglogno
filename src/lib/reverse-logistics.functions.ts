@@ -4,7 +4,10 @@ import type { EnderecoBase } from "./types";
 import {
   reverseSelectedGroupSchema, reverseCycleIdSchema, reverseQuantitiesSchema,
   reverseFinishSchema, reverseTreatmentSchema, reverseGroups,
-  reverseItemsForGroups, reverseIncluded, type ReverseCycle,
+  reverseItemsForGroups, reverseIncluded, reverseCreateSchema,
+  reverseSupplierSaveSchema, reverseCycleSupplierSchema,
+  reverseContactProgressSchema, reverseStageChangeSchema,
+  allReverseContactStepsDone, reverseWorkflowStage, type ReverseCycle, type ReverseSupplier,
 } from "./reverse-logistics";
 
 /** Tabela isolada com RLS ativo e acesso exclusivo a funções autenticadas. */
@@ -38,6 +41,124 @@ const payload = (c: ReverseCycle): object => {
 };
 const TABLE = "reverse_logistics_cycles" as "deliveries"; // Tabela criada na migração; tipos gerados do Supabase serão regenerados depois.
 
+const SUPPLIER_TABLE = "reverse_logistics_suppliers" as "deliveries";
+
+/** Cadastro compartilhado. O gestor acompanha, o operador pode cadastrar/editar.
+ * O snapshot (nome e marca) permanece no ciclo após alterações no fornecedor. */
+type SupplierRow={id:string;name:string;brands:string[];contact_name:string;phone:string;email:string;cnpj:string;version:number;created_at:string;updated_at:string};
+const asSupplier=(r:SupplierRow):ReverseSupplier=>({
+  id:r.id,name:r.name,brands:r.brands,contactName:r.contact_name,
+  phone:r.phone,email:r.email,cnpj:r.cnpj,version:r.version,
+  createdAt:r.created_at,updatedAt:r.updated_at,
+});
+async function getSupplier(id:string):Promise<ReverseSupplier>{
+  const {data,error}=await (await db()).from(SUPPLIER_TABLE)
+    .select("id,name,brands,contact_name,phone,email,cnpj,version,created_at,updated_at")
+    .eq("id",id).maybeSingle();
+  if(error||!data)throw new Error("Fornecedor não encontrado. Atualize o cadastro e tente novamente.");
+  return asSupplier(data as unknown as SupplierRow);
+}
+async function supplierForBrand(id:string,brand:string){
+  const supplier=await getSupplier(id);
+  const matched=supplier.brands.find(v=>v.toLocaleUpperCase("pt-BR")===brand.trim().toLocaleUpperCase("pt-BR"));
+  if(!matched)throw new Error("Esta marca não pertence ao fornecedor selecionado.");
+  return {supplier,brand:matched};
+}
+
+export const listReverseSuppliers=createServerFn({method:"GET"}).handler(async()=>{
+  await access();
+  const all:ReverseSupplier[]=[];
+  for(let offset=0;;offset+=500){
+    const {data,error}=await (await db()).from(SUPPLIER_TABLE)
+      .select("id,name,brands,contact_name,phone,email,cnpj,version,created_at,updated_at")
+      .order("name",{ascending:true}).range(offset,offset+499);
+    if(error)throw new Error("O cadastro de fornecedores não está instalado. Execute o SQL da nova Logística Reversa no Supabase.");
+    const page=(data??[]) as unknown as SupplierRow[];
+    all.push(...page.map(asSupplier));if(page.length<500)break;
+  }
+  return all;
+});
+export const saveReverseSupplier=createServerFn({method:"POST"})
+  .inputValidator(reverseSupplierSaveSchema).handler(async({data})=>{
+    await access(true);
+    const values={name:data.name,brands:data.brands,contact_name:data.contactName??"",
+      email:data.email??"",phone:data.phone??"",cnpj:data.cnpj??""};
+    if(data.id){
+      if(!data.version)throw new Error("Atualize o cadastro antes de editar.");
+      const {data:saved,error}=await (await db()).from(SUPPLIER_TABLE)
+        .update({...values,version:data.version+1,updated_at:new Date().toISOString()} as never)
+        .eq("id",data.id).eq("version",data.version)
+        .select("id,name,brands,contact_name,phone,email,cnpj,version,created_at,updated_at").maybeSingle();
+      if(error)throw new Error(error.code==="23505"?"Já existe fornecedor com este nome.":"Não foi possível atualizar o fornecedor.");
+      if(!saved)throw new Error("O fornecedor foi editado por outra pessoa. Atualize e tente novamente.");
+      return asSupplier(saved as unknown as SupplierRow);
+    }
+    const {data:saved,error}=await (await db()).from(SUPPLIER_TABLE)
+      .insert(values as never)
+      .select("id,name,brands,contact_name,phone,email,cnpj,version,created_at,updated_at").single();
+    if(error||!saved)throw new Error(error?.code==="23505"?"Já existe fornecedor com este nome.":"Não foi possível cadastrar o fornecedor.");
+    return asSupplier(saved as unknown as SupplierRow);
+  });
+
+/** Pode atualizar o fornecedor do ciclo após o cadastro sem reiniciar a contagem. */
+export const assignReverseSupplier=createServerFn({method:"POST"})
+  .inputValidator(reverseCycleIdSchema.merge(reverseCycleSupplierSchema))
+  .handler(async({data})=>{
+    await access(true);
+    const c=await loadOne(data.id);
+    if(c.version!==data.version)throw new Error("O ciclo mudou. Atualize e tente novamente.");
+    if(reverseWorkflowStage(c)==="resolvido")throw new Error("O ciclo finalizado não permite trocar o fornecedor.");
+    const selected=await supplierForBrand(data.supplierId,data.brand);
+    return persist({...c,supplierId:selected.supplier.id,supplier:selected.supplier.name,
+      brand:selected.brand},data.version);
+  });
+
+/** Mural interativo: cada passo é validado e o avanço fica bloqueado no servidor. */
+export const saveReverseContactProgress=createServerFn({method:"POST"})
+  .inputValidator(reverseContactProgressSchema).handler(async({data})=>{
+    await access(true);
+    const c=await loadOne(data.id);
+    if(c.version!==data.version)throw new Error("A tratativa foi atualizada por outra pessoa.");
+    if(reverseWorkflowStage(c)!=="em_tratativa")throw new Error("O contato com fornecedor já passou desta etapa.");
+    return persist({...c,contactSteps:data.steps,contactStartedAt:c.contactStartedAt??new Date().toISOString()},data.version);
+  });
+
+/** Transições auditáveis, sem atalhos para pular as etapas obrigatórias. */
+export const updateReverseStage=createServerFn({method:"POST"})
+  .inputValidator(reverseStageChangeSchema).handler(async({data})=>{
+    await access(true);
+    const c=await loadOne(data.id);
+    if(c.version!==data.version)throw new Error("O ciclo foi alterado. Recarregue antes de mudar o status.");
+    const current=reverseWorkflowStage(c);
+    const now=new Date().toISOString();
+    if(!c.supplierId||!c.brand)throw new Error("Selecione o fornecedor e uma marca antes de continuar.");
+    if(data.status==="aguardando_coleta"){
+      if(current!=="em_tratativa" && current!=="aguardando_coleta")
+        throw new Error("Aguardar coleta exige a conclusão do contato com o fornecedor.");
+      if(!allReverseContactStepsDone(c.contactSteps))
+        throw new Error("Conclua os quatro passos de contato antes de avançar.");
+      if(!data.nfd?.trim()||!data.volumes)
+        throw new Error("Informe o número da NF de devolução e a quantidade de volumes.");
+      return persist({...c,treatmentStatus:"aguardando_coleta",nfd:data.nfd.trim(),
+        volumes:data.volumes,statusChangedAt:current===data.status?c.statusChangedAt:now},data.version);
+    }
+    if(data.status==="coletado"){
+      if(current!=="aguardando_coleta" && current!=="coletado")
+        throw new Error("O material precisa estar aguardando coleta antes de ser marcado como coletado.");
+      if(!c.nfd||!c.volumes)throw new Error("Registre NF de devolução e volumes antes de confirmar a coleta.");
+      return persist({...c,treatmentStatus:"coletado",
+        statusChangedAt:current==="coletado"?c.statusChangedAt:now},data.version);
+    }
+    if(current!=="coletado" && current!=="resolvido")
+      throw new Error("Marque como coletado antes de finalizar a tratativa.");
+    if(!data.returnMode)throw new Error("Informe Abatimento ou Material novo.");
+    if(data.returnMode==="devolucao_material"&&!data.returnNfe?.trim())
+      throw new Error("Informe a NF-e de Retorno de Remessa para Material novo.");
+    return persist({...c,treatmentStatus:"resolvido",returnMode:data.returnMode,
+      returnNfe:data.returnMode==="devolucao_material"?data.returnNfe?.trim():undefined,
+      statusChangedAt:current==="resolvido"?c.statusChangedAt:now},data.version);
+  });
+
 /** Consulta para gestor e operador. Não inventa ciclos quando a tabela não existe. */
 export const listReverseCycles = createServerFn({method:"GET"}).handler(async () => {
   await access();
@@ -59,17 +180,19 @@ export const listReverseGroups = createServerFn({method:"GET"}).handler(async ()
   return reverseGroups(await loadBase());
 });
 export const createReverseCycle = createServerFn({method:"POST"})
-  .inputValidator(z.object({groups:reverseSelectedGroupSchema})).handler(async ({data}) => {
+  .inputValidator(reverseCreateSchema).handler(async ({data}) => {
     await access(true);
     if (new Set(data.groups).size !== data.groups.length) throw new Error("Há grupos repetidos.");
     const base = await loadBase();
     const available = new Set(reverseGroups(base).map(g=>g.key));
     if (data.groups.some(key=>!available.has(key))) throw new Error("Um dos grupos selecionados não existe mais. Atualize a seleção.");
+    const selected=await supplierForBrand(data.supplierId,data.brand);
     const items = reverseItemsForGroups(base,data.groups);
     if (!items.length) throw new Error("Nenhum item foi localizado nos grupos selecionados.");
     if (items.length>25000) throw new Error("Selecione menos grupos por ciclo (limite de 25.000 itens).");
     const {data:row,error} = await (await db()).from(TABLE)
-      .insert({payload:{status:"aberto",groups:data.groups,items}} as never)
+      .insert({payload:{status:"aberto",groups:data.groups,items,
+        supplierId:selected.supplier.id,supplier:selected.supplier.name,brand:selected.brand}} as never)
       .select("id,number,version,created_at,updated_at,payload").single();
     if (error || !row) throw new Error("Não foi possível abrir o ciclo. Verifique a instalação do SQL.");
     return asCycle(row as unknown as ReverseDbRow);
@@ -110,8 +233,9 @@ export const finishReverseCycle = createServerFn({method:"POST"}).inputValidator
     if (current.version!==data.version) throw new Error("O ciclo foi alterado. Atualize antes de finalizar.");
     if (current.status!=="aberto") throw new Error("O ciclo já foi finalizado.");
     if (!reverseIncluded(current.items).length) throw new Error("Adicione quantidade a pelo menos um item antes de finalizar.");
-    return persist({...current,status:"finalizado",supplier:data.supplier,finishedAt:new Date().toISOString(),
-      treatmentStatus:"aguardando_coleta",statusChangedAt:new Date().toISOString()},data.version);
+    if(!current.supplierId||!current.brand)throw new Error("Selecione o fornecedor e a marca antes de finalizar a contagem.");
+    return persist({...current,status:"finalizado",supplier:current.supplier,finishedAt:new Date().toISOString(),
+      treatmentStatus:"em_tratativa",statusChangedAt:new Date().toISOString()},data.version);
   });
 export const renameReverseSupplier = createServerFn({method:"POST"}).inputValidator(reverseFinishSchema)
   .handler(async ({data})=>{
@@ -124,14 +248,7 @@ export const renameReverseSupplier = createServerFn({method:"POST"}).inputValida
 export const saveReverseTreatment = createServerFn({method:"POST"}).inputValidator(reverseTreatmentSchema)
   .handler(async ({data})=>{
     await access(true);
-    const current=await loadOne(data.id);
-    if (current.version!==data.version) throw new Error("O ciclo mudou. Atualize para informar as tratativas.");
-    if (current.status!=="finalizado") throw new Error("Finalize o ciclo e informe o fornecedor antes das tratativas.");
-    const now=new Date().toISOString();
-    return persist({...current,nfd:data.nfd,treatmentStatus:data.treatmentStatus,
-      returnMode:data.treatmentStatus==="devolvido"?data.returnMode:undefined,
-      returnNfe:data.treatmentStatus==="devolvido"&&data.returnMode==="devolucao_material"?data.returnNfe:undefined,
-      statusChangedAt:current.treatmentStatus===data.treatmentStatus?current.statusChangedAt:now},data.version);
+    throw new Error("Use o guia de tratativas com confirmação das etapas. Atualize o BigLogno.");
   });
 export const deleteReverseCycle = createServerFn({method:"POST"}).inputValidator(reverseCycleIdSchema)
   .handler(async ({data})=>{
