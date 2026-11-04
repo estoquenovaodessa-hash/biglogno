@@ -232,7 +232,7 @@ export function ReverseLogisticsOperator(){
           className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={()=>setFinishDialog(true)}>
           <CheckCircle2 size={16} className="mr-1"/> Finalizar separação e iniciar tratativas</Button>:
           <Button disabled={busy||dirty} className="bg-indigo-600 text-white" onClick={()=>openGuide(active)}>
-            <ClipboardList size={16} className="mr-1"/> {active.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"}</Button>}
+            <ClipboardList size={16} className="mr-1"/> {reverseWorkflowStage(active)==="em_tratativa"?(active.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"):"Editar status / tratativas"}</Button>}
         {active.nfd&&active.volumes&&<Button variant="outline" className={outline} onClick={()=>printVolumes(active)}>
           <Printer size={16} className="mr-1"/> Etiquetas de volumes</Button>}
       </div>

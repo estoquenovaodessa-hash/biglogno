@@ -107,7 +107,8 @@ export const assignReverseSupplier=createServerFn({method:"POST"})
     await access(true);
     const c=await loadOne(data.id);
     if(c.version!==data.version)throw new Error("O ciclo mudou. Atualize e tente novamente.");
-    if(reverseWorkflowStage(c)==="resolvido")throw new Error("O ciclo finalizado não permite trocar o fornecedor.");
+    // A correção do fornecedor e da marca permanece disponível inclusive após
+    // a resolução; o status e o histórico do ciclo não são modificados.
     const selected=await supplierForBrand(data.supplierId,data.brand);
     return persist({...c,supplierId:selected.supplier.id,supplier:selected.supplier.name,
       brand:selected.brand},data.version);
