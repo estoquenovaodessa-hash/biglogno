@@ -172,16 +172,27 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
                 <div className="min-w-0"><p className="text-xl font-black leading-tight tracking-tight">BIGNOTTO</p>
                   <p className="text-[10px] font-semibold tracking-[.17em]">FERRAMENTAS</p></div>
               </div>
-              <div className="border-b border-black py-1.5">
-                <p className="text-[10px] font-bold">CÓDIGO DO ITEM</p>
-                <p className="break-all text-3xl font-black tracking-tight">{product?.code??"03610"}</p>
+              <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] border-b border-black py-2">
+                <div className="min-w-0 pr-2">
+                  <p className="text-[11px] font-black">CÓDIGO</p>
+                  <p className="break-all text-3xl font-black leading-tight tracking-tight sm:text-4xl">
+                    {product?.code??"03610"}
+                  </p>
+                </div>
+                <div className="min-w-0 border-l-2 border-black pl-2.5">
+                  <p className="text-[11px] font-black">QTD:</p>
+                  <p className="break-words text-xl font-black leading-tight sm:text-2xl">
+                    {parseSboQuantity(quantity,effectiveUnit)!==null
+                      ?sboQuantityText(Number(quantity.replace(",",".")),effectiveUnit):"—"}
+                  </p>
+                </div>
               </div>
-              <div className="border-b border-black py-1.5">
-                <p className="text-[10px] font-bold">DESCRIÇÃO</p>
-                <p className="line-clamp-2 text-xs font-medium">{product?.description??"DESCRIÇÃO DO PRODUTO"}</p>
+              <div className="py-2">
+                <p className="text-[11px] font-black">DESCRIÇÃO</p>
+                <p className="mt-1 break-words text-base font-black leading-tight sm:text-lg">
+                  {product?.description??"FITA ISOLANTE 10 METROS"}
+                </p>
               </div>
-              <p className="pt-1 text-sm font-black">QTD: {parseSboQuantity(quantity,effectiveUnit)!==null
-                ?sboQuantityText(Number(quantity.replace(",",".")),effectiveUnit):"—"}</p>
             </div>
             <p className="mt-3 text-center text-xs text-muted-foreground">
               Prévia ilustrativa · PDF real em preto e branco · Argox 60 × 30 mm

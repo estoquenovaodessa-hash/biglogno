@@ -47,6 +47,30 @@ describe("Etiquetagem S.B.O",()=>{
     expect(sboLabelFilename(rows)).toBe("etiqueta-sbo-lote-2-argox-60x30mm.pdf");
     expect(createSboLabelsPdf(rows.slice(0,1)).getNumberOfPages()).toBe(1);
   });
+  test("novo layout mantém B e cabeçalho, com código e quantidade antes da descrição",()=>{
+    const rows=[{code:"03610",description:"FITA ISOLANTE 10 METROS",quantity:2,unit:"UN"}];
+    const doc=createSboLabelsPdf(rows);
+    const content=doc.internal.pages[1].join("\n");
+    expect(content).toContain("BIGNOTTO");
+    expect(content).toContain("F E R R A M E N T A S");
+    expect(content).toContain("03610");
+    expect(content).toContain("2 UN");
+    expect(content).toContain("FITA ISOLANTE 10 METROS");
+    expect(content.indexOf("03610")).toBeLessThan(content.indexOf("FITA ISOLANTE 10 METROS"));
+    expect(doc.getNumberOfPages()).toBe(1);
+    expect(doc.internal.pageSize.getWidth()).toBeCloseTo(60,2);
+    expect(doc.internal.pageSize.getHeight()).toBeCloseTo(30,2);
+  });
+  test("unidades maiores não desaparecem e descrições longas não geram páginas extras",()=>{
+    const doc=createSboLabelsPdf([{
+      code:"00940",
+      description:"CABO FLEXÍVEL DE COBRE COM ISOLAÇÃO ESPECIAL PARA INSTALAÇÕES ELÉTRICAS",
+      quantity:2.5,unit:"Metros",
+    }]);
+    const content=doc.internal.pages[1].join("\n");
+    expect(content).toContain("METROS");
+    expect(doc.getNumberOfPages()).toBe(1);
+  });
   test("impede arquivo vazio e unidade incorreta",()=>{
     expect(()=>createSboLabelsPdf([])).toThrow();
     expect(()=>createSboLabelsPdf([{code:"A",description:"B",quantity:0,unit:"UN"}])).toThrow();

@@ -99,6 +99,28 @@ function fitText(pdf:jsPDF,raw:string,x:number,y:number,maxWidth:number,size:num
   pdf.text(txt,x,y);
 }
 
+/** Descrição ocupa toda a faixa inferior. Em descrições maiores, duas
+ * linhas preservam mais informação do que cortar tudo na primeira. */
+function drawSboDescription(pdf:jsPDF,raw:string){
+  const description=raw.replace(/\s+/g," ").trim();
+  pdf.setFont("helvetica","bold");
+  for(let size=11.8;size>=9.7;size-=0.3){
+    pdf.setFontSize(size);
+    if(pdf.getTextWidth(description)<=55.2){
+      pdf.text(description,2.2,27.1);
+      return;
+    }
+  }
+  pdf.setFontSize(9.25);
+  const lines=pdf.splitTextToSize(description,55.0) as string[];
+  if(lines.length<=1){
+    fitText(pdf,description,2.2,27.1,55,9.25,7.2);
+    return;
+  }
+  pdf.text(lines[0],2.2,25.15);
+  fitText(pdf,lines.slice(1).join(" "),2.2,28.15,55,9.25,7.2);
+}
+
 /** Etiqueta monocromática, sem margens de papel A4.
  * Cada item adicionado é uma página física 60x30mm da Argox.
  */
@@ -125,19 +147,38 @@ export function createSboLabelsPdf(labels:SboLabel[]):jsPDF {
     fitText(pdf,"F E R R A M E N T A S",10,7.4,44,6.1,5.5);
     pdf.setLineWidth(0.18);pdf.line(1.8,8.5,58.2,8.5);
 
+    // Código e quantidade lado a lado, com hierarquia visual clara.
     pdf.setFont("helvetica","bold");
-    pdf.setFontSize(6.2);
-    pdf.text("CÓDIGO DO ITEM",2.2,11.0);
-    fitText(pdf,record.code,2.2,17.1,55.0,22.4,11);
-    pdf.setLineWidth(0.18);pdf.line(1.8,18.55,58.2,18.55);
+    pdf.setFontSize(7.0);
+    pdf.text("CÓDIGO",2.2,11.3);
+    pdf.text("QTD:",40.0,11.3);
+    pdf.setLineWidth(0.18);
+    pdf.line(37.75,9.7,37.75,18.75);
+    fitText(pdf,record.code,2.2,17.1,34.2,22.4,10.5);
 
-    pdf.setFont("helvetica","bold");pdf.setFontSize(6.1);
-    pdf.text("DESCRIÇÃO",2.2,21);
-    pdf.setFont("helvetica","normal");
-    fitText(pdf,record.description,2.2,24.1,55.3,8.0,5.2);
-    pdf.line(1.8,25,58.2,25);
-    pdf.setFont("helvetica","bold");pdf.setFontSize(8.9);
-    fitText(pdf,"QTD: "+sboQuantityText(record.quantity,record.unit),2.3,28.2,54.8,9.2,6.8);
+    const quantityLabel=sboQuantityText(record.quantity,record.unit);
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(15.5);
+    if(pdf.getTextWidth(quantityLabel)<=17.6){
+      pdf.text(quantityLabel,39.6,17.1);
+    }else{
+      pdf.setFontSize(10.4);
+      if(pdf.getTextWidth(quantityLabel)<=17.6){
+        pdf.text(quantityLabel,39.6,17.1);
+      }else{
+        // Para "Metros" ou números extensos, manter a unidade completa.
+        fitText(pdf,new Intl.NumberFormat("pt-BR",{maximumFractionDigits:3}).format(record.quantity),
+          39.6,15.4,17.6,14.8,9);
+        fitText(pdf,record.unit.toUpperCase(),39.6,18.1,17.6,8.6,7.0);
+      }
+    }
+    pdf.line(1.8,19.2,58.2,19.2);
+
+    // Descrição isolada na faixa inferior, maior e sem a quantidade embaixo.
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(7.0);
+    pdf.text("DESCRIÇÃO",2.2,21.8);
+    drawSboDescription(pdf,record.description);
   });
   return pdf;
 }
