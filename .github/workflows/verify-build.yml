@@ -45,7 +45,9 @@ jobs:
         run: bun test src/lib/counting-downloads.test.js
       - name: Testar histórico Coletados da Expedição
         run: bun test src/lib/expedition-history.test.js
-      - name: Testar PDF de etiqueta Argox 60x30mm
+      - name: Testar elegibilidade e filtros de etiquetas Entrega ou Retira
+        run: bun test src/lib/conference-label-selection.test.js
+      - name: Testar PDFs individuais e multipaginas Argox 60x30mm
         run: bun test src/lib/conference-label.test.js
       - name: Executar build de producao
         run: npm run build

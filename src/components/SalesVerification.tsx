@@ -12,6 +12,8 @@ import { Retira } from "./Retira";
 import type { AccessRole } from "@/lib/access-policy";
 import { createSalesReport } from "@/lib/pdfSalesVerification";
 import { createConferenceLabelPdf, conferenceLabelFilename } from "@/lib/conference-label";
+import { conferenceLabelKind } from "@/lib/conference-label-selection";
+import { ConferenceLabelBatchActions } from "./ConferenceLabelBatchActions";
 import { Percent, SalesDataTable as DataTable } from "./SalesDataTable";
 import { SalesSellerDetail } from "./SalesSellerDetail";
 import { sellerCountKey } from "@/lib/sales-verification";
@@ -112,7 +114,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const periodLabel = conferencePeriodLabel(period);
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
   const labelActions = (r: VerificationRecord) => <div className="flex flex-wrap items-center gap-1">
-    <Button type="button" variant="outline" size="sm" className="gap-1.5 whitespace-nowrap"
+    {conferenceLabelKind(r) && <Button type="button" variant="outline" size="sm" className="gap-1.5 whitespace-nowrap"
       title="Gerar etiqueta Argox 60 × 30 mm, em preto e branco (uma etiqueta por página)"
       aria-label={`Gerar etiqueta Argox da conferência ${r.document}`}
       onClick={() => {
@@ -125,7 +127,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         }
       }}>
       <Printer className="h-4 w-4" /> Etiqueta
-    </Button>
+    </Button>}
     {deletionButton(r)}
   </div>;
   function exportReport() { createSalesReport(periodRecords, periodLabel, savedSalesCount).save("bignotto-relatorio-conferencia.pdf"); }
@@ -152,6 +154,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         <div className="flex flex-wrap items-center gap-2 lg:justify-end" aria-label="Ações da conferência">
           {tab === "Painel" && <>
             <SalesHistoryImport onImported={() => query.refetch()} />
+            <ConferenceLabelBatchActions records={data.records} />
             <Button size="sm" variant="secondary" className="gap-1.5 font-bold" onClick={() => setAnalyzing(true)}><ChartNoAxesCombined className="h-4 w-4" /> Analisar</Button>
             <Button size="sm" variant="outline" className="gap-1.5" title="Exportar relatório em PDF" onClick={exportReport}><FileDown className="h-4 w-4" /> PDF</Button>
           </>}
