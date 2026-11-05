@@ -64,6 +64,43 @@ export function conferenceLabelFilename(record: ConferenceLabelRecord): string {
 }
 
 
+/**
+ * O nome da empresa cliente é o elemento de maior destaque da etiqueta.
+ * Nomes extensos ganham duas linhas em vez de serem reduzidos a caracteres
+ * minúsculos; a área do documento começa somente depois dessas linhas.
+ */
+function drawClientCompany(pdf: jsPDF, rawName: string): void {
+  const name = rawName.replace(/\s+/g, " ").trim();
+  pdf.setFont("helvetica", "bold");
+  for (let size = 15.8; size >= 10.0; size -= 0.35) {
+    pdf.setFontSize(size);
+    if (pdf.getTextWidth(name) <= 55.0) {
+      pdf.text(name, 30.0, 9.25, { align: "center" });
+      return;
+    }
+  }
+
+  // Duas linhas, mantendo o maior tamanho de letra que caiba no espaço.
+  for (let size = 10.0; size >= 7.4; size -= 0.3) {
+    pdf.setFontSize(size);
+    const lines = pdf.splitTextToSize(name, 55.0) as string[];
+    if (lines.length <= 2) {
+      const first = lines[0] ?? "";
+      const second = lines[1] ?? "";
+      pdf.text(first, 30.0, second ? 7.65 : 9.25, { align: "center" });
+      if (second) pdf.text(second, 30.0, 10.25, { align: "center" });
+      return;
+    }
+  }
+
+  // Casos excepcionalmente longos: evita ultrapassar a margem física.
+  pdf.setFontSize(7.4);
+  const lines = pdf.splitTextToSize(name, 55.0) as string[];
+  pdf.text(lines[0] ?? "", 30.0, 7.65, { align: "center" });
+  fitted(pdf, lines.slice(1).join(" "), 30.0, 10.25, 55.0, 7.4, 7.4,
+    { align: "center" });
+}
+
 /** Desenha uma etiqueta por página. Mantém o layout 60 x 30 mm que
  * já foi testado na Argox, com distinção visual Entrega / Retira. */
 function drawConferenceLabel(pdf: jsPDF, record: ConferenceLabelRecord): void {
@@ -72,65 +109,69 @@ function drawConferenceLabel(pdf: jsPDF, record: ConferenceLabelRecord): void {
   pdf.setDrawColor(0, 0, 0);
   pdf.setLineWidth(0.17);
 
-  // Contorno fino e logotipo. A etiqueta não usa preenchimento preto.
+  // Cabeçalho institucional discreto: B ORIGINAL, não a imagem gerada.
   pdf.roundedRect(0.55, 0.55, 58.9, 28.9, 1.4, 1.4, "S");
-  pdf.addImage(LOGO_MONO_PNG, "PNG", 1.8, 1.4, 5.0, 6.15);
-  pdf.setLineWidth(0.16);
-  pdf.line(8.4, 1.4, 8.4, 7.6);
-
+  pdf.addImage(LOGO_MONO_PNG, "PNG", 2.05, 1.05, 2.95, 3.45);
+  pdf.setLineWidth(0.15);
+  pdf.line(6.20, 1.15, 6.20, 4.37);
   pdf.setFont("helvetica", "bold");
-  fitted(pdf, "BIGNOTTO", 9.55, 5.6, 48, 17.8, 15);
-  pdf.setFont("helvetica", "normal");
-  fitted(pdf, "F E R R A M E N T A S", 10.05, 7.35, 44, 6.15, 5.5);
+  fitted(pdf, "BIGNOTTO FERRAMENTAS", 8.1, 3.50, 49.8, 9.0, 7.0);
   pdf.setLineWidth(0.20);
-  pdf.line(1.6, 8.35, 58.4, 8.35);
+  pdf.line(1.50, 4.65, 58.50, 4.65);
 
-  // Destaque principal: número do documento, com quantidade à direita.
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.4);
-  pdf.text(conferenceLabelKind(record) === "entrega" ? "ENTREGA - Nº DO DOCUMENTO" : "RETIRA - Nº DO DOCUMENTO", 2.1, 10.45);
-  fitted(pdf, v.document, 2.0, 15.8, 40.0, 16.3, 8.2);
+  // Principal destaque: EMPRESA CLIENTE (sem prefixo "CLIENTE" que
+  // consumia espaço), visível acima do documento e da quantidade.
+  drawClientCompany(pdf, v.client);
   pdf.setLineWidth(0.19);
-  pdf.line(44.6, 9.1, 44.6, 17.0);
+  pdf.line(1.50, 11.08, 58.50, 11.08);
+
+  // Documento grande à esquerda; quantidade grande à direita.
+  // O número completo é preservado sempre que couber na coluna.
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.1);
-  pdf.text("QTD. ITENS", 46.2, 10.45);
-  fitted(pdf, String(v.items), 51.5, 16.1, 11.8, 17.2, 9, { align: "center" });
+  pdf.setFontSize(7.0);
+  pdf.text("DOCUMENTO", 2.0, 13.32);
+  fitted(pdf, v.document, 2.00, 19.0, 40.2, 21.0, 8.5);
+
   pdf.setLineWidth(0.18);
-  pdf.line(1.9, 17.1, 58.2, 17.1);
-
-  // Cliente ocupa uma única linha como no arquivo enviado.
+  pdf.line(44.10, 11.75, 44.10, 19.86);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.35);
-  pdf.text("CLIENTE:", 2.1, 19.75);
-  pdf.setFont("helvetica", "normal");
-  fitted(pdf, v.client, 14.0, 19.75, 43.2, 7.0, 5.4);
-  pdf.line(1.9, 20.75, 58.2, 20.75);
+  pdf.setFontSize(7.0);
+  pdf.text("QTD. ITENS", 46.10, 13.32);
+  fitted(pdf, String(v.items), 51.0, 19.02, 12.2, 22.0, 10.0,
+    { align: "center" });
+  pdf.setLineWidth(0.19);
+  pdf.line(1.50, 20.25, 58.50, 20.25);
 
-  // Data da conferência e conferente extraídos do registro.
+  // Data, conferente e destino em uma faixa própria.
+  // Cada campo tem título e valor, com fonte ajustada à coluna.
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.2);
-  pdf.text("DATA:", 2.1, 23.2);
-  pdf.setFont("helvetica", "normal");
-  fitted(pdf, v.date, 9.1, 23.2, 16.0, 6.7, 5.4);
+  pdf.setFontSize(5.5);
+  pdf.text("DATA", 2.0, 22.10);
+  fitted(pdf, v.date, 2.00, 24.22, 16.2, 8.2, 6.0);
+
   pdf.setLineWidth(0.13);
-  pdf.line(26.3, 21.45, 26.3, 24.0);
+  pdf.line(19.35, 20.82, 19.35, 24.48);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.2);
-  pdf.text("CONF.:", 27.8, 23.2);
-  pdf.setFont("helvetica", "normal");
-  fitted(pdf, v.verifier, 37.9, 23.2, 19.8, 6.75, 5.1);
-  pdf.setLineWidth(0.18);
-  pdf.line(1.9, 24.6, 58.2, 24.6);
+  pdf.setFontSize(5.5);
+  pdf.text("CONFERENTE", 20.65, 22.10);
+  fitted(pdf, v.verifier, 20.65, 24.22, 23.0, 8.7, 5.7);
 
-  // Mensagens discretas, sem caixas pretas; uma etiqueta por página.
+  pdf.line(45.15, 20.82, 45.15, 24.48);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(5.5);
+  pdf.text("TIPO", 46.4, 22.10);
+  fitted(pdf, conferenceLabelKind(record) === "entrega" ? "ENTREGA" : "RETIRA",
+    46.4, 24.22, 11.0, 8.4, 6.3);
+  pdf.setLineWidth(0.19);
+  pdf.line(1.50, 24.92, 58.50, 24.92);
+
+  // Agradecimento solicitado, mais o aviso original em corpo menor.
   pdf.setFont("helvetica", "bolditalic");
-  fitted(pdf, "Bignotto agradece a preferência!", 2.1, 27.45, 30.8, 5.55, 4.6);
-  pdf.setLineWidth(0.14);
-  pdf.line(34.3, 25.15, 34.3, 28.55);
+  fitted(pdf, "Bignotto agradece a preferência!", 2.00, 27.06,
+    55.6, 7.2, 6.1);
   pdf.setFont("helvetica", "normal");
-  fitted(pdf, "Guarde a embalagem para", 35.3, 26.7, 22.2, 5.35, 4.25);
-  fitted(pdf, "futura reclamação.", 35.3, 28.15, 22.2, 5.35, 4.25);
+  fitted(pdf, "Guarde a embalagem para futura reclamação.", 2.00, 28.66,
+    55.6, 5.2, 4.5);
 
 }
 

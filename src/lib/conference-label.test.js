@@ -60,6 +60,30 @@ describe("etiqueta Argox de Conferência", () => {
     expect(conferenceLabelsBatchFilename("selecionadas","2026-11-04"))
       .toBe("etiquetas-conferencia-selecionadas-2026-11-04-argox.pdf");
   });
+  test("layout aprovado prioriza empresa cliente, documento e quantidade, preservando Bignotto e rodapé", () => {
+    const pdf=createConferenceLabelPdf(record);
+    const drawing=pdf.internal.pages[1].join("\n");
+    expect(drawing).toContain("BIGNOTTO FERRAMENTAS");
+    expect(drawing).toContain("LOJAS NOVA ODESSA LTDA");
+    expect(drawing).toContain("000123-NF");
+    expect(drawing).toContain("42");
+    expect(drawing).toContain("MARCOS");
+    expect(drawing).toContain("ENTREGA");
+    expect(drawing).toContain("02/11/2026");
+    expect(drawing).toContain("Bignotto agradece a prefer");
+    expect(drawing).toContain("Guarde a embalagem");
+    // O nome do cliente deve vir antes do quadro do documento.
+    expect(drawing.indexOf("LOJAS NOVA ODESSA LTDA")).toBeLessThan(drawing.indexOf("000123-NF"));
+  });
+  test("tipo Retira aparece no PDF com conferente e quantidade reais",()=>{
+    const pdf=createConferenceLabelPdf({...record,balcaoDestination:"retira",items:29,
+      verifierName:"CAIQUE"});
+    const drawing=pdf.internal.pages[1].join("\n");
+    expect(drawing).toContain("RETIRA");
+    expect(drawing).toContain("CAIQUE");
+    expect(drawing).toContain("29");
+    expect(pdf.getNumberOfPages()).toBe(1);
+  });
   test("dados longos não impedem geração", () => {
     const pdf=createConferenceLabelPdf({...record,document:"12345678901234567890",
       clientName:"FERRAGENS E COMERCIO INDUSTRIAL EXTREMAMENTE LONGO DE NOVA ODESSA LTDA",
