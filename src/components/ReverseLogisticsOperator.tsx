@@ -5,6 +5,7 @@ import {
   ArrowLeft,Building2,CheckCircle2,ChevronDown,ChevronLeft,ChevronRight,
   ClipboardList,Download,FileDown,Layers3,LayoutGrid,List,Clock3,
   Minus,Plus,RotateCcw,Search,Trash2,Pencil,Save,PackagePlus,Printer,FilterX,
+  Boxes,Box,CalendarDays,Package,PackageCheck,MessageSquare,UserRound,SlidersHorizontal,Truck,
 } from "lucide-react";
 import {toast} from "sonner";
 import {useStore} from "@/lib/store";
@@ -33,6 +34,7 @@ import {
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
+import "./reverse-logistics-operator.css";
 
 const dateText=(s?:string)=>s?new Date(s).toLocaleString("pt-BR",{
   timeZone:"America/Sao_Paulo",dateStyle:"short",timeStyle:"short",
@@ -49,8 +51,8 @@ const stageHelp=(c:ReverseCycle)=>{
   return "Tratativa finalizada. Consulte os dados ou edite para corrigir informações quando necessário.";
 };
 
-const PAGE_SIZE=8;
-const selectClass="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15";
+const PAGE_SIZE=6;
+const selectClass="reverse-filter-control h-11 w-full rounded-lg px-3 text-sm font-medium outline-none transition";
 const statusOptions=[
   {value:"all",label:"Todos os status"},
   {value:"em_contagem",label:"Em contagem"},
@@ -62,18 +64,12 @@ const statusOptions=[
 
 function StageBadge({cycle}:{cycle:ReverseCycle}){
   const stage=reverseWorkflowStage(cycle);
-  const cls=stage==="resolvido"
-    ?"border-emerald-200 bg-emerald-50 text-emerald-800"
-    :stage==="coletado"
-      ?"border-teal-200 bg-teal-50 text-teal-800"
-      :stage==="aguardando_coleta"
-        ?"border-sky-200 bg-sky-50 text-sky-800"
-        :stage==="em_tratativa"
-          ?"border-amber-200 bg-amber-50 text-amber-800"
-          :"border-slate-200 bg-slate-100 text-slate-700";
-  const Icon=stage==="resolvido"?CheckCircle2:stage==="aguardando_coleta"?Clock3:RotateCcw;
-  return <span className={"inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold "+cls}>
-    <Icon className="h-3.5 w-3.5"/>{reverseStatusLabel(cycle)}
+  const Icon=stage==="resolvido"?CheckCircle2
+    :stage==="coletado"?PackageCheck
+    :stage==="aguardando_coleta"?Clock3
+    :stage==="em_tratativa"?MessageSquare:Package;
+  return <span className={"reverse-stage reverse-stage-"+stage}>
+    <Icon className="h-4 w-4 shrink-0"/>{reverseStatusLabel(cycle)}
   </span>;
 }
 
@@ -89,31 +85,31 @@ function ReverseCycleActions({cycle,busy,onEdit,onPdf,onCsv,onSupplier,onGuide,o
     <DropdownMenuTrigger asChild>
       <Button type="button" variant="outline" size="sm" disabled={busy}
         aria-label={"Abrir ações da Logística Reversa nº "+cycle.number}
-        className="h-9 gap-2 border-[#0e4674] bg-[#103a60] px-3 font-bold text-white shadow-none hover:border-blue-600 hover:bg-[#185783] hover:text-white">
+        className="reverse-action-trigger h-9 gap-2 px-3 font-bold shadow-none">
         Ações <ChevronDown className="h-4 w-4"/>
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" sideOffset={5} className="z-[80] min-w-[235px] bg-white p-1 text-slate-900 shadow-xl">
-      {onEdit&&<DropdownMenuItem className="cursor-pointer gap-2" onSelect={onEdit}>
+    <DropdownMenuContent align="end" sideOffset={5} className="reverse-action-menu z-[80] min-w-[235px] border border-[#2775a7] bg-[#092641] p-1.5 text-white shadow-2xl">
+      {onEdit&&<DropdownMenuItem className="reverse-action-item cursor-pointer gap-2" onSelect={onEdit}>
         <Pencil className="h-4 w-4"/> Editar ciclo e quantidades
       </DropdownMenuItem>}
-      <DropdownMenuItem className="cursor-pointer gap-2"
+      <DropdownMenuItem className="reverse-action-item cursor-pointer gap-2"
         disabled={!hasItems} onSelect={onPdf}><FileDown className="h-4 w-4"/> Gerar PDF</DropdownMenuItem>
-      <DropdownMenuItem className="cursor-pointer gap-2"
+      <DropdownMenuItem className="reverse-action-item cursor-pointer gap-2"
         disabled={!hasItems} onSelect={onCsv}><Download className="h-4 w-4"/> Exportar CSV</DropdownMenuItem>
       <DropdownMenuSeparator/>
-      <DropdownMenuItem className="cursor-pointer gap-2"
+      <DropdownMenuItem className="reverse-action-item cursor-pointer gap-2"
         onSelect={onSupplier}><Building2 className="h-4 w-4"/> Fornecedor e marca</DropdownMenuItem>
-      <DropdownMenuItem className="cursor-pointer gap-2"
+      <DropdownMenuItem className="reverse-action-item cursor-pointer gap-2"
         disabled={cycle.status!=="finalizado"} onSelect={onGuide}>
         <ClipboardList className="h-4 w-4"/>
         {cycle.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"}
       </DropdownMenuItem>
-      {Boolean(cycle.nfd&&cycle.volumes)&&<DropdownMenuItem className="cursor-pointer gap-2" onSelect={onLabels}>
+      {Boolean(cycle.nfd&&cycle.volumes)&&<DropdownMenuItem className="reverse-action-item cursor-pointer gap-2" onSelect={onLabels}>
         <Printer className="h-4 w-4"/> Etiquetas dos volumes
       </DropdownMenuItem>}
       <DropdownMenuSeparator/>
-      <DropdownMenuItem className="cursor-pointer gap-2 font-semibold text-red-700 focus:bg-red-50 focus:text-red-800"
+      <DropdownMenuItem className="reverse-action-item reverse-action-danger cursor-pointer gap-2 font-semibold text-red-400 focus:bg-red-950/40 focus:text-red-200"
         onSelect={onDelete}><Trash2 className="h-4 w-4"/> Excluir ciclo</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>;
@@ -252,36 +248,63 @@ export function ReverseLogisticsOperator(){
     onDelete={()=>deleteCycle(c)}
   />;
   const linkMark=(s:ReverseSupplier|undefined)=>s?.brands??[];
-  return <section className="mx-auto max-w-[1540px] space-y-4 pb-8 text-slate-900" aria-label="Logística Reversa do operador">
-    <header className="relative isolate overflow-hidden rounded-2xl border border-[#224e71] bg-[#06203c] p-5 text-white shadow-lg sm:p-7"
+  return <section className="reverse-ops mx-auto max-w-[1680px] space-y-5 pb-8" aria-label="Logística Reversa do operador">
+    <div className="reverse-masthead">
+      <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-5">
+        <span className="flex items-center gap-2">
+          <Box className="h-8 w-8 text-[#00d9ff] sm:h-10 sm:w-10" strokeWidth={2.2}/>
+          <strong className="text-xl font-black tracking-tight text-white sm:text-2xl">BigLogno</strong>
+        </span>
+        <span aria-hidden="true" className="hidden h-8 w-px bg-[#399cc7]/70 sm:block"/>
+        <span className="flex items-center gap-2 text-sm font-bold text-white sm:text-base">
+          <Boxes className="h-6 w-6 text-sky-200"/> Logística Reversa
+          <small className="rounded-md border border-sky-500/25 bg-sky-900/35 px-2 py-1 text-[10px] font-semibold text-sky-200">Operador</small>
+        </span>
+      </div>
+      <span className="reverse-operator-chip"><UserRound className="h-5 w-5"/> Operador <ChevronDown className="h-4 w-4"/></span>
+    </div>
+    <header className="reverse-hero relative isolate overflow-hidden rounded-2xl"
       style={{
-        backgroundImage:'linear-gradient(90deg,rgba(5,25,47,0.98) 0%,rgba(6,30,55,0.94) 39%,rgba(6,30,55,0.72) 68%,rgba(6,30,55,0.83) 100%),url("/images/reverse-shelves.svg")',
+        backgroundImage:'linear-gradient(90deg,rgba(2,16,34,.97) 0%,rgba(2,21,43,.86) 37%,rgba(3,23,45,.52) 65%,rgba(2,17,34,.90) 100%),url("/images/reverse-shelves.svg")',
         backgroundPosition:"center,center right",backgroundSize:"cover,cover",backgroundRepeat:"no-repeat",
       }}>
-      <div className="relative z-10 flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
-        <div className="flex items-center gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-sky-400/40 bg-sky-500/15 shadow-inner">
-            <RotateCcw className="h-8 w-8 text-sky-200"/>
-          </span>
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-200">Central do operador</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Logística Reversa</h1>
-            <p className="mt-1 max-w-xl text-sm text-sky-100/90">
-              Gestão de garantias, devoluções e tratativas com fornecedores.
-            </p>
+      <div className="relative z-10 flex flex-col justify-between gap-6 xl:flex-row xl:items-center">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-4">
+            <span className="reverse-hero-icon flex h-20 w-20 shrink-0 items-center justify-center sm:h-24 sm:w-24">
+              <Boxes className="h-14 w-14 sm:h-16 sm:w-16" strokeWidth={1.8}/>
+            </span>
+            <span aria-hidden="true" className="h-16 w-px shrink-0 bg-cyan-300/75 sm:h-20"/>
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-md sm:text-4xl">Logística Reversa</h1>
+              <p className="mt-2 text-sm leading-relaxed text-sky-100 sm:text-base">
+                Fluxo guiado de garantia, devolução e tratativas com fornecedores.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" className="reverse-hero-outline h-11 gap-2 px-5 font-extrabold"
+              onClick={()=>setSuppliersOpen(true)}>
+              <Truck className="h-5 w-5"/> Cadastro de fornecedores
+            </Button>
+            <Button type="button" className="reverse-hero-primary h-11 gap-2 px-6 font-extrabold"
+              disabled={!baseReady||!groups.length||busy||suppliersQuery.isError||!suppliers.length}
+              onClick={()=>setGroupDialog(true)}>
+              <PackagePlus className="h-5 w-5"/> Novo ciclo
+            </Button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:min-w-[510px]">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:min-w-[570px]">
           {[
-            {label:"Ciclos ativos",value:summary.active,Icon:Layers3,border:"border-sky-400/60",color:"text-sky-200"},
-            {label:"Finalizados",value:summary.resolved,Icon:CheckCircle2,border:"border-emerald-400/55",color:"text-emerald-300"},
-            {label:"Aguardando coleta",value:summary.awaiting,Icon:Clock3,border:"border-amber-400/55",color:"text-amber-300"},
-          ].map(k=><div key={k.label} className={"min-w-0 rounded-xl border bg-[#061b32]/70 px-2 py-3 text-center backdrop-blur-sm sm:px-4 sm:text-left "+k.border}>
-            <div className="flex items-center justify-center gap-2 sm:justify-start">
-              <k.Icon className={"hidden h-5 w-5 shrink-0 sm:block "+k.color}/>
+            {label:"Ciclos ativos",value:summary.active,Icon:Layers3,tone:"cyan"},
+            {label:"Finalizados",value:summary.resolved,Icon:CheckCircle2,tone:"green"},
+            {label:"Aguardando coleta",value:summary.awaiting,Icon:Clock3,tone:"amber"},
+          ].map(k=><div key={k.label} className={"reverse-kpi reverse-kpi-"+k.tone}>
+            <div className="flex items-center justify-center gap-2.5 sm:justify-start">
+              <k.Icon className="reverse-kpi-icon h-6 w-6 shrink-0 sm:h-8 sm:w-8" strokeWidth={2.2}/>
               <strong className="text-2xl font-black leading-none sm:text-3xl">{k.value}</strong>
             </div>
-            <p className="mt-1 text-[10px] font-semibold leading-snug text-sky-100 sm:text-xs">{k.label}</p>
+            <p className="mt-2 text-[10px] font-semibold leading-snug text-white sm:text-xs">{k.label}</p>
           </div>)}
         </div>
       </div>
