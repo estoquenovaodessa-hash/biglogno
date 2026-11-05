@@ -43,6 +43,8 @@ jobs:
         run: bun test src/lib/reverse-logistics.test.js
       - name: Testar cadastro de fornecedor e orientador de tratativas
         run: bun test src/lib/reverse-guide.test.js
+      - name: Testar indicadores e filtros da nova Logistica Reversa
+        run: bun test src/lib/reverse-logistics-view.test.js
       - name: Testar etiquetas de volumes Argox
         run: bun test src/lib/reverse-volume-labels.test.js
       - name: Testar arquivos separados da Contagem
