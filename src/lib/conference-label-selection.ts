@@ -20,11 +20,11 @@ export function conferenceLabelKind(
     : destination === "pickups" ? "retira" : null;
 }
 
-export function eligibleConferenceLabelRecords(records: ConferenceLabelEntry[]): ConferenceLabelEntry[] {
+export function eligibleConferenceLabelRecords<T extends ConferenceLabelEntry>(records: T[]): T[] {
   return records.filter(record => conferenceLabelKind(record) !== null);
 }
 
-export function conferenceLabelsForDay(records: ConferenceLabelEntry[], day: string): ConferenceLabelEntry[] {
+export function conferenceLabelsForDay<T extends ConferenceLabelEntry>(records: T[], day: string): T[] {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return [];
   return eligibleConferenceLabelRecords(records).filter(record =>
     record.createdAt && Number.isFinite(Date.parse(record.createdAt))
@@ -39,9 +39,9 @@ export type ConferenceLabelFilters = {
 };
 
 /** Consulta datas do histórico sem depender dos filtros do painel do gestor. */
-export function filterConferenceLabelRecords(
-  records: ConferenceLabelEntry[], filters: ConferenceLabelFilters,
-): ConferenceLabelEntry[] {
+export function filterConferenceLabelRecords<T extends ConferenceLabelEntry>(
+  records: T[], filters: ConferenceLabelFilters,
+): T[] {
   const search = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().toLocaleLowerCase("pt-BR");
   const query = search(filters.query || "");
