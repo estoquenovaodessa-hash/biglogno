@@ -11,7 +11,7 @@ describe("painel clean da Logistica Reversa",()=>{
     cycle(17),
     cycle(16,{supplier:"KIAN",brand:"TIGRE",treatmentStatus:"coletado",createdAt:"2026-10-01T12:00:00Z"}),
     cycle(15,{supplier:"HDL",brand:"ADELBRAS",treatmentStatus:"resolvido",returnMode:"abatimento_boleto"}),
-    cycle(14,{status:"aberto",treatmentStatus:undefined}),
+    cycle(14,{status:"aberto",treatmentStatus:undefined,brand:"BOSCH"}),
   ];
   const filters={query:"",status:"all",supplier:"all",period:"all"};
   test("KPIs sao do status real, nao dos numeros da imagem",()=>{
