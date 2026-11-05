@@ -1,13 +1,17 @@
 import {useDeferredValue,useMemo,useState} from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useQuery,useQueryClient} from "@tanstack/react-query";
 import {useServerFn} from "@tanstack/react-start";
-import {ClipboardCheck,FileDown,Printer,RefreshCw,Search} from "lucide-react";
+import {CheckCircle2,ClipboardCheck,FileDown,RefreshCw,RotateCcw,Search} from "lucide-react";
 import {toast} from "sonner";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {ConferenceLabelBatchActions} from "./ConferenceLabelBatchActions";
 import {useActiveEmployee} from "./EmployeeGate";
-import {readOperatorConferenceLabels} from "@/lib/conference-labels.functions";
+import {readOperatorConferenceLabels,setOperatorConferencePrintStatus} from "@/lib/conference-labels.functions";
+import {
+  conferencePrintSummary,filterConferencePrintStatus,isConferenceLabelPrinted,
+  type ConferencePrintEntry,type ConferencePrintFilter,
+} from "@/lib/conference-label-print-state";
 import {conferenceLabelKind,conferenceLabelsForDay,filterConferenceLabelRecords} from "@/lib/conference-label-selection";
 import {createConferenceLabelPdf,conferenceLabelFilename} from "@/lib/conference-label";
 import {salesDay} from "@/lib/sales-weekly";
@@ -22,6 +26,8 @@ const dateText=(s:string)=>new Date(s).toLocaleDateString("pt-BR",{
  */
 export function OperatorConferenceLabels(){
   const read=useServerFn(readOperatorConferenceLabels);
+  const setPrintStatus=useServerFn(setOperatorConferencePrintStatus);
+  const queryClient=useQueryClient();
   const {employee}=useActiveEmployee();
   const query=useQuery({
     queryKey:["operator-conference-labels",employee?.id],
@@ -36,26 +42,65 @@ export function OperatorConferenceLabels(){
   const [from,setFrom]=useState("");
   const [to,setTo]=useState("");
   const [kind,setKind]=useState<"all"|"entrega"|"retira">("all");
+  const [printFilter,setPrintFilter]=useState<ConferencePrintFilter>("all");
   const [limit,setLimit]=useState(PAGE_SIZE);
   const [printingId,setPrintingId]=useState<string|null>(null);
+  const [busyStatus,setBusyStatus]=useState<string|null>(null);
   const today=salesDay(new Date());
+  const summary=useMemo(()=>conferencePrintSummary(records),[records]);
   const todayCount=useMemo(()=>conferenceLabelsForDay(records,today).length,[records,today]);
   const invalidDate=Boolean(from&&to&&from>to);
-  const filtered=useMemo(()=>invalidDate?[]:filterConferenceLabelRecords(records,{
-    from,to,kind,query:deferredSearch,
-  }),[records,from,to,kind,deferredSearch,invalidDate]);
+  const filtered=useMemo(()=>invalidDate?[]:filterConferencePrintStatus(
+    filterConferenceLabelRecords(records,{from,to,kind,query:deferredSearch}),printFilter,
+  ),[records,from,to,kind,deferredSearch,printFilter,invalidDate]);
   const visible=filtered.slice(0,limit);
 
-  function printOne(record:(typeof records)[number]){
+  /** Uma chave por etiqueta no Supabase: os status ficam compartilhados
+   * entre operadores e permanecem depois de recarregar o navegador. */
+  async function updatePrintStatus(ids:string[],printed:boolean){
+    if(!ids.length)return;
+    for(let offset=0;offset<ids.length;offset+=400){
+      const part=ids.slice(offset,offset+400);
+      const updated=await setPrintStatus({data:{ids:part,printed}});
+      const keys=new Set(part);
+      queryClient.setQueryData<ConferencePrintEntry[]>(
+        ["operator-conference-labels",employee?.id],
+        previous=>previous?.map(row=>keys.has(row.id)?{
+          ...row,labelPrintedAt:updated.printedAt,labelPrintedBy:updated.printedBy,
+        }:row),
+      );
+    }
+    await query.refetch();
+  }
+  async function printOne(record:(typeof records)[number]){
+    if(printingId||busyStatus)return;
     setPrintingId(record.id);
+    let pdfGenerated=false;
     try{
       createConferenceLabelPdf(record).save(conferenceLabelFilename(record));
-      toast.success("Etiqueta do documento "+record.document+" gerada em 60 × 30 mm.");
+      pdfGenerated=true;
+      await updatePrintStatus([record.id],true);
+      toast.success("PDF do documento "+record.document+" gerado e marcado em verde.");
     }catch(error){
-      console.error("Erro gerando etiqueta da Conferência",error);
-      toast.error("Não foi possível gerar esta etiqueta.");
+      console.error("Erro gerando / registrando etiqueta da Conferência",error);
+      toast.error(pdfGenerated
+        ?"PDF baixado, mas não foi possível salvar a marcação verde. Atualize e tente marcar novamente."
+        :"Não foi possível gerar esta etiqueta.");
     }finally{
       setPrintingId(null);
+    }
+  }
+  async function setPending(record:(typeof records)[number]){
+    if(!window.confirm("Voltar a etiqueta do documento "+record.document+" para PENDENTE? Faça isso se não conseguiu imprimir o PDF."))return;
+    setBusyStatus(record.id);
+    try{
+      await updatePrintStatus([record.id],false);
+      toast.success("Etiqueta do documento "+record.document+" voltou para pendente.");
+    }catch(error){
+      console.error("Erro corrigindo status da etiqueta",error);
+      toast.error("Não foi possível remover a marcação verde.");
+    }finally{
+      setBusyStatus(null);
     }
   }
   return <section id="conference-labeling" className="space-y-5" aria-label="Etiquetagem da Conferência">
@@ -69,6 +114,8 @@ export function OperatorConferenceLabels(){
           <p className="mt-2 text-sm text-muted-foreground">
             Etiquetas de pedidos classificados como <strong>Entrega</strong> ou <strong>Retira</strong>.
             Gere uma etiqueta individual ou reúna várias em um único PDF de 60 × 30 mm.
+            <span className="mt-1 block text-xs">As linhas ficam verdes quando o PDF é gerado.
+              A impressão física não pode ser confirmada automaticamente pelo navegador.</span>
           </p>
         </div>
         <Button type="button" variant="outline" className="gap-2" disabled={query.isFetching}
@@ -93,8 +140,13 @@ export function OperatorConferenceLabels(){
         <div className="mr-auto">
           <p className="text-sm font-extrabold">Impressão em lote</p>
           <p className="text-xs text-muted-foreground">{todayCount} etiqueta(s) de hoje · {records.length} pedidos elegíveis no histórico</p>
+          <p className="mt-1 flex flex-wrap gap-3 text-xs font-bold">
+            <span className="text-emerald-700 dark:text-emerald-300">{summary.printed} PDF(s) gerado(s)</span>
+            <span className="text-amber-700 dark:text-amber-300">{summary.pending} pendente(s)</span>
+          </p>
         </div>
-        <ConferenceLabelBatchActions records={records}/>
+        <ConferenceLabelBatchActions records={records}
+          onGenerated={async ids=>updatePrintStatus(ids,true)}/>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
@@ -107,7 +159,7 @@ export function OperatorConferenceLabels(){
           </div>
           <span className="text-xs font-semibold text-muted-foreground">{filtered.length} resultado(s)</span>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.9fr_0.9fr]">
           <label className="space-y-1 text-xs font-semibold text-muted-foreground">Pesquisar
             <span className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/>
@@ -135,17 +187,29 @@ export function OperatorConferenceLabels(){
               <option value="retira">Somente Retira</option>
             </select>
           </label>
+          <label className="space-y-1 text-xs font-semibold text-muted-foreground">Impressão
+            <select aria-label="Filtrar etiquetas por status de impressão" value={printFilter}
+              onChange={e=>{setPrintFilter(e.target.value as ConferencePrintFilter);setLimit(PAGE_SIZE);}}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground">
+              <option value="all">Todas</option>
+              <option value="pending">Pendentes</option>
+              <option value="printed">PDFs gerados</option>
+            </select>
+          </label>
         </div>
         {invalidDate&&<p role="alert" className="mt-3 text-sm font-semibold text-destructive">
           A data inicial não pode ser posterior à data final.</p>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[680px] text-left text-sm">
             <thead className="bg-muted/80 text-foreground">
-              <tr>{["Data","Documento","Cliente","Tipo","Qtd. itens","Conferente","Etiqueta"].map(h=>
+              <tr>{["Data","Documento","Cliente","Tipo","Qtd. itens","Conferente","Situação","Etiqueta"].map(h=>
                 <th key={h} scope="col" className="px-3 py-3 text-xs font-bold">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {visible.map(r=><tr key={r.id} className="hover:bg-muted/40">
+              {visible.map(r=><tr key={r.id}
+                className={isConferenceLabelPrinted(r)
+                  ?"bg-emerald-100/85 text-emerald-950 hover:bg-emerald-200/85 dark:bg-emerald-950/55 dark:text-emerald-100 dark:hover:bg-emerald-900/65"
+                  :"hover:bg-muted/40"}>
                 <td className="whitespace-nowrap px-3 py-2">{dateText(r.createdAt)}</td>
                 <td className="px-3 py-2 font-mono font-extrabold">{r.document}</td>
                 <td className="max-w-[320px] break-words px-3 py-2">{r.clientName}</td>
@@ -153,11 +217,32 @@ export function OperatorConferenceLabels(){
                 <td className="px-3 py-2 tabular-nums">{r.items}</td>
                 <td className="px-3 py-2">{r.verifierName}</td>
                 <td className="px-3 py-2">
-                  <Button type="button" size="sm" variant="outline" className="gap-1.5"
-                    aria-label={"Gerar etiqueta da conferência "+r.document}
-                    disabled={printingId===r.id} onClick={()=>printOne(r)}>
-                    <FileDown className="h-4 w-4"/> PDF
-                  </Button>
+                  {isConferenceLabelPrinted(r)
+                    ?<span className="inline-flex flex-col gap-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 dark:text-emerald-200">
+                        <CheckCircle2 className="h-4 w-4"/> PDF gerado
+                      </span>
+                      <small className="text-[10px]">
+                        {new Date(r.labelPrintedAt!).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",dateStyle:"short",timeStyle:"short"})}
+                      </small>
+                    </span>
+                    :<span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Pendente</span>}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-1">
+                    <Button type="button" size="sm" variant="outline" className="gap-1.5"
+                      aria-label={"Gerar etiqueta da conferência "+r.document}
+                      disabled={!!printingId||!!busyStatus} onClick={()=>void printOne(r)}>
+                      <FileDown className="h-4 w-4"/>
+                      {isConferenceLabelPrinted(r)?"Gerar novamente":"PDF"}
+                    </Button>
+                    {isConferenceLabelPrinted(r)&&<Button type="button" size="sm" variant="ghost"
+                      aria-label={"Voltar a etiqueta "+r.document+" para pendente"}
+                      title="Corrigir marcação se o PDF não foi impresso"
+                      disabled={!!printingId||!!busyStatus} onClick={()=>void setPending(r)}>
+                      <RotateCcw className="mr-1 h-3.5 w-3.5"/> Pendente
+                    </Button>}
+                  </div>
                 </td>
               </tr>)}
             </tbody>
