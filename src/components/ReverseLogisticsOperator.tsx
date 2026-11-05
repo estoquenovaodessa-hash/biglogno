@@ -389,164 +389,193 @@ export function ReverseLogisticsOperator(){
       {dirty&&<p className="text-xs text-amber-300">* Salve as quantidades antes de finalizar ou exportar.</p>}
     </div>}
 
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+    <section className="reverse-filter-panel space-y-3"
       aria-label="Ferramentas e filtros da Logística Reversa">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
-        <Button type="button" className="h-10 gap-2 bg-blue-700 font-bold text-white hover:bg-blue-600"
-          disabled={!baseReady||!groups.length||busy||suppliersQuery.isError||!suppliers.length}
-          onClick={()=>setGroupDialog(true)}>
-          <PackagePlus className="h-4 w-4"/> Novo ciclo
-        </Button>
-        <Button type="button" variant="outline" className="h-10 gap-2 border-blue-300 bg-blue-50 font-bold text-blue-900 hover:bg-blue-100"
-          onClick={()=>setSuppliersOpen(true)}>
-          <Building2 className="h-4 w-4"/> Cadastro de fornecedores
-        </Button>
-        <span className="ml-auto text-xs text-slate-500">
-          {baseReady?groups.length.toLocaleString("pt-BR")+" grupos na base":"Base de contagem carregando"}
-          {" · "}{suppliers.length} fornecedor(es)
-        </span>
-      </div>
-      {!suppliers.length&&!suppliersQuery.isError&&baseReady&&<p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-        Cadastre um fornecedor e suas marcas antes de criar o primeiro ciclo.
-      </p>}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.55fr)_minmax(145px,1fr)_minmax(145px,1fr)_minmax(150px,1fr)_auto] xl:items-end">
-        <label className="space-y-1.5 text-xs font-bold text-slate-600">Buscar ciclo, fornecedor ou produto
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.7fr)_minmax(155px,0.85fr)_minmax(155px,0.95fr)_minmax(165px,0.95fr)_auto] xl:items-end">
+        <label className="space-y-1.5 text-xs font-bold text-sky-100">
+          <span className="sr-only">Buscar ciclo, fornecedor, marca ou produto</span>
           <span className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-500"/>
+            <Search className="reverse-field-icon pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2"/>
             <Input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}
-              className="h-10 border-slate-300 bg-white pl-9 text-sm text-slate-900 placeholder:text-slate-400"
-              placeholder="Nº, fornecedor, marca, código..."/>
+              className="reverse-search-input h-11 w-full pl-10 text-sm"
+              aria-label="Buscar por número do ciclo, fornecedor, marca ou código"
+              placeholder="Buscar por nº do ciclo, fornecedor ou código..."/>
           </span>
         </label>
-        <label className="space-y-1.5 text-xs font-bold text-slate-600">Status
-          <select className={selectClass} value={statusFilter}
-            onChange={e=>{setStatusFilter(e.target.value as ReverseStatusFilter);setPage(1);}}
-            aria-label="Filtrar Logística Reversa por status">
-            {statusOptions.map(st=><option key={st.value} value={st.value}>{st.label}</option>)}
-          </select>
+        <label className="space-y-1.5 text-xs font-semibold text-sky-100">Status
+          <span className="relative block">
+            <List className="reverse-field-icon pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"/>
+            <select className={selectClass+" pl-9"} value={statusFilter}
+              onChange={e=>{setStatusFilter(e.target.value as ReverseStatusFilter);setPage(1);}}
+              aria-label="Filtrar Logística Reversa por status">
+              {statusOptions.map(st=><option key={st.value} value={st.value}>{st.label}</option>)}
+            </select>
+          </span>
         </label>
-        <label className="space-y-1.5 text-xs font-bold text-slate-600">Fornecedor
-          <select className={selectClass} value={supplierFilter}
-            onChange={e=>{setSupplierFilter(e.target.value);setPage(1);}}
-            aria-label="Filtrar Logística Reversa por fornecedor">
-            <option value="all">Todos os fornecedores</option>
-            {supplierNames.map(name=><option key={name} value={name}>{name}</option>)}
-          </select>
+        <label className="space-y-1.5 text-xs font-semibold text-sky-100">Fornecedor
+          <span className="relative block">
+            <UserRound className="reverse-field-icon pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"/>
+            <select className={selectClass+" pl-9"} value={supplierFilter}
+              onChange={e=>{setSupplierFilter(e.target.value);setPage(1);}}
+              aria-label="Filtrar Logística Reversa por fornecedor">
+              <option value="all">Todos</option>
+              {supplierNames.map(name=><option key={name} value={name}>{name}</option>)}
+            </select>
+          </span>
         </label>
-        <label className="space-y-1.5 text-xs font-bold text-slate-600">Período
-          <select className={selectClass} value={periodFilter}
-            onChange={e=>{setPeriodFilter(e.target.value as ReversePeriod);setPage(1);}}
-            aria-label="Filtrar período da Logística Reversa">
-            <option value="all">Todo o período</option>
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-          </select>
+        <label className="space-y-1.5 text-xs font-semibold text-sky-100">Período
+          <span className="relative block">
+            <CalendarDays className="reverse-field-icon pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"/>
+            <select className={selectClass+" pl-9"} value={periodFilter}
+              onChange={e=>{setPeriodFilter(e.target.value as ReversePeriod);setPage(1);}}
+              aria-label="Filtrar período da Logística Reversa">
+              <option value="all">Todo o período</option>
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="90">Últimos 90 dias</option>
+            </select>
+          </span>
         </label>
-        <Button variant="outline" type="button" className="h-10 gap-2 border-slate-300 bg-slate-50 font-semibold text-slate-700 hover:bg-slate-100"
-          disabled={!filterActive} onClick={clearFilters}>
-          <FilterX className="h-4 w-4"/> Limpar filtros
+        <Button variant="outline" type="button"
+          className="reverse-clear-button h-11 gap-2 px-3 font-bold" disabled={!filterActive} onClick={clearFilters}>
+          <FilterX className="h-5 w-5"/> Limpar filtros
         </Button>
       </div>
+      {!suppliers.length&&!suppliersQuery.isError&&baseReady&&<p
+        className="rounded-lg border border-amber-400/40 bg-amber-900/20 px-3 py-2 text-xs font-bold text-amber-200">
+        Cadastre um fornecedor e suas marcas antes de criar o primeiro ciclo.
+      </p>}
+      <p className="text-xs font-semibold text-sky-200/65">
+        {baseReady?groups.length.toLocaleString("pt-BR")+" grupos na base":"Carregando base"}
+        {" · "}{suppliers.length} fornecedor(es) cadastrado(s)
+      </p>
     </section>
 
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-      aria-label="Lista de ciclos de Logística Reversa">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 sm:px-5">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-            <Layers3 className="h-5 w-5 text-blue-700"/> Ciclos de Logística Reversa
-            <span className="text-slate-500">({filteredCycles.length})</span>
-          </h2>
-          <p className="mt-0.5 text-xs text-slate-500">Acompanhamento e gestão das solicitações por fornecedor.</p>
-        </div>
-        <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+    <section className="space-y-3" aria-label="Lista de ciclos de Logística Reversa">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 py-1">
+        <h2 className="flex items-center gap-3 text-xl font-black tracking-tight text-white sm:text-2xl">
+          <Layers3 className="h-7 w-7 shrink-0 text-[#00d6ff]" strokeWidth={2.2}/>
+          Ciclos de Logística Reversa
+          <span className="text-[#eaf6ff]">({filteredCycles.length})</span>
+        </h2>
+        <div className="reverse-view-switch flex items-center rounded-xl p-1" role="group"
+          aria-label="Formato de visualização dos ciclos">
           <Button type="button" size="sm" variant="ghost"
-            className={"h-8 gap-1.5 px-3 "+(viewMode==="list"?"bg-blue-700 text-white hover:bg-blue-700 hover:text-white":"text-slate-600")}
+            className={"reverse-view-button h-9 gap-2 px-4 "+(viewMode==="list"?"reverse-view-active":"")}
             onClick={()=>setViewMode("list")} aria-pressed={viewMode==="list"}>
-            <List className="h-4 w-4"/> Lista
+            <List className="h-5 w-5"/> Lista
           </Button>
           <Button type="button" size="sm" variant="ghost"
-            className={"h-8 gap-1.5 px-3 "+(viewMode==="cards"?"bg-blue-700 text-white hover:bg-blue-700 hover:text-white":"text-slate-600")}
+            className={"reverse-view-button h-9 gap-2 px-4 "+(viewMode==="cards"?"reverse-view-active":"")}
             onClick={()=>setViewMode("cards")} aria-pressed={viewMode==="cards"}>
-            <LayoutGrid className="h-4 w-4"/> Cards
+            <LayoutGrid className="h-5 w-5"/> Cards
           </Button>
         </div>
       </div>
-      {q.isLoading&&<p role="status" className="p-6 text-sm text-slate-500">Carregando os ciclos...</p>}
-      {viewMode==="list"&&<div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[940px] border-collapse text-left text-sm">
-          <thead className="bg-[#eef3f9] text-[11px] font-bold uppercase tracking-wide text-slate-600">
-            <tr>{["Ciclo","Fornecedor / marca","Itens","Status","Abertura","Ações"].map(h=>
-              <th scope="col" key={h} className="border-b border-slate-200 px-5 py-3">{h}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {pageCycles.map(c=>{
-              const qty=reverseCycleAmounts(c);
-              return <tr key={c.id} className="transition-colors hover:bg-blue-50/50">
-                <td className="px-5 py-3">
-                  <button type="button" disabled={busy} onClick={()=>selectCycle(c)}
-                    className="text-left font-extrabold text-slate-900 hover:text-blue-700 hover:underline">
+      <div className="reverse-list-panel overflow-hidden rounded-2xl">
+        {q.isLoading&&<p role="status" className="p-6 text-sm text-sky-200">
+          Carregando os ciclos...</p>}
+        {viewMode==="list"&&<div className="hidden overflow-x-auto lg:block">
+          <table className="reverse-cycle-table w-full min-w-[1080px] border-collapse text-left text-sm">
+            <thead>
+              <tr>{["CICLO","FORNECEDOR","MARCA","QUANTIDADES","STATUS","DATA DE ABERTURA","AÇÕES"].map(h=>
+                <th key={h} scope="col" className="px-4 py-3 text-xs font-extrabold tracking-wide">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {pageCycles.map(c=>{
+                const qty=reverseCycleAmounts(c);
+                return <tr key={c.id} className="reverse-cycle-row">
+                  <td className="px-4 py-2.5">
+                    <div className="flex min-w-[165px] items-center gap-3">
+                      <span className="reverse-cycle-icon shrink-0"><Package className="h-6 w-6"/></span>
+                      <button type="button" disabled={busy} onClick={()=>selectCycle(c)}
+                        className="text-left text-sm font-extrabold tracking-tight text-white hover:text-[#00d7ff] hover:underline">
+                        {cycleTitle(c.number)}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="max-w-[180px] break-words px-4 py-2.5 font-semibold text-white">{c.supplier||"A informar"}</td>
+                  <td className="max-w-[180px] break-words px-4 py-2.5 font-extrabold text-[#22e4f2]">
+                    {c.brand||"Marca não informada"}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    <div className="flex items-center gap-2 text-sky-50">
+                      <Package className="h-5 w-5 text-sky-100"/>
+                      <span><strong>{qty.codes}</strong> {qty.codes===1?"código":"códigos"}
+                        <span className="mx-2 text-sky-400">·</span>
+                        <strong>{qty.units}</strong> {qty.units===1?"unidade":"unidades"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5"><StageBadge cycle={c}/></td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-sky-100">
+                    <span className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-sky-100"/>
+                      {dateText(c.createdAt)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">{cycleActions(c)}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>}
+        <div className={(viewMode==="cards"?"grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3":"grid gap-3 p-4 sm:grid-cols-2 lg:hidden")}>
+          {pageCycles.map(c=>{
+            const qty=reverseCycleAmounts(c);
+            return <article key={c.id} className="reverse-cycle-card flex min-w-0 flex-col rounded-xl p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="reverse-cycle-icon"><Package className="h-6 w-6"/></span>
+                  <button type="button" onClick={()=>selectCycle(c)} disabled={busy}
+                    className="text-left text-base font-black text-white hover:text-[#00d7ff]">
                     {cycleTitle(c.number)}
                   </button>
-                  <p className="mt-1 text-xs text-slate-500">{c.groups.length} grupo(s)</p>
-                </td>
-                <td className="max-w-[260px] px-5 py-3">
-                  <p className="break-words font-bold text-slate-800">{c.supplier||"Fornecedor pendente"}</p>
-                  <p className="mt-1 break-words text-xs font-semibold text-blue-700">{c.brand||"Marca não informada"}</p>
-                </td>
-                <td className="px-5 py-3 text-slate-700">
-                  <span className="font-semibold">{qty.codes} códigos</span>
-                  <span className="block text-xs text-slate-500">{qty.units} unidades</span>
-                </td>
-                <td className="px-5 py-3"><StageBadge cycle={c}/></td>
-                <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-600">{dateText(c.createdAt)}</td>
-                <td className="px-5 py-3">{cycleActions(c)}</td>
-              </tr>;
+                </div>
+                <StageBadge cycle={c}/>
+              </div>
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-sky-200">
+                <CalendarDays className="h-3.5 w-3.5"/>{dateText(c.createdAt)}
+              </p>
+              <div className="mt-4">
+                <p className="text-sm font-bold text-sky-100">{c.supplier||"Fornecedor pendente"}</p>
+                <p className="mt-1 break-words text-lg font-black text-[#22e4f2]">{c.brand||"Marca não informada"}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-sky-400/25 pt-3">
+                <p className="flex items-center gap-2 text-xs font-medium text-sky-100">
+                  <Package className="h-4 w-4"/> {qty.codes} códigos · {qty.units} unidades
+                </p>
+                {cycleActions(c)}
+              </div>
+            </article>;
+          })}
+        </div>
+        {!q.isLoading&&!filteredCycles.length&&<p className="px-5 py-10 text-center text-sm text-sky-200">
+          Nenhum ciclo encontrado. Experimente limpar os filtros.
+        </p>}
+        <div className="reverse-pagination flex flex-wrap items-center justify-between gap-3 px-4 py-4 text-xs text-sky-50">
+          <span>{filteredCycles.length===0?"Nenhum ciclo encontrado":
+            "Mostrando "+((safePage-1)*PAGE_SIZE+1)+" a "+Math.min(safePage*PAGE_SIZE,filteredCycles.length)+
+            " de "+filteredCycles.length+" ciclos"}</span>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" aria-label="Página anterior"
+              className="reverse-page-button h-9 w-9 p-0" disabled={safePage<=1}
+              onClick={()=>setPage(p=>Math.max(1,p-1))}>
+              <ChevronLeft className="h-4 w-4"/>
+            </Button>
+            {Array.from({length:Math.min(3,pages)},(_,i)=>{
+              const first=Math.max(1,Math.min(safePage-1,pages-2));
+              const number=first+i;
+              return <Button type="button" key={number} variant="outline" size="sm"
+                aria-label={"Ir para página "+number} aria-current={number===safePage?"page":undefined}
+                className={"reverse-page-button h-9 w-9 p-0 font-black "+(number===safePage?"reverse-page-current":"")}
+                onClick={()=>setPage(number)}>{number}</Button>;
             })}
-          </tbody>
-        </table>
-      </div>}
-      <div className={(viewMode==="cards"?"grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3":"grid gap-3 p-4 sm:grid-cols-2 lg:hidden")}>
-        {pageCycles.map(c=>{
-          const qty=reverseCycleAmounts(c);
-          return <article key={c.id} className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <button type="button" onClick={()=>selectCycle(c)} disabled={busy}
-                className="text-left text-base font-extrabold text-slate-900 hover:text-blue-700">
-                {cycleTitle(c.number)}
-              </button>
-              <StageBadge cycle={c}/>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">{dateText(c.createdAt)}</p>
-            <p className="mt-4 break-words font-extrabold text-slate-900">{c.supplier||"Fornecedor pendente"}</p>
-            <p className="mt-0.5 break-words text-sm font-bold text-blue-700">{c.brand||"Marca não informada"}</p>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
-              <p className="text-xs text-slate-600"><strong>{qty.codes}</strong> códigos · <strong>{qty.units}</strong> unidades</p>
-              {cycleActions(c)}
-            </div>
-          </article>;
-        })}
-      </div>
-      {!q.isLoading&&!filteredCycles.length&&<p className="border-t border-slate-100 px-5 py-10 text-center text-sm text-slate-500">
-        Nenhum ciclo encontrado para esses filtros. Experimente limpar os filtros.
-      </p>}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
-        <span>{filteredCycles.length===0?"Nenhum ciclo encontrado":
-          "Mostrando "+((safePage-1)*PAGE_SIZE+1)+" a "+Math.min(safePage*PAGE_SIZE,filteredCycles.length)+
-          " de "+filteredCycles.length+" ciclos"}</span>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" aria-label="Página anterior"
-            className="h-9 border-slate-300 text-slate-700" disabled={safePage<=1}
-            onClick={()=>setPage(p=>Math.max(1,p-1))}>
-            <ChevronLeft className="h-4 w-4"/>
-          </Button>
-          <span className="min-w-12 text-center text-xs font-bold">{safePage} / {pages}</span>
-          <Button type="button" variant="outline" size="sm" aria-label="Próxima página"
-            className="h-9 border-slate-300 text-slate-700" disabled={safePage>=pages}
-            onClick={()=>setPage(p=>Math.min(pages,p+1))}>
-            <ChevronRight className="h-4 w-4"/>
-          </Button>
+            <Button type="button" variant="outline" size="sm" aria-label="Próxima página"
+              className="reverse-page-button h-9 w-9 p-0" disabled={safePage>=pages}
+              onClick={()=>setPage(p=>Math.min(pages,p+1))}>
+              <ChevronRight className="h-4 w-4"/>
+            </Button>
+          </div>
         </div>
       </div>
     </section>

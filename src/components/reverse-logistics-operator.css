@@ -1,0 +1,253 @@
+/* BigLogno — Logística Reversa do Operador.
+   Interface noturna logística fiel ao painel aprovado. O CSS é isolado:
+   não modifica as outras áreas do sistema. */
+.reverse-ops {
+  color: #f1faff;
+  background:
+    radial-gradient(ellipse at 56% -5%, rgba(17,101,154,.42),transparent 44%),
+    radial-gradient(ellipse at 100% 55%, rgba(1,68,120,.20),transparent 47%),
+    linear-gradient(160deg,#041326 0%,#041d37 48%,#031427 100%);
+  border: 1px solid rgba(11,111,171,.22);
+  padding: clamp(12px,2.2vw,28px);
+  min-height: 77vh;
+  border-radius: 18px;
+  font-family: inherit;
+  color-scheme: dark;
+}
+.reverse-ops .reverse-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 0 8px 18px;
+  border-bottom: 1px solid rgba(18,177,221,.40);
+}
+.reverse-ops .reverse-operator-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  color: #f3faff;
+  background: linear-gradient(120deg,rgba(8,36,65,.96),rgba(5,31,60,.90));
+  border: 1px solid #3d91c5;
+  border-radius: 999px;
+  padding: 9px 19px;
+  font-size: 14px;
+  font-weight: 750;
+  box-shadow: inset 0 1px rgba(175,234,255,.10);
+}
+.reverse-ops .reverse-hero {
+  padding: clamp(18px,2.6vw,36px);
+  min-height: 235px;
+  border: 1px solid rgba(29,151,208,.7);
+  background-color: #061e3a;
+  box-shadow: inset 0 1px 0 rgba(155,231,255,.12),0 18px 45px rgba(0,4,14,.23);
+}
+.reverse-ops .reverse-hero-icon {
+  color: #0fe0fc;
+  background: linear-gradient(135deg,rgba(0,209,250,.14),rgba(3,60,109,.10));
+  border: 1px solid rgba(4,222,255,.25);
+  border-radius: 16px;
+  filter: drop-shadow(0 0 14px rgba(0,200,255,.23));
+}
+.reverse-ops .reverse-hero-outline {
+  background: rgba(3,35,63,.65);
+  border: 1.5px solid #00caff;
+  color: white;
+  box-shadow: inset 0 1px rgba(186,246,255,.13), 0 0 12px rgba(0,188,241,.10);
+}
+.reverse-ops .reverse-hero-outline:hover,
+.reverse-ops .reverse-hero-outline:focus-visible {
+  background: rgba(0,140,191,.28);
+  border-color: #28e5ff;
+  color: white;
+  box-shadow: 0 0 15px rgba(0,214,255,.22);
+}
+.reverse-ops .reverse-hero-primary {
+  background: linear-gradient(180deg,#13d9fb,#00a8e2);
+  border: 1px solid #21e8ff;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0,20,44,.3);
+  box-shadow: inset 0 1px rgba(255,255,255,.40),0 5px 18px rgba(0,155,239,.23);
+}
+.reverse-ops .reverse-hero-primary:hover {
+  background: linear-gradient(180deg,#46ecff,#04b2ea);
+  box-shadow: 0 7px 24px rgba(1,194,237,.35);
+}
+.reverse-ops .reverse-kpi {
+  min-height: 105px;
+  min-width: 0;
+  border-radius: 12px;
+  text-align: left;
+  padding: 18px 16px;
+  background: rgba(4,28,53,.85);
+  box-shadow: inset 0 1px rgba(227,250,255,.07),0 7px 20px rgba(0,0,0,.28);
+}
+.reverse-ops .reverse-kpi-cyan {
+  background: linear-gradient(150deg,rgba(3,34,68,.97),rgba(3,63,106,.73));
+  border: 1.5px solid #00caff;
+  box-shadow: inset 0 1px rgba(201,245,255,.15),0 0 19px rgba(1,194,254,.09);
+}
+.reverse-ops .reverse-kpi-cyan .reverse-kpi-icon {color:#02d4fa;}
+.reverse-ops .reverse-kpi-green {
+  background: linear-gradient(145deg,rgba(0,49,40,.97),rgba(1,83,54,.67));
+  border: 1.5px solid #0ce889;
+  box-shadow: inset 0 1px rgba(175,255,212,.12),0 0 18px rgba(1,219,120,.08);
+}
+.reverse-ops .reverse-kpi-green .reverse-kpi-icon {color:#25f68e;}
+.reverse-ops .reverse-kpi-amber {
+  background: linear-gradient(145deg,rgba(55,42,12,.93),rgba(95,55,10,.58));
+  border: 1.5px solid #ffc014;
+  box-shadow: inset 0 1px rgba(255,240,155,.10),0 0 18px rgba(236,161,4,.08);
+}
+.reverse-ops .reverse-kpi-amber .reverse-kpi-icon {color:#ffc321;}
+.reverse-ops .reverse-filter-panel {
+  padding: clamp(14px,1.6vw,24px);
+  border: 1px solid #3988b4;
+  background: linear-gradient(145deg,rgba(13,55,91,.93),rgba(4,31,58,.96));
+  border-radius: 14px;
+  box-shadow: inset 0 1px rgba(147,221,251,.07),0 9px 20px rgba(0,0,0,.15);
+}
+.reverse-ops .reverse-field-icon { color: #e4f7ff; z-index: 1; }
+.reverse-ops .reverse-filter-control,
+.reverse-ops .reverse-search-input {
+  color: #fff;
+  background: linear-gradient(180deg,rgba(13,47,78,.98),rgba(6,32,58,.98));
+  border: 1px solid #4c9cc9;
+  box-shadow: inset 0 1px rgba(170,237,255,.05);
+  border-radius: 9px;
+  color-scheme: dark;
+}
+.reverse-ops .reverse-filter-control:focus,
+.reverse-ops .reverse-search-input:focus {
+  border-color: #13ddff;
+  box-shadow: 0 0 0 2px rgba(0,205,253,.18);
+}
+.reverse-ops .reverse-search-input::placeholder{color:#c3dbeb;opacity:.88;}
+.reverse-ops .reverse-filter-control option{color:#f6fbff;background:#092b4d;}
+.reverse-ops .reverse-clear-button{
+  border:1px solid #5eabd7;
+  color:#f0faff;
+  background:rgba(8,42,73,.84);
+  border-radius:9px;
+}
+.reverse-ops .reverse-clear-button:hover:not(:disabled){
+  border-color:#24d5ff;background:#13537f;color:white;
+}
+.reverse-ops .reverse-clear-button:disabled{opacity:.48;color:#c6dae6;}
+.reverse-ops .reverse-view-switch{
+  border:1px solid #3b80b0;
+  background:#0b2a49;
+}
+.reverse-ops .reverse-view-button {
+  color:#f7fdff;
+  background:transparent;
+  border-radius:8px;
+  font-weight:700;
+}
+.reverse-ops .reverse-view-button:hover {color:#fff;background:#174b77;}
+.reverse-ops .reverse-view-active,
+.reverse-ops .reverse-view-active:hover {
+  color:#032b4c;
+  background:linear-gradient(180deg,#20e1ff,#03aee9);
+  box-shadow:0 0 15px rgba(0,196,255,.20);
+}
+.reverse-ops .reverse-list-panel {
+  background:linear-gradient(160deg,#08294b,#061b35);
+  border:1px solid #367fae;
+  box-shadow:inset 0 1px rgba(122,212,255,.12),0 14px 40px rgba(0,4,15,.24);
+}
+.reverse-ops .reverse-cycle-table thead {
+  color:#c9edff;
+  background:linear-gradient(180deg,#143f66,#0b2d51);
+  border-bottom:1px solid #3d7fad;
+}
+.reverse-ops .reverse-cycle-table th {font-size:11px;font-weight:800;white-space:nowrap;}
+.reverse-ops .reverse-cycle-row {
+  background:linear-gradient(90deg,rgba(9,47,83,.83),rgba(3,30,56,.77));
+  border-bottom:1px solid rgba(65,131,174,.68);
+}
+.reverse-ops .reverse-cycle-row:nth-child(even){
+  background:linear-gradient(90deg,rgba(5,36,66,.84),rgba(4,24,47,.74));
+}
+.reverse-ops .reverse-cycle-row:hover {background:#103d66;}
+.reverse-ops .reverse-cycle-icon {
+  width:42px;height:42px;display:inline-flex;align-items:center;justify-content:center;
+  color:#03deff;
+  background:linear-gradient(150deg,#005b87,#043453);
+  border:1px solid rgba(0,203,255,.12);
+  border-radius:9px;
+  flex-shrink:0;
+}
+.reverse-ops .reverse-cycle-card {
+  background:linear-gradient(150deg,#0f3a60,#082342);
+  border:1px solid #3682b2;
+  box-shadow:0 5px 17px rgba(0,1,16,.22);
+}
+.reverse-ops .reverse-cycle-card:hover {border-color:#00caff;box-shadow:0 0 12px rgba(0,186,250,.10);}
+.reverse-ops .reverse-stage {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  white-space:nowrap;border-radius:999px;border:1.5px solid transparent;
+  padding:5px 12px;font-weight:800;font-size:12px;
+  box-shadow:inset 0 0 6px rgba(255,255,255,.05);
+}
+.reverse-ops .reverse-stage-em_contagem {color:#e0e9f9;background:#153352;border-color:#7d9db9;}
+.reverse-ops .reverse-stage-em_tratativa {
+  color:#ffd456;background:linear-gradient(90deg,rgba(135,75,0,.55),rgba(88,61,5,.75));
+  border-color:#ffad0b;box-shadow:0 0 12px rgba(255,157,0,.10);
+}
+.reverse-ops .reverse-stage-aguardando_coleta {
+  color:#21deff;background:linear-gradient(90deg,rgba(1,81,118,.50),rgba(1,45,81,.85));
+  border-color:#03cfff;box-shadow:0 0 12px rgba(1,204,255,.11);
+}
+.reverse-ops .reverse-stage-coletado{
+  color:#7affb5;background:linear-gradient(90deg,rgba(2,89,45,.52),rgba(0,45,37,.86));
+  border-color:#08e979;box-shadow:0 0 12px rgba(1,228,109,.10);
+}
+.reverse-ops .reverse-stage-resolvido{
+  color:#40faff;background:linear-gradient(90deg,rgba(2,87,101,.48),rgba(2,44,68,.85));
+  border-color:#17e8f0;box-shadow:0 0 12px rgba(8,227,229,.10);
+}
+.reverse-ops .reverse-action-trigger {
+  color:#fff;
+  background:linear-gradient(145deg,#072d4e,#07233f);
+  border:1.5px solid #04d8fa;
+  border-radius:9px;
+  box-shadow:0 0 12px rgba(2,201,252,.12);
+}
+.reverse-ops .reverse-action-trigger:hover,
+.reverse-ops .reverse-action-trigger[data-state="open"]{
+  background:#0a5380;border-color:#33f2ff;color:white;
+}
+.reverse-action-menu {color:#f4faff;}
+.reverse-action-menu [role="menuitem"].reverse-action-item {color:#eaf7ff;border-radius:7px;padding:8px 10px;}
+.reverse-action-menu [role="menuitem"].reverse-action-item:focus {background:#145583;color:white;}
+.reverse-action-menu [role="menuitem"].reverse-action-danger {color:#ff9292;}
+.reverse-action-menu [role="menuitem"].reverse-action-danger:focus {background:#612b3b;color:#fff;}
+.reverse-action-menu [data-radix-menu-separator] {background:#285576;}
+.reverse-ops .reverse-pagination {border-top:1px solid #3875a1;background:rgba(8,43,75,.56);}
+.reverse-ops .reverse-page-button {
+  color:#eaf9ff;background:rgba(5,27,51,.76);border:1px solid #3786b5;border-radius:8px;
+}
+.reverse-ops .reverse-page-button:hover:not(:disabled) {color:white;background:#145a88;}
+.reverse-ops .reverse-page-current,
+.reverse-ops .reverse-page-current:hover{
+  color:#002846;background:linear-gradient(180deg,#24ddff,#00b7f1);border-color:#09e0ff;font-weight:900;
+}
+.reverse-ops .reverse-page-button:disabled{opacity:.33;}
+.reverse-ops .reverse-list-panel ::selection {background:#0ca8d5;color:#fff;}
+@media (max-width:640px) {
+  .reverse-ops {padding:10px;border-radius:12px;}
+  .reverse-ops .reverse-masthead {gap:8px;padding:2px 4px 14px;}
+  .reverse-ops .reverse-operator-chip{padding:7px 10px;font-size:11px;gap:5px;}
+  .reverse-ops .reverse-hero{padding:16px;min-height:0;}
+  .reverse-ops .reverse-hero-icon{width:58px;height:58px;}
+  .reverse-ops .reverse-kpi{padding:12px 6px;min-height:97px;text-align:center;}
+  .reverse-ops .reverse-kpi .reverse-kpi-icon{height:21px;width:21px;}
+  .reverse-ops .reverse-filter-panel{padding:12px;}
+  .reverse-ops .reverse-stage{font-size:11px;padding:5px 8px;}
+}
+@media (prefers-reduced-motion:reduce) {
+  .reverse-ops *, .reverse-ops *::before, .reverse-ops *::after{scroll-behavior:auto;transition-duration:.01ms!important;animation-duration:.01ms!important;}
+}
