@@ -1,8 +1,11 @@
 import {useDeferredValue,useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {useServerFn} from "@tanstack/react-start";
-import {ArrowLeft,Building2,CheckCircle2,ClipboardList,Download,FileDown,
-  Minus,Plus,RotateCcw,Search,Trash2,Pencil,Save,PackagePlus,Printer} from "lucide-react";
+import {
+  ArrowLeft,Building2,CheckCircle2,ChevronDown,ChevronLeft,ChevronRight,
+  ClipboardList,Download,FileDown,Layers3,LayoutGrid,List,Clock3,
+  Minus,Plus,RotateCcw,Search,Trash2,Pencil,Save,PackagePlus,Printer,FilterX,
+} from "lucide-react";
 import {toast} from "sonner";
 import {useStore} from "@/lib/store";
 import {
@@ -19,6 +22,14 @@ import {
 } from "@/lib/reverse-logistics.functions";
 import {reverseDownloadCsv,reverseExportPdf} from "@/lib/reverse-logistics-export";
 import {createReverseVolumeLabelsPdf,reverseVolumeLabelFilename} from "@/lib/reverse-volume-labels";
+import {
+  filterReverseCycles,reverseCycleSummary,reverseCycleAmounts,
+  type ReversePeriod,type ReverseStatusFilter,
+} from "@/lib/reverse-logistics-view";
+import {
+  DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,
+  DropdownMenuItem,DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -37,6 +48,76 @@ const stageHelp=(c:ReverseCycle)=>{
   if(stage==="coletado")return 'Depois que o fornecedor resolver a situação, clique em "Editar → Status: Finalizado" e informe Abatimento ou Material novo.';
   return "Tratativa finalizada. Consulte os dados ou edite para corrigir informações quando necessário.";
 };
+
+const PAGE_SIZE=8;
+const selectClass="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15";
+const statusOptions=[
+  {value:"all",label:"Todos os status"},
+  {value:"em_contagem",label:"Em contagem"},
+  {value:"em_tratativa",label:"Em tratativas"},
+  {value:"aguardando_coleta",label:"Aguardando coleta"},
+  {value:"coletado",label:"Coletado"},
+  {value:"resolvido",label:"Finalizado"},
+] as const;
+
+function StageBadge({cycle}:{cycle:ReverseCycle}){
+  const stage=reverseWorkflowStage(cycle);
+  const cls=stage==="resolvido"
+    ?"border-emerald-200 bg-emerald-50 text-emerald-800"
+    :stage==="coletado"
+      ?"border-teal-200 bg-teal-50 text-teal-800"
+      :stage==="aguardando_coleta"
+        ?"border-sky-200 bg-sky-50 text-sky-800"
+        :stage==="em_tratativa"
+          ?"border-amber-200 bg-amber-50 text-amber-800"
+          :"border-slate-200 bg-slate-100 text-slate-700";
+  const Icon=stage==="resolvido"?CheckCircle2:stage==="aguardando_coleta"?Clock3:RotateCcw;
+  return <span className={"inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold "+cls}>
+    <Icon className="h-3.5 w-3.5"/>{reverseStatusLabel(cycle)}
+  </span>;
+}
+
+/** Um só ponto de acesso às ações do ciclo, com menu acessível por teclado.
+ * Não altera as regras, permissões ou transições do orientador. */
+function ReverseCycleActions({cycle,busy,onEdit,onPdf,onCsv,onSupplier,onGuide,onLabels,onDelete}:{
+  cycle:ReverseCycle;busy:boolean;
+  onEdit?:()=>void;onPdf:()=>void;onCsv:()=>void;onSupplier:()=>void;
+  onGuide:()=>void;onLabels:()=>void;onDelete:()=>void;
+}){
+  const hasItems=reverseIncluded(cycle.items).length>0;
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button type="button" variant="outline" size="sm" disabled={busy}
+        aria-label={"Abrir ações da Logística Reversa nº "+cycle.number}
+        className="h-9 gap-2 border-[#0e4674] bg-[#103a60] px-3 font-bold text-white shadow-none hover:border-blue-600 hover:bg-[#185783] hover:text-white">
+        Ações <ChevronDown className="h-4 w-4"/>
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" sideOffset={5} className="z-[80] min-w-[235px] bg-white p-1 text-slate-900 shadow-xl">
+      {onEdit&&<DropdownMenuItem className="cursor-pointer gap-2" onSelect={onEdit}>
+        <Pencil className="h-4 w-4"/> Editar ciclo e quantidades
+      </DropdownMenuItem>}
+      <DropdownMenuItem className="cursor-pointer gap-2"
+        disabled={!hasItems} onSelect={onPdf}><FileDown className="h-4 w-4"/> Gerar PDF</DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer gap-2"
+        disabled={!hasItems} onSelect={onCsv}><Download className="h-4 w-4"/> Exportar CSV</DropdownMenuItem>
+      <DropdownMenuSeparator/>
+      <DropdownMenuItem className="cursor-pointer gap-2"
+        onSelect={onSupplier}><Building2 className="h-4 w-4"/> Fornecedor e marca</DropdownMenuItem>
+      <DropdownMenuItem className="cursor-pointer gap-2"
+        disabled={cycle.status!=="finalizado"} onSelect={onGuide}>
+        <ClipboardList className="h-4 w-4"/>
+        {cycle.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"}
+      </DropdownMenuItem>
+      {Boolean(cycle.nfd&&cycle.volumes)&&<DropdownMenuItem className="cursor-pointer gap-2" onSelect={onLabels}>
+        <Printer className="h-4 w-4"/> Etiquetas dos volumes
+      </DropdownMenuItem>}
+      <DropdownMenuSeparator/>
+      <DropdownMenuItem className="cursor-pointer gap-2 font-semibold text-red-700 focus:bg-red-50 focus:text-red-800"
+        onSelect={onDelete}><Trash2 className="h-4 w-4"/> Excluir ciclo</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
 
 export function ReverseLogisticsOperator(){
   const {enderecoBase,ready:baseReady}=useStore();
@@ -69,6 +150,26 @@ export function ReverseLogisticsOperator(){
   const [finishDialog,setFinishDialog]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [search,setSearch]=useState("");
+  const deferredSearch=useDeferredValue(search);
+  const [statusFilter,setStatusFilter]=useState<ReverseStatusFilter>("all");
+  const [supplierFilter,setSupplierFilter]=useState("all");
+  const [periodFilter,setPeriodFilter]=useState<ReversePeriod>("all");
+  const [viewMode,setViewMode]=useState<"list"|"cards">("list");
+  const [page,setPage]=useState(1);
+  const summary=useMemo(()=>reverseCycleSummary(cycles),[cycles]);
+  const supplierNames=useMemo(()=>[...new Set(cycles.map(c=>c.supplier?.trim()).filter((v):v is string=>!!v))]
+    .sort((a,b)=>a.localeCompare(b,"pt-BR")),[cycles]);
+  const filteredCycles=useMemo(()=>filterReverseCycles(cycles,{
+    query:deferredSearch,status:statusFilter,supplier:supplierFilter,period:periodFilter,
+  }),[cycles,deferredSearch,statusFilter,supplierFilter,periodFilter]);
+  const pages=Math.max(1,Math.ceil(filteredCycles.length/PAGE_SIZE));
+  const safePage=Math.min(page,pages);
+  const pageCycles=filteredCycles.slice((safePage-1)*PAGE_SIZE,safePage*PAGE_SIZE);
+  const filterActive=Boolean(search||statusFilter!=="all"||supplierFilter!=="all"||periodFilter!=="all");
+  const clearFilters=()=>{
+    setSearch("");setStatusFilter("all");setSupplierFilter("all");setPeriodFilter("all");setPage(1);
+  };
 
   const active=cycles.find(c=>c.id===activeId)??null;
   const guideCycle=cycles.find(c=>c.id===guideId)??null;
@@ -133,31 +234,58 @@ export function ReverseLogisticsOperator(){
       setSupplierCycleId(null);toast.success("Fornecedor e marca vinculados ao ciclo.");
     });
   }
+  function deleteCycle(c:ReverseCycle){
+    if(!window.confirm("Excluir "+cycleTitle(c.number)+" permanentemente?"))return;
+    void operation(async()=>{
+      await remove({data:{id:c.id,version:c.version}});
+      if(activeId===c.id)setActiveId(null);
+      if(guideId===c.id)setGuideId(null);
+      toast.success("Ciclo excluído.");
+    });
+  }
+  const cycleActions=(c:ReverseCycle,showEdit=true)=><ReverseCycleActions
+    cycle={c} busy={busy}
+    onEdit={showEdit?()=>selectCycle(c):undefined}
+    onPdf={()=>exportCycle(c,"pdf")} onCsv={()=>exportCycle(c,"csv")}
+    onSupplier={()=>openSupplierLink(c)}
+    onGuide={()=>openGuide(c)} onLabels={()=>printVolumes(c)}
+    onDelete={()=>deleteCycle(c)}
+  />;
   const linkMark=(s:ReverseSupplier|undefined)=>s?.brands??[];
-  return <section className="mx-auto max-w-[1440px] space-y-5 text-[#e9f5ff]" aria-label="Logística Reversa do operador">
-    <header className="rounded-2xl border border-sky-500/40 bg-gradient-to-r from-[#123f76] to-[#071c37] p-5 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <RotateCcw className="h-9 w-9 text-sky-300"/>
-          <div><h1 className="text-2xl font-extrabold text-white">Logística Reversa</h1>
-            <p className="text-sm text-[#bed7f2]">Fluxo guiado de garantia, devolução e tratativas com fornecedores</p></div>
+  return <section className="mx-auto max-w-[1540px] space-y-4 pb-8 text-slate-900" aria-label="Logística Reversa do operador">
+    <header className="relative isolate overflow-hidden rounded-2xl border border-[#224e71] bg-[#06203c] p-5 text-white shadow-lg sm:p-7"
+      style={{
+        backgroundImage:'linear-gradient(90deg,rgba(5,25,47,0.98) 0%,rgba(6,30,55,0.94) 39%,rgba(6,30,55,0.72) 68%,rgba(6,30,55,0.83) 100%),url("/images/reverse-shelves.svg")',
+        backgroundPosition:"center,center right",backgroundSize:"cover,cover",backgroundRepeat:"no-repeat",
+      }}>
+      <div className="relative z-10 flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+        <div className="flex items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-sky-400/40 bg-sky-500/15 shadow-inner">
+            <RotateCcw className="h-8 w-8 text-sky-200"/>
+          </span>
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-sky-200">Central do operador</p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Logística Reversa</h1>
+            <p className="mt-1 max-w-xl text-sm text-sky-100/90">
+              Gestão de garantias, devoluções e tratativas com fornecedores.
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className={outline} onClick={()=>setSuppliersOpen(true)}>
-            <Building2 className="mr-2 h-4 w-4"/> Cadastro de fornecedores</Button>
-          <Button className="bg-sky-600 text-white hover:bg-sky-500"
-            disabled={!baseReady||!groups.length||busy||!!suppliersQuery.isError||!suppliers.length}
-            onClick={()=>setGroupDialog(true)}>
-            <PackagePlus className="mr-2 h-4 w-4"/> Abrir grupo(s) / Novo ciclo</Button>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 xl:min-w-[510px]">
+          {[
+            {label:"Ciclos ativos",value:summary.active,Icon:Layers3,border:"border-sky-400/60",color:"text-sky-200"},
+            {label:"Finalizados",value:summary.resolved,Icon:CheckCircle2,border:"border-emerald-400/55",color:"text-emerald-300"},
+            {label:"Aguardando coleta",value:summary.awaiting,Icon:Clock3,border:"border-amber-400/55",color:"text-amber-300"},
+          ].map(k=><div key={k.label} className={"min-w-0 rounded-xl border bg-[#061b32]/70 px-2 py-3 text-center backdrop-blur-sm sm:px-4 sm:text-left "+k.border}>
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
+              <k.Icon className={"hidden h-5 w-5 shrink-0 sm:block "+k.color}/>
+              <strong className="text-2xl font-black leading-none sm:text-3xl">{k.value}</strong>
+            </div>
+            <p className="mt-1 text-[10px] font-semibold leading-snug text-sky-100 sm:text-xs">{k.label}</p>
+          </div>)}
         </div>
       </div>
-      <p className="mt-3 text-xs text-[#a4c5e6]">
-        {baseReady?groups.length+" linhas/grupos no relatório da Contagem.":"Carregando base da Contagem..."}
-        {" · "}{suppliers.length} fornecedor(es) cadastrado(s).</p>
-      {!suppliers.length&&!suppliersQuery.isError&&baseReady&&<p className="mt-2 text-xs font-semibold text-amber-200">
-        Antes de abrir o primeiro ciclo, cadastre o fornecedor e suas marcas no botão acima.</p>}
     </header>
-
     {error&&<p role="alert" className="rounded-lg border border-red-400/50 bg-red-950/30 p-3 text-sm text-red-200">{error}</p>}
     {q.isError&&<p role="alert" className="rounded-lg border border-amber-400/40 bg-amber-950/20 p-3 text-amber-100">
       Não foi possível carregar os ciclos. Verifique a instalação SQL da Logística Reversa no Supabase.</p>}
@@ -218,75 +346,187 @@ export function ReverseLogisticsOperator(){
         {visible.length>itemLimit&&<Button variant="outline" size="sm" className={outline}
           onClick={()=>setItemLimit(v=>v+100)}>Mostrar mais itens</Button>}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={busy||!dirty} className="bg-sky-600 text-white"
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-400/20 bg-[#071e38]/60 p-3">
+        <Button disabled={busy||!dirty} className="gap-2 bg-sky-600 font-bold text-white"
           onClick={()=>void operation(()=>saveCounts(active))}>
-          <Save size={16} className="mr-2"/>{dirty?"Salvar quantidades *":"Quantidades salvas"}</Button>
-        <Button variant="outline" className={outline} disabled={dirty||busy||!reverseIncluded(active.items).length}
-          onClick={()=>exportCycle(active,"pdf")}><FileDown size={16} className="mr-1"/> PDF</Button>
-        <Button variant="outline" className={outline} disabled={dirty||busy||!reverseIncluded(active.items).length}
-          onClick={()=>exportCycle(active,"csv")}><Download size={16} className="mr-1"/> CSV</Button>
-        <Button variant="outline" className={outline} disabled={busy||dirty}
-          onClick={()=>openSupplierLink(active)}><Building2 size={16} className="mr-1"/> Editar fornecedor / marca</Button>
-        {active.status==="aberto"?<Button disabled={busy||dirty||!active.supplierId||!active.brand||!reverseIncluded(active.items).length}
-          className="bg-emerald-600 text-white hover:bg-emerald-500" onClick={()=>setFinishDialog(true)}>
-          <CheckCircle2 size={16} className="mr-1"/> Finalizar separação e iniciar tratativas</Button>:
-          <Button disabled={busy||dirty} className="bg-indigo-600 text-white" onClick={()=>openGuide(active)}>
-            <ClipboardList size={16} className="mr-1"/> {reverseWorkflowStage(active)==="em_tratativa"?(active.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"):"Editar status / tratativas"}</Button>}
-        {active.nfd&&active.volumes&&<Button variant="outline" className={outline} onClick={()=>printVolumes(active)}>
-          <Printer size={16} className="mr-1"/> Etiquetas de volumes</Button>}
+          <Save size={16}/>{dirty?"Salvar quantidades *":"Quantidades salvas"}
+        </Button>
+        {active.status==="aberto"?<Button
+          disabled={busy||dirty||!active.supplierId||!active.brand||!reverseIncluded(active.items).length}
+          className="gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-500"
+          onClick={()=>setFinishDialog(true)}>
+          <CheckCircle2 size={16}/> Finalizar separação
+        </Button>:<Button disabled={busy||dirty} className="gap-2 bg-indigo-600 font-bold text-white"
+          onClick={()=>openGuide(active)}>
+          <ClipboardList size={16}/> {active.contactStartedAt?"Continuar tratativas":"Iniciar tratativas"}
+        </Button>}
+        <span className="ml-auto text-xs font-semibold text-sky-200">Mais opções:</span>
+        {cycleActions(active,false)}
       </div>
       {dirty&&<p className="text-xs text-amber-300">* Salve as quantidades antes de finalizar ou exportar.</p>}
     </div>}
 
-    <div className="space-y-3">
-      <h2 className="text-lg font-extrabold">Ciclos de Logística Reversa ({cycles.length})</h2>
-      {q.isLoading&&<p>Carregando ciclos...</p>}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {cycles.map(c=><article key={c.id} className="rounded-xl border border-[#35618b] bg-[#112c4b] p-4 shadow-md">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div><h3 className="text-lg font-extrabold">{cycleTitle(c.number)}</h3>
-              <p className="text-xs text-sky-200">{dateText(c.createdAt)}</p>
-              <p className="mt-2 text-sm font-bold text-sky-200">{c.supplier||"Fornecedor pendente"}</p>
-              <strong className="mt-1 block break-words text-2xl font-black tracking-tight text-cyan-300">
-                {c.brand||"Marca não informada"}</strong></div>
-            <span className={"h-fit rounded-full border px-2 py-1 text-xs font-bold "+
-              (reverseWorkflowStage(c)==="resolvido"?"border-emerald-400/40 bg-emerald-600/20 text-emerald-200":
-              "border-sky-400/30 bg-sky-800/30 text-sky-100")}>{reverseStatusLabel(c)}</span>
-          </div>
-          <p className="mt-3 text-xs text-sky-200">{reverseIncluded(c.items).length} códigos · {reverseTotal(c.items)} unidades · {c.groups.length} grupos</p>
-          <p className="my-3 rounded-lg border border-sky-500/25 bg-[#0b213d] p-3 text-xs text-sky-100">
-            {stageHelp(c)}</p>
-          {c.nfd&&<p className="mb-3 text-xs text-sky-200">NFDev: <strong>{c.nfd}</strong> · Volumes: {c.volumes??"—"}</p>}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className={outline} onClick={()=>selectCycle(c)} disabled={busy}>
-              <Pencil size={15} className="mr-1"/> Editar</Button>
-            <Button variant="outline" className={outline} disabled={busy||!reverseIncluded(c.items).length}
-              onClick={()=>exportCycle(c,"pdf")}><FileDown size={15} className="mr-1"/> PDF</Button>
-            <Button variant="outline" className={outline} disabled={busy||!reverseIncluded(c.items).length}
-              onClick={()=>exportCycle(c,"csv")}><Download size={15} className="mr-1"/> CSV</Button>
-            {c.status==="finalizado"&&<Button variant="outline" className={outline} disabled={busy}
-              onClick={()=>openGuide(c)}><ClipboardList size={15} className="mr-1"/>
-              {c.contactStartedAt?"Continuar tratativas":"Tratativas (não iniciado)"}</Button>}
-            {c.nfd&&c.volumes&&<Button variant="outline" className={outline} onClick={()=>printVolumes(c)}>
-              <Printer size={15} className="mr-1"/> Etiquetas</Button>}
-            <Button variant="outline" className="border-red-500/40 bg-red-950/30 text-red-200"
-              disabled={busy} onClick={()=>{
-                if(!window.confirm("Excluir "+cycleTitle(c.number)+" permanentemente?"))return;
-                void operation(async()=>{
-                  await remove({data:{id:c.id,version:c.version}});
-                  if(activeId===c.id)setActiveId(null);
-                  if(guideId===c.id)setGuideId(null);
-                  toast.success("Ciclo excluído.");
-                });
-              }}><Trash2 size={15} className="mr-1"/> Excluir</Button>
-          </div>
-        </article>)}
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+      aria-label="Ferramentas e filtros da Logística Reversa">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+        <Button type="button" className="h-10 gap-2 bg-blue-700 font-bold text-white hover:bg-blue-600"
+          disabled={!baseReady||!groups.length||busy||suppliersQuery.isError||!suppliers.length}
+          onClick={()=>setGroupDialog(true)}>
+          <PackagePlus className="h-4 w-4"/> Novo ciclo
+        </Button>
+        <Button type="button" variant="outline" className="h-10 gap-2 border-blue-300 bg-blue-50 font-bold text-blue-900 hover:bg-blue-100"
+          onClick={()=>setSuppliersOpen(true)}>
+          <Building2 className="h-4 w-4"/> Cadastro de fornecedores
+        </Button>
+        <span className="ml-auto text-xs text-slate-500">
+          {baseReady?groups.length.toLocaleString("pt-BR")+" grupos na base":"Base de contagem carregando"}
+          {" · "}{suppliers.length} fornecedor(es)
+        </span>
       </div>
-      {!cycles.length&&!q.isLoading&&!q.isError&&<p className="rounded-xl border border-dashed border-sky-400/30 bg-[#0d2948] p-5 text-center">
-        Nenhum ciclo aberto. Cadastre um fornecedor, escolha sua marca e selecione os grupos para iniciar.</p>}
-    </div>
+      {!suppliers.length&&!suppliersQuery.isError&&baseReady&&<p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+        Cadastre um fornecedor e suas marcas antes de criar o primeiro ciclo.
+      </p>}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.55fr)_minmax(145px,1fr)_minmax(145px,1fr)_minmax(150px,1fr)_auto] xl:items-end">
+        <label className="space-y-1.5 text-xs font-bold text-slate-600">Buscar ciclo, fornecedor ou produto
+          <span className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-500"/>
+            <Input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}
+              className="h-10 border-slate-300 bg-white pl-9 text-sm text-slate-900 placeholder:text-slate-400"
+              placeholder="Nº, fornecedor, marca, código..."/>
+          </span>
+        </label>
+        <label className="space-y-1.5 text-xs font-bold text-slate-600">Status
+          <select className={selectClass} value={statusFilter}
+            onChange={e=>{setStatusFilter(e.target.value as ReverseStatusFilter);setPage(1);}}
+            aria-label="Filtrar Logística Reversa por status">
+            {statusOptions.map(st=><option key={st.value} value={st.value}>{st.label}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1.5 text-xs font-bold text-slate-600">Fornecedor
+          <select className={selectClass} value={supplierFilter}
+            onChange={e=>{setSupplierFilter(e.target.value);setPage(1);}}
+            aria-label="Filtrar Logística Reversa por fornecedor">
+            <option value="all">Todos os fornecedores</option>
+            {supplierNames.map(name=><option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1.5 text-xs font-bold text-slate-600">Período
+          <select className={selectClass} value={periodFilter}
+            onChange={e=>{setPeriodFilter(e.target.value as ReversePeriod);setPage(1);}}
+            aria-label="Filtrar período da Logística Reversa">
+            <option value="all">Todo o período</option>
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+        </label>
+        <Button variant="outline" type="button" className="h-10 gap-2 border-slate-300 bg-slate-50 font-semibold text-slate-700 hover:bg-slate-100"
+          disabled={!filterActive} onClick={clearFilters}>
+          <FilterX className="h-4 w-4"/> Limpar filtros
+        </Button>
+      </div>
+    </section>
 
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+      aria-label="Lista de ciclos de Logística Reversa">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 sm:px-5">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
+            <Layers3 className="h-5 w-5 text-blue-700"/> Ciclos de Logística Reversa
+            <span className="text-slate-500">({filteredCycles.length})</span>
+          </h2>
+          <p className="mt-0.5 text-xs text-slate-500">Acompanhamento e gestão das solicitações por fornecedor.</p>
+        </div>
+        <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <Button type="button" size="sm" variant="ghost"
+            className={"h-8 gap-1.5 px-3 "+(viewMode==="list"?"bg-blue-700 text-white hover:bg-blue-700 hover:text-white":"text-slate-600")}
+            onClick={()=>setViewMode("list")} aria-pressed={viewMode==="list"}>
+            <List className="h-4 w-4"/> Lista
+          </Button>
+          <Button type="button" size="sm" variant="ghost"
+            className={"h-8 gap-1.5 px-3 "+(viewMode==="cards"?"bg-blue-700 text-white hover:bg-blue-700 hover:text-white":"text-slate-600")}
+            onClick={()=>setViewMode("cards")} aria-pressed={viewMode==="cards"}>
+            <LayoutGrid className="h-4 w-4"/> Cards
+          </Button>
+        </div>
+      </div>
+      {q.isLoading&&<p role="status" className="p-6 text-sm text-slate-500">Carregando os ciclos...</p>}
+      {viewMode==="list"&&<div className="hidden overflow-x-auto lg:block">
+        <table className="w-full min-w-[940px] border-collapse text-left text-sm">
+          <thead className="bg-[#eef3f9] text-[11px] font-bold uppercase tracking-wide text-slate-600">
+            <tr>{["Ciclo","Fornecedor / marca","Itens","Status","Abertura","Ações"].map(h=>
+              <th scope="col" key={h} className="border-b border-slate-200 px-5 py-3">{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {pageCycles.map(c=>{
+              const qty=reverseCycleAmounts(c);
+              return <tr key={c.id} className="transition-colors hover:bg-blue-50/50">
+                <td className="px-5 py-3">
+                  <button type="button" disabled={busy} onClick={()=>selectCycle(c)}
+                    className="text-left font-extrabold text-slate-900 hover:text-blue-700 hover:underline">
+                    {cycleTitle(c.number)}
+                  </button>
+                  <p className="mt-1 text-xs text-slate-500">{c.groups.length} grupo(s)</p>
+                </td>
+                <td className="max-w-[260px] px-5 py-3">
+                  <p className="break-words font-bold text-slate-800">{c.supplier||"Fornecedor pendente"}</p>
+                  <p className="mt-1 break-words text-xs font-semibold text-blue-700">{c.brand||"Marca não informada"}</p>
+                </td>
+                <td className="px-5 py-3 text-slate-700">
+                  <span className="font-semibold">{qty.codes} códigos</span>
+                  <span className="block text-xs text-slate-500">{qty.units} unidades</span>
+                </td>
+                <td className="px-5 py-3"><StageBadge cycle={c}/></td>
+                <td className="whitespace-nowrap px-5 py-3 text-xs text-slate-600">{dateText(c.createdAt)}</td>
+                <td className="px-5 py-3">{cycleActions(c)}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>}
+      <div className={(viewMode==="cards"?"grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3":"grid gap-3 p-4 sm:grid-cols-2 lg:hidden")}>
+        {pageCycles.map(c=>{
+          const qty=reverseCycleAmounts(c);
+          return <article key={c.id} className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <button type="button" onClick={()=>selectCycle(c)} disabled={busy}
+                className="text-left text-base font-extrabold text-slate-900 hover:text-blue-700">
+                {cycleTitle(c.number)}
+              </button>
+              <StageBadge cycle={c}/>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">{dateText(c.createdAt)}</p>
+            <p className="mt-4 break-words font-extrabold text-slate-900">{c.supplier||"Fornecedor pendente"}</p>
+            <p className="mt-0.5 break-words text-sm font-bold text-blue-700">{c.brand||"Marca não informada"}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+              <p className="text-xs text-slate-600"><strong>{qty.codes}</strong> códigos · <strong>{qty.units}</strong> unidades</p>
+              {cycleActions(c)}
+            </div>
+          </article>;
+        })}
+      </div>
+      {!q.isLoading&&!filteredCycles.length&&<p className="border-t border-slate-100 px-5 py-10 text-center text-sm text-slate-500">
+        Nenhum ciclo encontrado para esses filtros. Experimente limpar os filtros.
+      </p>}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:px-5">
+        <span>{filteredCycles.length===0?"Nenhum ciclo encontrado":
+          "Mostrando "+((safePage-1)*PAGE_SIZE+1)+" a "+Math.min(safePage*PAGE_SIZE,filteredCycles.length)+
+          " de "+filteredCycles.length+" ciclos"}</span>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" aria-label="Página anterior"
+            className="h-9 border-slate-300 text-slate-700" disabled={safePage<=1}
+            onClick={()=>setPage(p=>Math.max(1,p-1))}>
+            <ChevronLeft className="h-4 w-4"/>
+          </Button>
+          <span className="min-w-12 text-center text-xs font-bold">{safePage} / {pages}</span>
+          <Button type="button" variant="outline" size="sm" aria-label="Próxima página"
+            className="h-9 border-slate-300 text-slate-700" disabled={safePage>=pages}
+            onClick={()=>setPage(p=>Math.min(pages,p+1))}>
+            <ChevronRight className="h-4 w-4"/>
+          </Button>
+        </div>
+      </div>
+    </section>
     {groupDialog&&<ReverseGroupPicker groups={groups} index={groupSearchIndex}
       suppliers={suppliers} busy={busy||q.isError||suppliersQuery.isError}
       onOpenSuppliers={()=>{setGroupDialog(false);setSuppliersOpen(true);}}
