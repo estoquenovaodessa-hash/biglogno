@@ -66,6 +66,39 @@ export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(a
   return records;
 });
 
+/** Turno editável de Retira, com proteção do lado do servidor.
+ * Usa a mesma RPC atômica de entregas (comparação de payload esperado),
+ * evitando sobrescrever uma retirada feita durante a edição.
+ */
+export const setExpeditionPickupShift=createServerFn({method:"POST"})
+  .inputValidator(z.object({
+    id:z.string().uuid(),
+    shift:z.enum(["manha","tarde"]).nullable(),
+  }))
+  .handler(async({data})=>{
+    const {requireOperatorPermission}=await import("./employees.functions");
+    await requireOperatorPermission("expedicao");
+    const {logisticsClient}=await import("./logistics.server");
+    const {logisticsCommitError}=await import("./logistics-commit-error");
+    const {expeditionLocalDay}=await import("./expedition-history");
+    const {withExpeditionPickupShift}=await import("./pickups");
+    const db=await logisticsClient();
+    const {data:row,error}=await db.from("pickups")
+      .select("id,created_at,payload").eq("id",data.id).maybeSingle();
+    if(error||!row)throw new Error("Retira não encontrada. Atualize a Expedição.");
+    const current={...(row.payload as unknown as Pickup),id:row.id,createdAt:row.created_at};
+    const updated=withExpeditionPickupShift(current,data.shift,expeditionLocalDay(new Date().toISOString()));
+    const {id:_id,createdAt:_createdAt,...payload}=updated;
+    const {data:saved,error:saveError}=await db.rpc("commit_logistics_changes",{
+      kind:"pickups",
+      expected:[{id:row.id,payload:row.payload}],
+      changes:[{id:row.id,payload}],
+    });
+    if(saveError)throw logisticsCommitError("definir turno da Retira",saveError);
+    if(saved!==true)throw new Error("A Retira mudou durante a edição. Atualize e tente novamente.");
+    return {ok:true};
+  });
+
 /** Histórico somente de leitura. Todos os perfis autenticados na Expedição
  * podem consultar retiradas concluídas, independentemente do direito de alterar pedidos.
  * Inclui Conferência, NO e SBO; não interfere na lista operacional de pendências. */

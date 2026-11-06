@@ -10,6 +10,9 @@ export interface Pickup {
   /** Pessoa que efetivamente levou o pedido; handedBy é o funcionário que entregou. */
   receiver?: string;
   finishedAt?: string; handedBy?: string;
+  /** Programação do turno na Expedição, inclusive para Retiras pendentes. */
+  expeditionShift?: "manha" | "tarde";
+  expeditionShiftDate?: string;
 }
 export const manualPickupSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("SBO"), requestId: z.string().uuid(), collector: z.string().trim().min(1, "Informe o nome do retirador.").max(150) }),
@@ -21,4 +24,17 @@ export function finishPickup(p: Pickup, receiver: string, handedBy: string, now:
   const who = receiver.trim();
   if (!who) throw new Error("Informe o nome da pessoa que retirou.");
   return { ...p, status: "finalizada", receiver: who, handedBy: handedBy.trim(), finishedAt: now.toISOString() };
+}
+/** Atualiza o turno da Retira sem alterar o histórico da conferência.
+ * Turno é independente da transferência de tipo (Entrega/Retira). */
+export function withExpeditionPickupShift<T extends Pickup>(
+  pickup: T, shift: "manha" | "tarde" | null, date: string,
+): T {
+  if (pickup.status !== "pendente" || pickup.source !== "conferencia")
+    throw new Error("Somente Retiras pendentes da Conferência podem receber turno.");
+  return {
+    ...pickup,
+    expeditionShift:shift??undefined,
+    expeditionShiftDate:shift?date:undefined,
+  };
 }
