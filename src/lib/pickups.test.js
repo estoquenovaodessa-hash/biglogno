@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { finishPickup, manualPickupSchema } from "./pickups";
 const id = "00000000-0000-4000-8000-000000000001";
 test("SBO solicita apenas retirador; NO exige documento valor e empresa", () => {
@@ -10,10 +10,10 @@ test("SBO solicita apenas retirador; NO exige documento valor e empresa", () => 
 test("retirar exige operador e registra data hora sem permitir segunda retirada", () => {
   const p = { id, createdAt: "", company: "Empresa", source: "NO", status: "pendente" };
   const now = new Date("2026-10-22T11:25:00Z");
-  expect(() => finishPickup(p, " ", now)).toThrow();
-  const done = finishPickup(p, " Caíque ", now);
+  expect(() => finishPickup(p, " ", "Operador", now)).toThrow();
+  const done = finishPickup(p, "Cliente", " Caíque ", now);
   expect(done.handedBy).toBe("Caíque"); expect(done.finishedAt).toBe("2026-10-22T11:25:00.000Z");
-  expect(() => finishPickup(done, "Outro", now)).toThrow();
+  expect(() => finishPickup(done, "Outro", "Caíque", now)).toThrow();
 });
 describe("Turno da Retira pendente",()=>{
   const base={id:"a",createdAt:"2026-11-06T12:00:00Z",source:"conferencia",status:"pendente",
