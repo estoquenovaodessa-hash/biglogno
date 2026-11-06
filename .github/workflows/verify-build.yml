@@ -53,6 +53,8 @@ jobs:
         run: bun test src/lib/counting-collector.test.js
       - name: Testar histórico Coletados da Expedição
         run: bun test src/lib/expedition-history.test.js
+      - name: Testar N/D, Manhã e Tarde nas Retiras da Expedição
+        run: bun test src/lib/pickups.test.js
       - name: Testar elegibilidade e filtros de etiquetas Entrega ou Retira
         run: bun test src/lib/conference-label-selection.test.js
       - name: Testar marcacao verde e filtros de etiquetas geradas ou pendentes

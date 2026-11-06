@@ -147,7 +147,7 @@ function CompletedRows({ mode, deliveries, pickups }: {
 
 /** Arquivos de consulta acessíveis a todos os funcionários, sem controles de
  * mutação. Os fluxos de alteração da expedição continuam protegidos à parte. */
-export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Delivery[] }) {
+export function ExpeditionCompletedHistory({ deliveries, compact = false }: { deliveries: Delivery[]; compact?:boolean }) {
   const [view, setView] = useState<Mode | null>(null);
   const [range, setRange] = useState<ExpeditionDateRange>({ from: "", to: "" });
   const loadPickups = useServerFn(listCompletedPickups);
@@ -170,19 +170,19 @@ export function ExpeditionCompletedHistory({ deliveries }: { deliveries: Deliver
     { key: "entregues" as const, title: "Entregues", description: "Histórico de entregas concluídas", icon: Truck },
     { key: "coletados" as const, title: "Coletados", description: "Histórico de coletas realizadas", icon: PackageCheck },
   ];
-  return <section className="space-y-3" aria-label="Histórico da Expedição">
-    <div className="grid gap-3 sm:grid-cols-3">
+  return <section className={compact?"exp-history space-y-2":"space-y-3"} aria-label="Histórico da Expedição">
+    <div className={compact?"grid gap-2 sm:grid-cols-3":"grid gap-3 sm:grid-cols-3"}>
       {cards.map(({ key, title, description, icon: Icon }) => {
         const active = view === key;
         return <button key={key} type="button" aria-controls="expedition-history-grid" aria-expanded={active}
           onClick={() => { setView(active ? null : key); setRange({ from: "", to: "" }); }}
-          className={`flex min-h-24 w-full items-center gap-3 rounded-xl border p-3 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-4 ${active
+          className={`flex w-full items-center gap-3 rounded-xl border text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${compact?"exp-history-trigger min-h-14 px-3 py-2":"min-h-24 p-3 sm:p-4"} ${active
             ? "border-sky-500/70 bg-sky-400/15 ring-1 ring-sky-500/20"
             : "border-sky-400/30 bg-sky-500/[0.07] hover:border-sky-500/60 hover:bg-sky-500/15"}`}>
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-300"><Icon className="h-6 w-6" /></span>
+          <span className={compact?"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-200":"flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-700 dark:text-sky-300"}><Icon className="h-5 w-5" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-extrabold text-foreground">{title}</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+            <span className={compact?"block text-sm font-extrabold text-white":"block text-base font-extrabold text-foreground"}>{title}</span>
+            {!compact&&<span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>}
             {key === "entregues" && <span className="mt-1 block text-xs font-semibold text-sky-700 dark:text-sky-300">{deliveriesFinished.length} registros concluídos</span>}
              {key === "coletados" && <span className="mt-1 block text-xs font-semibold text-orange-700 dark:text-orange-300">{totalDoneCollections} coletas realizadas</span>}
           </span>

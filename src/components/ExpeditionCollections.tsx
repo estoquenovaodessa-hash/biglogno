@@ -12,7 +12,7 @@ import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
 import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift, type ShiftSection } from "@/lib/expedition-schedule";
-import { pendingExpeditionCollections } from "@/lib/expedition-history";
+import { pendingExpeditionCollections, expeditionLocalDay } from "@/lib/expedition-history";
 import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
 import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
 import { ExpeditionRowShift } from "./ExpeditionRowShift";
@@ -26,14 +26,14 @@ function collectionLabel(order: Delivery): string {
   return "COLETANDO";
 }
 
-export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy, compact = false, searchQuery = "", shiftFilter = "all" }: {
+export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy, compact = false, searchQuery = "", shiftFilter = "all", periodFilter = "all" }: {
   records: Delivery[];
   canManage: boolean;
   readOnly: boolean;
   onCreated: () => Promise<void>;
   onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
   scheduleBusy: boolean;
-  compact?:boolean; searchQuery?:string; shiftFilter?:ShiftSection|"all";
+  compact?:boolean; searchQuery?:string; shiftFilter?:ShiftSection|"all"; periodFilter?:"all"|"today"|"yesterday";
 }) {
   const client = useQueryClient();
   const list = useServerFn(listCollectionCompanies);
@@ -63,6 +63,12 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const collections = pendingExpeditionCollections(records).filter(order=>{
     if(!compact)return true;
     if(shiftFilter!=="all"&&shiftOf(order)!==shiftFilter)return false;
+    if(periodFilter!=="all"){
+      const today=expeditionLocalDay(new Date().toISOString());
+      const prior=new Date(today+"T12:00:00Z");prior.setUTCDate(prior.getUTCDate()-1);
+      const target=periodFilter==="today"?today:prior.toISOString().slice(0,10);
+      if(expeditionLocalDay(order.createdAt)!==target)return false;
+    }
     const q=searchQuery.trim().toLocaleLowerCase("pt-BR");
     return !q||[order.company,order.document,order.collectionAddress,order.collectionContact]
       .some(x=>String(x??"").toLocaleLowerCase("pt-BR").includes(q));
