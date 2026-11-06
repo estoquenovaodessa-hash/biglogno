@@ -1,187 +1,142 @@
-import { useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { CheckCheck, ClipboardList, Clock3, PackageCheck, Truck, ArrowLeftRight, Pencil } from "lucide-react";
-import { deliveryGroups, fmtBrasilia, type Delivery } from "@/lib/deliveries";
-import { deliveryResponsibleName } from "@/lib/delivery-accountability";
-import { listDeliveries, setExpeditionSchedule } from "@/lib/deliveries.functions";
-import { shiftOf, type ExpeditionShift } from "@/lib/expedition-schedule";
-import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
-import { listExpeditionPickups, transferExpeditionOrders } from "@/lib/pickups.functions";
-import { canTransferExpedition } from "@/lib/employees.functions";
-import { useActiveEmployee } from "./EmployeeGate";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { Pickup } from "@/lib/pickups";
-import { ExpeditionCompletedHistory } from "./ExpeditionCompletedHistory";
-import { ExpeditionCollections } from "./ExpeditionCollections";
-import { pendingExpeditionPickups } from "@/lib/expedition-history";
+import {useState} from "react";
+import {useQuery,useQueryClient} from "@tanstack/react-query";
+import {useServerFn} from "@tanstack/react-start";
+import {
+  CalendarDays,ChevronDown,ClipboardList,Clock3,Package,PackageCheck,
+  Search,Truck,ArrowLeftRight,Sun,Sunset,Pencil,RotateCcw,
+} from "lucide-react";
+import {deliveryGroups,fmtBrasilia,type Delivery} from "@/lib/deliveries";
+import {listDeliveries,setExpeditionSchedule} from "@/lib/deliveries.functions";
+import {shiftOf,type ExpeditionShift,type ShiftSection} from "@/lib/expedition-schedule";
+import {expeditionLocalDay} from "@/lib/expedition-history";
+import {ExpeditionShiftPicker} from "./ExpeditionShiftPicker";
+import {ExpeditionRowShift} from "./ExpeditionRowShift";
+import {
+  listExpeditionPickups,transferExpeditionOrders,setExpeditionPickupShift,
+} from "@/lib/pickups.functions";
+import {canTransferExpedition} from "@/lib/employees.functions";
+import {useActiveEmployee} from "./EmployeeGate";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Dialog,DialogContent,DialogHeader,DialogTitle} from "@/components/ui/dialog";
+import {
+  DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import type {Pickup} from "@/lib/pickups";
+import {ExpeditionCompletedHistory} from "./ExpeditionCompletedHistory";
+import {ExpeditionCollections} from "./ExpeditionCollections";
+import {pendingExpeditionPickups} from "@/lib/expedition-history";
+import "./expedition-operator.css";
 
-type Origin = "BALCÃO" | "EXPEDIÇÃO";
-type DisplayStatus = { text: string; theme: string; detail?: string };
-type TransferNote = { id: string; document: string; value: number; separatedAt: string };
-type EditTarget = { kind: "delivery"; ids: string[] } | { kind: "pickup"; id: string };
-type TransferTarget = {
-  kind: "toPickup" | "toDelivery";
-  company: string;
-  orders: TransferNote[];
+type Origin="BALCÃO"|"EXPEDIÇÃO";
+type TransferNote={id:string;document:string;value:number;separatedAt:string};
+type EditTarget={kind:"delivery";ids:string[]}|{kind:"pickup";id:string};
+type TransferTarget={
+  kind:"toPickup"|"toDelivery";company:string;orders:TransferNote[];
 };
-
-const MONEY = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const green = "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-const blue = "border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-300";
-const when = (iso?: string) => iso ? fmtBrasilia(iso) : "—";
-
-function originOf(record: { source: string; channel?: string }): Origin {
-  // Preserva a origem informada pela Conferência; pedidos antigos são da Expedição.
-  return record.channel === "balcao" ? "BALCÃO" : "EXPEDIÇÃO";
+type TypeFilter="all"|"delivery"|"pickup"|"collection";
+type PeriodFilter="all"|"today"|"yesterday";
+const MONEY=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+const when=(s?:string)=>s?fmtBrasilia(s):"—";
+const PAGE_SIZE=40;
+function originOf(row:{source:string;channel?:string}):Origin{
+  return row.channel==="balcao"?"BALCÃO":"EXPEDIÇÃO";
 }
-
-function deliveryStatus(d: Delivery): DisplayStatus {
-  // A conferência já representa a separação: sem confirmação manual.
-  if (d.status === "nao_iniciada") return { text: "SEPARADO", theme: green };
-  return {
-    text: "EM ROTA", theme: blue,
-    detail: d.status === "pausada" ? "Viagem pausada"
-      : d.status === "no_destino" ? "No destino" : undefined,
-  };
+function filteredByText(text:string,raw:string):boolean{
+  return !raw.trim()||text.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLocaleLowerCase("pt-BR").includes(raw.trim().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR"));
 }
-
-function pickupStatus(p: Pickup): DisplayStatus {
-  return p.status === "finalizada"
-    ? { text: "RETIRADO", theme: blue }
-    : { text: "SEPARADO", theme: green };
+function ShiftFilterIcon({value}:{value:ShiftSection|"all"}){
+  return value==="manha"?<Sun className="h-4 w-4"/>:
+    value==="tarde"?<Sunset className="h-4 w-4"/>:<Clock3 className="h-4 w-4"/>;
 }
-
-function Status({ value }: { value: DisplayStatus }) {
-  return <div className="flex shrink-0 flex-col items-end gap-1">
-    <span className={["inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-extrabold", value.theme].join(" ")}>
-      {value.text}
-    </span>
-    {value.detail && <span className="text-right text-xs text-muted-foreground">{value.detail}</span>}
-  </div>;
-}
-
-function Detail({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="min-w-0">
-    <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
-    <div className="mt-0.5 break-words text-sm font-semibold leading-5 [overflow-wrap:anywhere]">{children}</div>
-  </div>;
-}
-
-function Summary({ title, value, icon: Icon }: {
-  title: string; value: number; icon: typeof Truck;
-}) {
-  return <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card p-3">
-    <Icon className="h-5 w-5 shrink-0 text-primary" />
-    <div className="min-w-0">
-      <p className="text-xs font-medium leading-5 text-muted-foreground">{title}</p>
-      <p className="text-xl font-extrabold tabular-nums">{value}</p>
-    </div>
-  </div>;
-}
-
-function DeliveryGroupCard({ orders, canTransfer, readOnly, busy, onEdit, onSetShift }: {
-  orders: Delivery[];
-  canTransfer: boolean;
-  readOnly: boolean;
-  busy: boolean;
-  onEdit: (orders: Delivery[]) => void;
-  onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
-}) {
-  const first = orders[0];
-  if (!first) return null;
-  const total = orders.reduce((sum, item) => sum + (item.onlyDelivery ? 0 : Number(item.value) || 0), 0);
-  const onlyDelivery = orders.every(item => item.onlyDelivery);
-  const origins = [...new Set(orders.map(originOf))];
-  const differentOrigins = origins.length > 1;
-  const driver = deliveryResponsibleName(first) || (orders.find(item => item.driver)?.driver ?? "");
-  return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
-    <ExpeditionShiftPicker placement="top" ids={orders.map(order => order.id)}
-      shift={shiftOf(first)} date={first.expeditionShiftDate} readOnly={readOnly}
-      disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
-      onSetShift={onSetShift} />
-    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0 flex-1">
-        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{first.company}</h3>
-        <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
-          {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} {orders.length > 1 ? "unificados" : ""}
-        </p>
-        {!!first.expeditionShift && <p className="mt-1 text-xs font-semibold text-primary">
-          Lote de turno separado · novas conferências não serão unificadas aqui.
-        </p>}
-      </div>
-      <Status value={deliveryStatus(first)} />
-    </div>
-
-    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/70 pt-3 sm:grid-cols-3">
-      <Detail label="Tipo / origem">ENTREGA • {origins.join(" / ")}</Detail>
-      <Detail label="Valor total">{onlyDelivery ? "Somente entrega" : MONEY.format(total)}</Detail>
-      <Detail label="Saiu para entrega">{when(first.startedAt)}</Detail>
-      <Detail label="Entregador">{driver || "—"}</Detail>
-    </div>
-
-    <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
-      <h4 className="text-sm font-extrabold">Notas e horários de separação</h4>
-      {orders.map(order => <div key={order.id}
-        className="grid min-w-0 grid-cols-1 gap-1 rounded-md border border-border/60 bg-card/70 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
-        <div className="min-w-0">
-          <p className="break-all text-sm font-bold">
-            {order.onlyDelivery ? "Somente entrega" : `Nota: ${order.document || "—"}`}
-          </p>
-          {!order.onlyDelivery && <p className="text-xs text-muted-foreground">{MONEY.format(Number(order.value) || 0)}</p>}
-          {differentOrigins && <p className="text-xs text-muted-foreground">Origem: {originOf(order)}</p>}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-col sm:items-end">
-          <p className="text-sm font-semibold tabular-nums sm:text-right">
-            <span className="text-xs font-medium text-muted-foreground">Separado: </span>{when(order.createdAt)}
-          </p>
-
-        </div>
-      </div>)}
-    </div>
-    {!readOnly && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
-      <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5"
-        disabled={busy || !canTransfer || orders.some(order => order.status !== "nao_iniciada")}
-        onClick={() => onEdit(orders)}>
-        <Pencil className="h-4 w-4" /> Editar
+function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
+  kind:"delivery"|"pickup";busy:boolean;canTransfer:boolean;eligible:boolean;
+  onTransfer:()=>void;onEdit:()=>void;
+}){
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button type="button" variant="outline" size="sm" className="exp-action h-9 gap-1.5 px-3"
+        disabled={busy||!canTransfer} aria-label={"Ações de "+(kind==="delivery"?"Entrega":"Retira")}>
+        Ações <ChevronDown className="h-4 w-4"/>
       </Button>
-    </div>}
-  </article>;
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="z-[80] min-w-[225px] border border-sky-600/50 bg-[#0a2543] p-1.5 text-white shadow-xl">
+      <DropdownMenuItem disabled={!eligible} onSelect={onTransfer}
+        className="cursor-pointer gap-2 rounded-md py-2.5 text-sky-100 focus:bg-sky-700 focus:text-white">
+        <ArrowLeftRight className="h-4 w-4"/>
+        {kind==="delivery"?"Transferir p/ Retira":"Transferir p/ Entrega"}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator className="bg-sky-700/40"/>
+      <DropdownMenuItem onSelect={onEdit}
+        className="cursor-pointer gap-2 rounded-md py-2.5 text-sky-100 focus:bg-sky-700 focus:text-white">
+        <Pencil className="h-4 w-4"/> Editar / detalhes
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }
-
-function PickupCard({ order, canTransfer, readOnly, busy, onEdit }: {
-  order: Pickup;
-  canTransfer: boolean;
-  readOnly: boolean;
-  busy: boolean;
-  onEdit: (order: Pickup) => void;
-}) {
-  return <article className="min-w-0 rounded-lg border border-border bg-background/60 p-3 sm:p-3.5">
-    <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0 flex-1">
-        <h3 className="break-words text-base font-extrabold leading-6 [overflow-wrap:anywhere]">{order.company}</h3>
-        <p className="mt-0.5 break-all text-sm text-muted-foreground">Nota: {order.document || "—"}</p>
-      </div>
-      <Status value={pickupStatus(order)} />
-    </div>
-    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/70 pt-3 sm:grid-cols-3">
-      <Detail label="Tipo / origem">RETIRA • {originOf(order)}</Detail>
-      <Detail label="Valor">{order.value === undefined ? "—" : MONEY.format(order.value)}</Detail>
-      <Detail label="Separado às">{when(order.createdAt)}</Detail>
-      <Detail label="Retirado às">{when(order.finishedAt)}</Detail>
-      <Detail label="Quem retirou">{order.receiver || "—"}</Detail>
-      <Detail label="Entregue por">{order.handedBy || "—"}</Detail>
-    </div>
-    {!readOnly && <div className="mt-3 flex justify-end border-t border-border/70 pt-3">
-      <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5"
-        disabled={busy || !canTransfer || order.status !== "pendente"} onClick={() => onEdit(order)}>
-        <Pencil className="h-4 w-4" /> Editar
-      </Button>
-    </div>}
-  </article>;
+function DeliveryLine({orders,readOnly,busy,canTransfer,onSetShift,onEdit,onTransfer}:{
+  orders:Delivery[];readOnly:boolean;busy:boolean;canTransfer:boolean;
+  onSetShift:(ids:string[],shift:ExpeditionShift|null)=>Promise<void>;
+  onEdit:(orders:Delivery[])=>void;
+  onTransfer:(company:string,orders:Delivery[])=>void;
+}){
+  const first=orders[0];if(!first)return null;
+  const eligible=orders.filter(o=>o.source==="conferencia"&&o.status==="nao_iniciada"&&
+    !o.onlyDelivery&&!!o.document&&Number.isFinite(o.value));
+  const hasStarted=orders.some(o=>o.status!=="nao_iniciada");
+  const total=orders.reduce((sum,o)=>sum+(o.onlyDelivery?0:Number(o.value)||0),0);
+  return <tr className="exp-order-row">
+    <td className="px-3 py-2"><ExpeditionRowShift shift={shiftOf(first)} readOnly={readOnly}
+      disabled={busy||!canTransfer||hasStarted}
+      onChange={shift=>onSetShift(orders.map(o=>o.id),shift)}/></td>
+    <td className="max-w-[330px] px-3 py-2 font-extrabold text-white">
+      {first.company}
+      {orders.length>1&&<span className="mt-0.5 block text-[11px] font-semibold text-sky-200">
+        {orders.length} notas unificadas</span>}
+    </td>
+    <td className="max-w-[200px] break-words px-3 py-2 text-sky-100">
+      {orders.every(o=>o.onlyDelivery)?"Somente entrega":
+        orders.map(o=>o.document||"—").join(" · ")}
+    </td>
+    <td className="px-3 py-2"><span className="exp-type exp-type-delivery">
+      <Truck className="h-4 w-4"/> Entrega <span className="opacity-70">· {originOf(first)}</span>
+    </span></td>
+    <td className="whitespace-nowrap px-3 py-2 font-bold">
+      {orders.every(o=>o.onlyDelivery)?"Somente entrega":MONEY.format(total)}</td>
+    <td className="px-3 py-2"><span className={"exp-status "+(hasStarted?"exp-status-route":"exp-status-success")}>
+      {hasStarted?"EM ROTA":"SEPARADO"}</span></td>
+    <td className="whitespace-nowrap px-3 py-2 text-sky-100">{when(first.createdAt)}</td>
+    {!readOnly&&<td className="px-3 py-2"><TransferActions kind="delivery" busy={busy}
+      canTransfer={canTransfer} eligible={eligible.length>0&&!hasStarted}
+      onEdit={()=>onEdit(orders)} onTransfer={()=>onTransfer(first.company,eligible)}/></td>}
+  </tr>;
 }
-
+function PickupLine({order,readOnly,busy,canTransfer,onSetShift,onEdit,onTransfer}:{
+  order:Pickup;readOnly:boolean;busy:boolean;canTransfer:boolean;
+  onSetShift:(id:string,shift:ExpeditionShift|null)=>Promise<void>;
+  onEdit:(order:Pickup)=>void;
+  onTransfer:(order:Pickup)=>void;
+}){
+  return <tr className="exp-order-row">
+    <td className="px-3 py-2"><ExpeditionRowShift shift={shiftOf(order)} readOnly={readOnly}
+      disabled={busy||!canTransfer||order.status!=="pendente"||order.source!=="conferencia"}
+      onChange={shift=>onSetShift(order.id,shift)}/></td>
+    <td className="max-w-[330px] px-3 py-2 font-extrabold text-white">{order.company}</td>
+    <td className="px-3 py-2 text-sky-100">{order.document||"—"}</td>
+    <td className="px-3 py-2"><span className="exp-type exp-type-pickup">
+      <PackageCheck className="h-4 w-4"/> Retira <span className="opacity-70">· {originOf(order)}</span>
+    </span></td>
+    <td className="whitespace-nowrap px-3 py-2 font-bold">{order.value==null?"—":MONEY.format(order.value)}</td>
+    <td className="px-3 py-2"><span className="exp-status exp-status-success">SEPARADO</span></td>
+    <td className="whitespace-nowrap px-3 py-2 text-sky-100">{when(order.createdAt)}</td>
+    {!readOnly&&<td className="px-3 py-2"><TransferActions kind="pickup" busy={busy}
+      canTransfer={canTransfer} eligible={order.source==="conferencia"&&order.status==="pendente"&&
+        !!order.document&&Number.isFinite(order.value)}
+      onEdit={()=>onEdit(order)} onTransfer={()=>onTransfer(order)}/></td>}
+  </tr>;
+}
 export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } = {}) {
   // A mesma tela atende operador e gestor; no gestor, somente consulta.
   // A transferência exige direito individual e permanece protegida no servidor.
@@ -193,6 +148,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const readPermission = useServerFn(canTransferExpedition);
   const transferOrders = useServerFn(transferExpeditionOrders);
   const assignSchedule = useServerFn(setExpeditionSchedule);
+  const assignPickupShift = useServerFn(setExpeditionPickupShift);
   const [target, setTarget] = useState<TransferTarget | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
@@ -200,6 +156,11 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [search,setSearch]=useState("");
+  const [shiftFilter,setShiftFilter]=useState<ShiftSection|"all">("all");
+  const [periodFilter,setPeriodFilter]=useState<PeriodFilter>("all");
+  const [typeFilter,setTypeFilter]=useState<TypeFilter>("all");
+  const [listLimit,setListLimit]=useState(PAGE_SIZE);
   const permission = useQuery({
     queryKey: ["expedition-transfer-permission", employee?.id],
     queryFn: () => readPermission(),
@@ -240,6 +201,21 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const deliveriesRoute = deliveries.length - deliveriesReady;
   const pickupsReady = pickups.length;
   const pickupsDone = allPickups.filter(p => p.status === "finalizada").length;
+  const today=expeditionLocalDay(new Date().toISOString());
+  const yesterday=(()=>{const d=new Date(today+"T12:00:00Z");d.setUTCDate(d.getUTCDate()-1);
+    return d.toISOString().slice(0,10);})();
+  const matchesPeriod=(date:string)=>periodFilter==="all"||
+    expeditionLocalDay(date)===(periodFilter==="today"?today:yesterday);
+  const visibleGroups=groups.filter(group=>{
+    const first=group[0];
+    return first && (shiftFilter==="all"||shiftOf(first)===shiftFilter)
+      && group.some(order=>matchesPeriod(order.createdAt))
+      && filteredByText(group.flatMap(o=>[o.company,o.document,o.companyCode]).join(" "),search);
+  });
+  const visiblePickups=pickups.filter(order=>
+    (shiftFilter==="all"||shiftOf(order)===shiftFilter)
+    && matchesPeriod(order.createdAt)
+    && filteredByText([order.company,order.document,order.companyCode].join(" "),search));
   // A edição sempre consulta a versão mais recente, inclusive após atualizar a fila.
   const editingDeliveries = editing?.kind === "delivery"
     ? editing.ids.map(id => deliveriesQuery.data?.find(row => row.id === id)).filter((item): item is Delivery => !!item)
@@ -279,6 +255,19 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     } finally { setBusy(false); }
   }
 
+  async function updatePickupSchedule(id:string,shift:ExpeditionShift|null){
+    if(readOnly||!canTransfer||busy)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await assignPickupShift({data:{id,shift}});
+      await pickupsQuery.refetch();
+      await queryClient.invalidateQueries({queryKey:["pickups"]});
+      setNotice("Turno da Retira atualizado com sucesso.");
+    }catch(e){
+      setError(e instanceof Error?e.message:"Não foi possível definir o turno da Retira.");
+    }finally{setBusy(false);}
+  }
+
   async function confirmTransfer() {
     if (readOnly || !target || !canTransfer || busy || !chosenOrders.length) return;
     setBusy(true); setError(""); setNotice("");
@@ -304,75 +293,155 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     }
   }
 
-  return <section className="min-w-0 space-y-4" aria-label="Central de Expedição">
-    <header className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-card p-4">
-      <span className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
-        <ClipboardList className="h-6 w-6" />
-      </span>
-      <div className="min-w-0">
-        <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Central de Expedição</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Entregas, Retiras e Coletas • Programação por turno • Atualização automática a cada 10 segundos
-        </p>
+  return <section className="expedition-operator min-w-0 space-y-3 rounded-2xl p-3 pb-8 sm:p-5"
+    aria-label="Central de Expedição">
+    <header className="exp-hero flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-5 sm:px-6">
+      <div className="flex min-w-0 items-center gap-4">
+        <span className="exp-hero-icon"><Truck className="h-9 w-9 sm:h-11 sm:w-11"/></span>
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Expedição</h1>
+          <p className="mt-1 text-xs text-sky-200 sm:text-sm">
+            Gestão de expedições, entregas, retiradas e coletas
+          </p>
+        </div>
       </div>
+      <span className="flex items-center gap-2 text-xs font-semibold text-sky-200">
+        <RotateCcw className="h-4 w-4"/> Atualização automática
+      </span>
     </header>
 
     {readOnly
-      ? <p role="status" className="rounded-lg border border-primary/25 bg-primary/5 p-3 text-sm font-semibold text-primary">Visualização do gestor: somente consulta. Pedidos, informações e históricos podem ser acompanhados, mas não é possível realizar transferências ou alterações nesta tela.</p>
-      : !canTransfer && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">Somente consulta: seu perfil não possui o direito Expedição. Os botões de transferência estão bloqueados.</p>}
+      ? <p role="status" className="exp-readonly-note px-3 py-2 text-xs font-bold">
+          Visualização do gestor — somente consulta; sem ações de transferência ou mudança de turno.
+        </p>
+      : !canTransfer&&<p role="status" className="exp-readonly-note px-3 py-2 text-xs font-bold">
+          Perfil sem direito de Expedição — botões de turno e transferência desabilitados.
+        </p>}
 
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-      <Summary icon={CheckCheck} title="Entregas separadas" value={deliveriesReady} />
-      <Summary icon={Truck} title="Entregas em rota" value={deliveriesRoute} />
-      <Summary icon={PackageCheck} title="Retiras separadas" value={pickupsReady} />
-      <Summary icon={Clock3} title="Retiras realizadas" value={pickupsDone} />
+    <ExpeditionCompletedHistory deliveries={deliveriesQuery.data??[]} compact/>
+
+    <div className="exp-toolbar flex flex-wrap items-end gap-2 rounded-xl p-3">
+      <label className="min-w-[190px] flex-[2] text-[11px] font-bold text-sky-200">
+        Buscar
+        <span className="relative mt-1 block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"/>
+          <Input value={search} onChange={e=>{setSearch(e.target.value);setListLimit(PAGE_SIZE);}}
+            className="exp-input h-9 pl-9 text-sm" placeholder="Cliente, nota ou código…"/>
+        </span>
+      </label>
+      <label className="min-w-[130px] flex-1 text-[11px] font-bold text-sky-200">Período
+        <select className="exp-input mt-1 h-9 w-full rounded-md px-3 text-sm" value={periodFilter}
+          onChange={e=>{setPeriodFilter(e.target.value as PeriodFilter);setListLimit(PAGE_SIZE);}}
+          aria-label="Filtrar período da Expedição">
+          <option value="all">Todos os dias</option>
+          <option value="today">Hoje</option>
+          <option value="yesterday">Ontem</option>
+        </select>
+      </label>
+      <label className="min-w-[145px] flex-1 text-[11px] font-bold text-sky-200">Tipo
+        <select className="exp-input mt-1 h-9 w-full rounded-md px-3 text-sm" value={typeFilter}
+          onChange={e=>setTypeFilter(e.target.value as TypeFilter)}
+          aria-label="Filtrar tipo de operação">
+          <option value="all">Todos os tipos</option>
+          <option value="collection">Coletas</option>
+          <option value="delivery">Entregas</option>
+          <option value="pickup">Retiras</option>
+        </select>
+      </label>
+      <label className="min-w-[130px] flex-1 text-[11px] font-bold text-sky-200">
+        <span className="inline-flex items-center gap-1"><ShiftFilterIcon value={shiftFilter}/> Turno</span>
+        <select className="exp-input mt-1 h-9 w-full rounded-md px-3 text-sm"
+          value={shiftFilter}
+          onChange={e=>{setShiftFilter(e.target.value as ShiftSection|"all");setListLimit(PAGE_SIZE);}}
+          aria-label="Filtrar turno da Expedição">
+          <option value="all">Todos os turnos</option>
+          <option value="indefinido">N/D</option>
+          <option value="manha">Manhã</option>
+          <option value="tarde">Tarde</option>
+        </select>
+      </label>
+      <Button type="button" variant="outline" size="sm" className="exp-clear h-9 gap-1.5 px-3"
+        disabled={!search&&shiftFilter==="all"&&periodFilter==="all"&&typeFilter==="all"}
+        onClick={()=>{setSearch("");setShiftFilter("all");setPeriodFilter("all");setTypeFilter("all");setListLimit(PAGE_SIZE);}}>
+        Limpar
+      </Button>
     </div>
 
-    <ExpeditionCompletedHistory deliveries={deliveriesQuery.data ?? []} />
-
-    {/* Três colunas responsivas, cada uma com seu próprio fluxo operacional. */}
-    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
-      <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Entrega da Expedição">
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Truck className="h-5 w-5 shrink-0 text-primary" />
-          <h2 className="text-lg font-extrabold sm:text-xl">ENTREGAS</h2>
-          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">
-            {groups.length} {groups.length === 1 ? "grupo" : "grupos"} • {deliveries.length} {deliveries.length === 1 ? "pedido" : "pedidos"}
-          </span>
-        </header>
-        <div className="space-y-2 p-3">
-          {groups.map(orders => {
-            const first = orders[0];
-            return first ? <DeliveryGroupCard key={first.id} orders={orders} canTransfer={canTransfer} readOnly={readOnly} busy={busy}
-              onSetShift={updateSchedule}
-              onEdit={list => { setError(""); setEditing({ kind: "delivery", ids: list.map(order => order.id) }); }} /> : null;
-          })}
-          {!deliveries.length && <p className="p-5 text-center text-sm text-muted-foreground">
-            {deliveriesQuery.isLoading ? "Carregando entregas…" : "Nenhuma entrega ativa cadastrada."}
-          </p>}
-        </div>
-      </section>
-
-      <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm" aria-label="Pedidos de Retira da Conferência">
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <PackageCheck className="h-5 w-5 shrink-0 text-primary" />
-          <h2 className="text-lg font-extrabold sm:text-xl">RETIRAS</h2>
-          <span className="ml-auto rounded-full bg-primary/10 px-3 py-1 text-sm font-bold">{pickups.length}</span>
-        </header>
-        <div className="space-y-2 p-3">
-          {pickups.map(p => <PickupCard key={p.id} order={p} canTransfer={canTransfer} readOnly={readOnly} busy={busy} onEdit={order => { setError(""); setEditing({ kind: "pickup", id: order.id }); }} />)}
-          {!pickups.length && <p className="p-5 text-center text-sm text-muted-foreground">
-            {pickupsQuery.isLoading ? "Carregando retiradas…" : "Nenhuma retirada vinda da Conferência."}
-          </p>}
-        </div>
-      </section>
-      <ExpeditionCollections records={deliveriesQuery.data ?? []} canManage={canTransfer} readOnly={readOnly}
+    {/* Coletas ficam no topo, antes de Entregas e Retiras. */}
+    {(typeFilter==="all"||typeFilter==="collection")&&
+      <ExpeditionCollections records={deliveriesQuery.data??[]} canManage={canTransfer} readOnly={readOnly}
+        compact searchQuery={search} shiftFilter={shiftFilter} periodFilter={periodFilter}
         scheduleBusy={busy} onSetShift={updateSchedule}
-        onCreated={async () => {
+        onCreated={async()=>{
           await deliveriesQuery.refetch();
-          await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
-        }} />
-    </div>
+          await queryClient.invalidateQueries({queryKey:["deliveries"]});
+        }}/>}
+    {(typeFilter==="all"||typeFilter==="delivery")&&<section className="exp-panel overflow-hidden rounded-xl"
+      aria-label="Pedidos de Entrega da Expedição">
+      <header className="exp-panel-heading flex flex-wrap items-center gap-2 px-4 py-3">
+        <Truck className="h-5 w-5 text-sky-300"/>
+        <h2 className="text-base font-black tracking-wide text-white">ENTREGAS</h2>
+        <span className="exp-count ml-1">{visibleGroups.length} grupos · {visibleGroups.reduce((sum,g)=>sum+g.length,0)} pedidos</span>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
+          <thead><tr>
+            {["Turno","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
+              <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
+          </tr></thead>
+          <tbody>
+            {visibleGroups.slice(0,listLimit).map(orders=><DeliveryLine key={orders[0].id}
+              orders={orders} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
+              onSetShift={updateSchedule}
+              onEdit={list=>{setError("");setEditing({kind:"delivery",ids:list.map(row=>row.id)});}}
+              onTransfer={(company,eligible)=>openTransfer({
+                kind:"toPickup",company,orders:eligible.map(row=>({
+                  id:row.id,document:row.document,value:row.value,separatedAt:row.createdAt,
+                })),
+              })}/>)}
+            {!visibleGroups.length&&<tr><td colSpan={readOnly?7:8} className="px-4 py-5 text-center text-sky-200">
+              {deliveriesQuery.isLoading?"Carregando entregas…":"Nenhuma entrega encontrada para esses filtros."}
+            </td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {visibleGroups.length>listLimit&&<div className="exp-list-more p-2 text-center">
+        <Button size="sm" variant="ghost" onClick={()=>setListLimit(n=>n+PAGE_SIZE)}
+          className="text-sky-200">Mostrar mais entregas ({visibleGroups.length-listLimit})</Button>
+      </div>}
+    </section>}
+    {(typeFilter==="all"||typeFilter==="pickup")&&<section className="exp-panel overflow-hidden rounded-xl"
+      aria-label="Pedidos de Retira da Conferência">
+      <header className="exp-panel-heading flex flex-wrap items-center gap-2 px-4 py-3">
+        <PackageCheck className="h-5 w-5 text-violet-300"/>
+        <h2 className="text-base font-black tracking-wide text-white">RETIRAS</h2>
+        <span className="exp-count ml-1">{visiblePickups.length} pedidos</span>
+      </header>
+      <div className="overflow-x-auto">
+        <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
+          <thead><tr>
+            {["Turno","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
+              <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
+          </tr></thead>
+          <tbody>
+            {visiblePickups.slice(0,listLimit).map(order=><PickupLine key={order.id}
+              order={order} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
+              onSetShift={updatePickupSchedule}
+              onEdit={row=>{setError("");setEditing({kind:"pickup",id:row.id});}}
+              onTransfer={row=>openTransfer({kind:"toDelivery",company:row.company,
+                orders:[{id:row.id,document:row.document||"—",value:Number(row.value)||0,
+                  separatedAt:row.createdAt}]})}/>)}
+            {!visiblePickups.length&&<tr><td colSpan={readOnly?7:8} className="px-4 py-5 text-center text-sky-200">
+              {pickupsQuery.isLoading?"Carregando retiradas…":"Nenhuma retirada encontrada para esses filtros."}
+            </td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {visiblePickups.length>listLimit&&<div className="exp-list-more p-2 text-center">
+        <Button size="sm" variant="ghost" onClick={()=>setListLimit(n=>n+PAGE_SIZE)}
+          className="text-sky-200">Mostrar mais retiras ({visiblePickups.length-listLimit})</Button>
+      </div>}
+    </section>}
 
     {(deliveriesQuery.isError || pickupsQuery.isError) &&
       <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
