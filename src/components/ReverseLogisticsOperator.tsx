@@ -45,7 +45,7 @@ const outline="border-sky-400/40 bg-[#14385f] text-sky-50 hover:bg-[#20517c]";
 const stageHelp=(c:ReverseCycle)=>{
   const stage=reverseWorkflowStage(c);
   if(stage==="em_contagem")return "Separe os produtos, confira as quantidades e finalize para iniciar as tratativas.";
-  if(stage==="em_tratativa")return "Contate o fornecedor. O orientador virtual mostra o que perguntar e os quatro passos obrigatórios.";
+  if(stage==="em_tratativa")return "Separação interna concluída. Agora contate o fornecedor e siga o orientador. Aguardando coleta significa retirada pelo fornecedor, não separação dos itens.";
   if(stage==="aguardando_coleta")return 'Quando o material for retirado, clique em "Editar → Status: Coletado". Acompanhe se haverá abatimento ou envio de material novo.';
   if(stage==="coletado")return 'Depois que o fornecedor resolver a situação, clique em "Editar → Status: Finalizado" e informe Abatimento ou Material novo.';
   return "Tratativa finalizada. Consulte os dados ou edite para corrigir informações quando necessário.";
