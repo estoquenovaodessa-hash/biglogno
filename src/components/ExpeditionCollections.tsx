@@ -11,10 +11,11 @@ import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
-import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift } from "@/lib/expedition-schedule";
+import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift, type ShiftSection } from "@/lib/expedition-schedule";
 import { pendingExpeditionCollections } from "@/lib/expedition-history";
 import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
 import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
+import { ExpeditionRowShift } from "./ExpeditionRowShift";
 import { Sun, Sunset, CalendarDays } from "lucide-react";
 
 const money = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,13 +26,14 @@ function collectionLabel(order: Delivery): string {
   return "COLETANDO";
 }
 
-export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy }: {
+export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy, compact = false, searchQuery = "", shiftFilter = "all" }: {
   records: Delivery[];
   canManage: boolean;
   readOnly: boolean;
   onCreated: () => Promise<void>;
   onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
   scheduleBusy: boolean;
+  compact?:boolean; searchQuery?:string; shiftFilter?:ShiftSection|"all";
 }) {
   const client = useQueryClient();
   const list = useServerFn(listCollectionCompanies);
@@ -58,7 +60,13 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const requestId = useRef<string | null>(null);
-  const collections = pendingExpeditionCollections(records);
+  const collections = pendingExpeditionCollections(records).filter(order=>{
+    if(!compact)return true;
+    if(shiftFilter!=="all"&&shiftOf(order)!==shiftFilter)return false;
+    const q=searchQuery.trim().toLocaleLowerCase("pt-BR");
+    return !q||[order.company,order.document,order.collectionAddress,order.collectionContact]
+      .some(x=>String(x??"").toLocaleLowerCase("pt-BR").includes(q));
+  });
   const moneyNumber = value.trim() ? parseMoneyInput(value) : undefined;
   const validValue = moneyNumber === undefined || (Number.isFinite(moneyNumber) && moneyNumber >= 0 && moneyNumber <= 100000000);
   const canWrite = canManage && !readOnly;
@@ -97,11 +105,11 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
     } finally { setBusy(false); }
   }
 
-  return <section aria-label="Coletas da Expedição" className="min-w-0 rounded-xl border border-orange-400/35 bg-card shadow-sm">
-    <header className="flex flex-wrap items-center justify-between gap-2 border-b border-orange-400/30 px-3 py-3">
+  return <section aria-label="Coletas da Expedição" className={compact?"exp-collection-panel min-w-0 overflow-hidden rounded-xl":"min-w-0 rounded-xl border border-orange-400/35 bg-card shadow-sm"}>
+    <header className={compact?"exp-section-heading flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/35 px-4 py-3":"flex flex-wrap items-center justify-between gap-2 border-b border-orange-400/30 px-3 py-3"}>
       <div className="flex items-center gap-2">
         <PackageCheck className="h-5 w-5 shrink-0 text-orange-500" />
-        <h2 className="text-lg font-extrabold sm:text-xl">COLETAS</h2>
+        <h2 className="text-base font-extrabold sm:text-lg">COLETAS</h2>
         <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-700 dark:text-orange-300">{collections.length}</span>
       </div>
       {!readOnly && <div className="flex flex-wrap gap-1.5">
@@ -115,7 +123,51 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
         </Button>
       </div>}
     </header>
-    <div className="space-y-2 p-3">
+    {compact ? <div>
+      {notice && <p role="status" className="px-4 py-2 text-xs font-semibold text-emerald-300">{notice}</p>}
+      {error && !companyDialog && !collectionDialog && <p role="alert" className="px-4 py-2 text-xs text-red-300">{error}</p>}
+      <div className="overflow-x-auto">
+        <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
+          <thead><tr>
+            {["Turno","Cliente / empresa","Nota / guia","Tipo / origem","Valor","Status","Saída / previsão",...(!readOnly?["Ações"]:[])].map(col=>
+              <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
+          </tr></thead>
+          <tbody>
+            {collections.map(order=><tr key={order.id} className="exp-table-row">
+              <td className="px-3 py-2"><ExpeditionRowShift
+                shift={shiftOf(order)} readOnly={readOnly}
+                disabled={!canWrite||busy||scheduleBusy||order.status!=="nao_iniciada"}
+                onChange={shift=>onSetShift([order.id],shift)}/></td>
+              <td className="max-w-[260px] px-3 py-2 font-extrabold text-white">
+                {order.company}
+                {!!order.collectionContact&&<span className="mt-0.5 block text-[11px] font-normal text-sky-200">
+                  Contato: {order.collectionContact}</span>}
+              </td>
+              <td className="px-3 py-2 text-sky-100">{order.document||"—"}</td>
+              <td className="px-3 py-2"><span className="exp-type exp-type-collection"><PackageCheck className="h-3.5 w-3.5"/>Coleta</span></td>
+              <td className="whitespace-nowrap px-3 py-2 font-semibold">
+                {order.collectionValueProvided===false?"Não informado":money(order.value)}</td>
+              <td className="px-3 py-2"><span className="exp-status exp-status-warning">{collectionLabel(order)}</span></td>
+              <td className="whitespace-nowrap px-3 py-2">
+                {order.scheduledDate?scheduledDateLabel(order.scheduledDate):fmtBrasilia(order.createdAt)}
+                {order.collectionAddress&&<span className="block max-w-[240px] truncate text-[11px] text-sky-200" title={order.collectionAddress}>
+                  {order.collectionAddress}</span>}</td>
+              {!readOnly&&<td className="px-3 py-2">
+                <Button type="button" size="sm" variant="outline"
+                  className="exp-row-action h-8 gap-1.5 text-xs" disabled={!canWrite||order.status!=="nao_iniciada"}
+                  onClick={()=>{setError("");setEditing(order);}}>
+                  <Pencil className="h-3.5 w-3.5"/> Editar coleta
+                </Button>
+              </td>}
+            </tr>)}
+            {!collections.length&&<tr><td colSpan={readOnly?7:8}
+              className="px-4 py-5 text-center text-xs text-sky-200">
+              Nenhuma coleta pendente. Consulte as concluídas em “Coletados”.
+            </td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div> : <div className="space-y-2 p-3">
       {notice && <p role="status" className="text-xs font-medium text-emerald-600">{notice}</p>}
       {error && !companyDialog && !collectionDialog && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {collections.map(order => <article key={order.id} className="rounded-lg border border-orange-400/40 bg-orange-500/[0.10] p-3">
@@ -151,7 +203,7 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
         </div>}
       </article>)}
       {!collections.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma coleta pendente. Veja as concluídas no botão "Coletados" acima.</p>}
-    </div>
+    </div>}
     {!readOnly && <>
       {editing && <ExpeditionCollectionEditor key={editing.id} record={editing}
         companies={companies.data ?? []} onClose={() => setEditing(null)}
