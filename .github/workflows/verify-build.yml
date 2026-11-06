@@ -63,5 +63,7 @@ jobs:
         run: bun test src/lib/conference-label.test.js
       - name: Testar busca de itens, unidades e etiquetas S.B.O da Argox
         run: bun test src/lib/sbo-label.test.js
+      - name: Validar mascote animado e mensagem do carregamento
+        run: bun test src/lib/loading-mascot.test.js
       - name: Executar build de producao
         run: npm run build

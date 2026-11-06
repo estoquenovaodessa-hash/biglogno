@@ -1,0 +1,33 @@
+/* Tela de espera exclusiva do BigLogno, isolada dos estilos administrativos. */
+.biglogno-loading {
+  background: #040d19;
+  color-scheme: dark;
+  overflow: hidden;
+}
+.biglogno-loading-character{
+  width: min(240px, 66vw);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  line-height: 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 92%, transparent 100%);
+}
+.biglogno-loading-character img{display:block;aspect-ratio:4/5;object-fit:contain;}
+.biglogno-loading-title{
+  line-height:1.16;
+  text-shadow:0 1px 7px rgba(0,0,0,.3);
+}
+.biglogno-loading-blue{color:#19bafb;}
+.biglogno-loading-dots{
+  display:inline-block; width:1.5em; overflow:hidden;
+  vertical-align:bottom;
+  animation:biglogno-dots 1.1s steps(4,end) infinite;
+  text-align:left;
+}
+@keyframes biglogno-dots{
+  from{width:0} to{width:1.5em}
+}
+@media (prefers-reduced-motion:reduce){
+  .biglogno-loading-dots{animation:none;width:auto}
+}

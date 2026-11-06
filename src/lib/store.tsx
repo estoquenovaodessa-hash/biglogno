@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { LoadingMascot } from "@/components/LoadingMascot";
 import { storage, type CurrentMeta } from "./storage";
 import { cloudGetAll, cloudSet, subscribeCloud, CLOUD_KEYS } from "./cloudState";
 import {
@@ -851,10 +851,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ready,
   };
 
-  if (!ready) return <main className="flex min-h-screen items-center justify-center bg-background px-4"><div className="max-w-md text-center">
-    <h1 className="mb-3 text-xl font-bold">Gestão de Logística</h1>
-    {loadError ? <><p role="alert" className="mb-5 text-destructive">Não foi possível carregar seus dados. As informações salvas foram preservadas. Tente novamente ou entre novamente com sua senha.</p><div className="flex justify-center gap-3"><Button onClick={() => setLoadAttempt(n => n + 1)}>Tentar novamente</Button><Button variant="outline" onClick={() => window.location.reload()}>Entrar novamente</Button></div></> : <p role="status" className="text-muted-foreground">Carregando suas informações salvas…</p>}
-  </div></main>;
+  if (!ready) return <LoadingMascot error={loadError}
+    onRetry={() => setLoadAttempt(n => n + 1)}
+    onReload={() => window.location.reload()} />;
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
