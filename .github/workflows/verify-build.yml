@@ -61,6 +61,8 @@ jobs:
         run: bun test src/lib/conference-label-print-state.test.js
       - name: Testar PDFs individuais e multipaginas Argox 60x30mm
         run: bun test src/lib/conference-label.test.js
+      - name: Testar ativacao segura e elegibilidade da impressao automatica
+        run: bun test src/lib/auto-conference-print.test.js
       - name: Testar busca de itens, unidades e etiquetas S.B.O da Argox
         run: bun test src/lib/sbo-label.test.js
       - name: Validar mascote animado e mensagem do carregamento

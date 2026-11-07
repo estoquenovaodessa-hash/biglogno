@@ -1,4 +1,5 @@
 import type { VerificationRecord } from "./sales-verification";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isAutoConferencePrintEnabled,isConferenceEligibleForAutoPrint,
 } from "./auto-conference-print";
@@ -25,12 +26,12 @@ export async function enqueueRegisteredConferenceLabel(recordId:string):Promise<
 
   // A unicidade verification_id impede etiquetas duplicadas por reenvio do
   // formulário/retentativa do navegador.
-  const {error}=await supabaseAdmin.from("conference_label_print_jobs" as "app_state")
-    .insert({
-      verification_id:recordId,
-      document:record.document,
-      pdf_base64:pdfBase64,
-      status:"pending",
-    } as never);
+  const db=supabaseAdmin as unknown as SupabaseClient;
+  const {error}=await db.from("conference_label_print_jobs").insert({
+    verification_id:recordId,
+    document:record.document,
+    pdf_base64:pdfBase64,
+    status:"pending",
+  });
   if(error&&error.code!=="23505")throw new Error("A fila de impressão não pôde receber a etiqueta.");
 }

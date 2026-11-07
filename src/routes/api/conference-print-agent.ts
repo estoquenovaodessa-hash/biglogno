@@ -1,5 +1,6 @@
 import {createFileRoute} from "@tanstack/react-router";
 import {z} from "zod";
+import type {SupabaseClient} from "@supabase/supabase-js";
 import {conferencePrintStateKey} from "@/lib/conference-label-print-state";
 
 const noCache={"cache-control":"no-store","x-content-type-options":"nosniff"};
@@ -41,10 +42,10 @@ export const Route=createFileRoute("/api/conference-print-agent")({
         return json({error:"Impressão automática desativada."},503);
       try{
         const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
-        const {data,error}=await supabaseAdmin.rpc(
-          "claim_next_conference_label_print_job" as "register_verification_logistics",
-          {p_lease_id:crypto.randomUUID()} as never,
-        );
+        const db=supabaseAdmin as unknown as SupabaseClient;
+        const {data,error}=await db.rpc("claim_next_conference_label_print_job",{
+          p_lease_id:crypto.randomUUID(),
+        });
         if(error){
           console.error("[BigLogno Print] Falha ao reivindicar trabalho:",error.code,error.message);
           return json({error:"Fila indisponível. Verifique a instalação do SQL."},503);
@@ -70,14 +71,15 @@ export const Route=createFileRoute("/api/conference-print-agent")({
       catch{return json({error:"Confirmação inválida."},400);}
       try{
         const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+        const db=supabaseAdmin as unknown as SupabaseClient;
         const updatedAt=new Date().toISOString();
-        const {data,error}=await supabaseAdmin.from("conference_label_print_jobs" as "app_state")
+        const {data,error}=await db.from("conference_label_print_jobs")
           .update({
             status:body.status,
             last_error:body.status==="error"?(body.message||"Falha no envio ao driver."):null,
             spooled_at:body.status==="spooled"?updatedAt:null,
             updated_at:updatedAt,
-          } as never)
+          })
           .eq("id",body.id).eq("lease_id",body.leaseId).eq("status","claimed")
           .select("id,verification_id").maybeSingle();
         if(error){
