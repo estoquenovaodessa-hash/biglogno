@@ -24,9 +24,17 @@ continua desativada e a impressao manual existente funciona normalmente.
    **NAO compartilhe esse token em chat, repositorio ou WhatsApp.**
    Cole-o SOMENTE no Cloudflare Workers & Pages > biglogno >
    Settings > Variables and Secrets, como secret **PRINT_AGENT_TOKEN**.
-6. No mesmo painel, crie **AUTO_CONFERENCE_PRINT_ENABLED=true**.
-   Faça isso somente depois que a tabela SQL foi instalada.
-7. Para testar UMA rodada de consulta e eventual impressao:
+6. ANTES de habilitar a impressão, execute o diagnostico seguro.
+   Este comando confirma que o token do Windows foi aceito pelo Cloudflare
+   sem consultar a fila nem enviar trabalhos para a impressora:
+
+       powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\BigLognoPrint\BigLognoPrint.ps1" -Check
+
+   Resultado esperado: CONEXAO SEGURA CONFIRMADA e
+   Impressao automatica desativada. Nenhuma etiqueta foi impressa.
+7. Somente depois de passar no teste acima, no Cloudflare crie
+   **AUTO_CONFERENCE_PRINT_ENABLED=true**.
+   Para testar UMA rodada de consulta e eventual impressao:
 
        powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\BigLognoPrint\BigLognoPrint.ps1" -Once
 

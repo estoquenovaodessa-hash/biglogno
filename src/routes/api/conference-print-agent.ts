@@ -38,6 +38,10 @@ export const Route=createFileRoute("/api/conference-print-agent")({
   server:{handlers:{
     GET:async({request})=>{
       const denied=await verifyAgent(request);if(denied)return denied;
+      // Diagnóstico autenticado, sem tocar no Supabase nem reivindicar trabalhos.
+      // Útil para verificar a conexão ANTES de habilitar impressão automática.
+      if(new URL(request.url).searchParams.get("health")==="1")
+        return json({ok:true,printingEnabled:process.env.AUTO_CONFERENCE_PRINT_ENABLED==="true"});
       if(process.env.AUTO_CONFERENCE_PRINT_ENABLED!=="true")
         return json({error:"Impressão automática desativada."},503);
       try{

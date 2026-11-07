@@ -1,6 +1,6 @@
 # BigLogno Print - Windows / Argox OS-214 plus series PPLA
 # Usa DPAPI do Windows. Trabalhos incertos nao sao reimpressos automaticamente.
-param([switch]$Once)
+param([switch]$Once,[switch]$Check)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $base=Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -45,6 +45,23 @@ $headers=@{
 $working=Join-Path $base 'tmp'
 New-Item -ItemType Directory -Path $working -Force | Out-Null
 Write-AgentLog ('Iniciado, impressora: '+$config.PrinterName)
+# Teste seguro: valida o token no servidor sem buscar etiquetas nem imprimir.
+if($Check){
+  try{
+    $result=Invoke-RestMethod -Uri ($endpoint+'?health=1') -Headers $headers -Method GET -TimeoutSec 25
+    if($result.ok -ne $true){throw 'O servidor nao confirmou a conexao.'}
+    Write-AgentLog 'CONEXAO SEGURA CONFIRMADA: token aceito pelo BigLogno.'
+    if($result.printingEnabled -eq $true){
+      Write-AgentLog 'ATENCAO: Impressao automatica esta habilitada no servidor.'
+    }else{
+      Write-AgentLog 'Impressao automatica desativada. Nenhuma etiqueta foi impressa.'
+    }
+    exit 0
+  }catch{
+    Write-AgentLog ('TESTE FALHOU: '+$_.Exception.Message)
+    exit 1
+  }
+}
 do{
   try{
     $response=Invoke-RestMethod -Uri $endpoint -Headers $headers -Method GET -TimeoutSec 25

@@ -73,5 +73,6 @@ Write-Host ('SumatraPDF: '+$sumatra)
 Write-Host 'Agente iniciara automaticamente quando este usuario entrar no Windows.'
 Write-Host 'O computador deve permanecer ligado e com usuario logado.'
 Write-Host 'Ainda nao foi iniciada nenhuma impressao.'
-Write-Host 'Depois do SQL e dos secrets, execute o teste de uma rodada:'
-Write-Host ('powershell -NoProfile -ExecutionPolicy Bypass -File "'+$agentPath+'" -Once')
+Write-Host 'Antes de habilitar a impressao, confirme a conexao SEM imprimir:'
+Write-Host ('powershell -NoProfile -ExecutionPolicy Bypass -File "'+$agentPath+'" -Check')
+Write-Host 'Somente apos ativar e preparar uma etiqueta de teste use -Once.'
