@@ -85,7 +85,9 @@ do{
         [IO.File]::WriteAllBytes($pdfFile,$bytes)
         # Nao usa fit/shrink; preserva as dimensoes do PDF Argox de 60x30 mm.
         $printerName=([string]$config.PrinterName).Replace('"','')
-        $arguments='-print-to "{0}" -print-settings "noscale" -silent "{1}"' -f $printerName,$pdfFile
+        # Evita que o SumatraPDF gire automaticamente o PDF horizontal 60x30.
+        # A orientacao e o papel 60x30 devem estar configurados no driver Argox.
+        $arguments='-print-to "{0}" -print-settings "noscale,disable-auto-rotation" -silent "{1}"' -f $printerName,$pdfFile
         $process=Start-Process -FilePath $config.SumatraPdfExe -ArgumentList $arguments -WindowStyle Hidden -PassThru -Wait
         if($process.ExitCode -ne 0){
           throw ('Falha ao enviar para a fila de impressao (codigo '+$process.ExitCode+').')

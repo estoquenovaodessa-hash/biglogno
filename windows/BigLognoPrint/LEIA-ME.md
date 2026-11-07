@@ -78,7 +78,14 @@ O usuario pode consultar o log local:
 ## Argox e orientacao
 
 O driver deve ter papel 60x30 mm previamente configurado. O agente
-chama SumatraPDF com a opcao -print-settings noscale, sem janela.
+chama SumatraPDF com -print-settings "noscale,disable-auto-rotation", sem janela.
+O SumatraPDF 3.5 ou posterior respeita disable-auto-rotation: evita
+que o PDF horizontal 60x30 seja girado automaticamente em 90 graus.
+A impressora deve estar configurada no Windows para papel 60x30 e a
+orientacao correta. Para testar, use uma copia de PDF previamente
+baixado na aba de Etiquetagem, sem registrar novas conferencias.
+Nao rode dois agentes ao mesmo tempo: para atualizar, copie este script
+para %LOCALAPPDATA%\BigLognoPrint e saia/entre na sessao do Windows.
 
 Documentacao oficial da impressao:
 https://www.sumatrapdfreader.org/docs/Command-line-arguments
