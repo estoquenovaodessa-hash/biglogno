@@ -110,6 +110,16 @@ export const registerSalesVerification = createServerFn({ method: "POST" }).inpu
     }
     throw new Error(`Não foi possível registrar a conferência (erro ${code}). Informe esse código ao gestor.`);
   }
+  // A transação principal JÁ foi confirmada. Se a fila opcional estiver
+  // indisponível, jamais desfazer a conferência nem dizer ao tablet que falhou.
+  // O painel mostra PDF manual até a estação de impressão ser instalada.
+  try{
+    const {enqueueRegisteredConferenceLabel}=await import("./auto-conference-print.server");
+    await enqueueRegisteredConferenceLabel(data.requestId);
+  }catch(printError){
+    console.error("[BigLogno Print] Conferência salva; etiqueta automática pendente de correção:",
+      printError instanceof Error?printError.message:"erro desconhecido");
+  }
   return { prefix: documentPrefix(data.document) };
 });
 
