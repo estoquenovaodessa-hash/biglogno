@@ -1,118 +1,278 @@
-/* Identidade BigLog — desktop pixel fiel à arte aprovada (1672 x 941).
-   A arte INTEIRA compõe a tela: o mascote não é mais uma imagem recortada.
-   Controles React acessíveis são alinhados aos elementos representados na arte. */
+/* BigLog — card de login independente, 100% DOM + CSS Grid.
+   A arte de fundo original permanece intacta no mesmo arquivo.
+   Os componentes internos não usam percentuais para posicionar botões. */
 .biglog-login {
   isolation: isolate;
+  width: 100%;
   min-height: 100dvh;
-  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #04255a;
+  background: #052559;
   color: white;
-}
-.biglog-login::before {
-  content: "";
-  position: fixed;
-  inset: -35px;
-  z-index: -1;
-  background: url('/images/biglog-login-approved.avif') center / cover no-repeat;
-  filter: blur(28px) brightness(.65);
-  pointer-events: none;
 }
 .biglog-login__scene {
   position: relative;
-  aspect-ratio: 1672 / 941;
-  height: min(100dvh, 56.28vw);
-  width: auto;
-  max-width: 100vw;
-  flex-shrink: 0;
+  width: 100%;
+  height: 100dvh;
   overflow: hidden;
-  box-shadow: 0 6px 48px #001e4540;
+}
+.biglog-login__composition {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 177.8724dvh);
+  aspect-ratio: 1672 / 940;
+  transform: translate(-50%, -50%);
 }
 .biglog-login__artwork {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  user-select: none;
   pointer-events: none;
-}
-.biglog-login__desktop-form { position: absolute; inset: 0; margin: 0; }
-.biglog-login__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.biglog-login__password-wrap {
-  position: absolute;
-  left: 12.55%; top: 50.65%; width: 36.25%; height: 6.93%;
-  border-radius: 14px;
-}
-.biglog-login__password-wrap input {
-  display: block;
-  width: 100%; height: 100%;
-  border: 0; background: transparent;
-  border-radius: inherit;
-  padding: 0 12% 0 3%;
-  color: #192c4a;
-  font-size: clamp(13px, 1.25vw, 21px);
-  box-shadow: none;
-  outline: none;
-}
-.biglog-login__password-wrap:focus-within { outline: 3px solid #ffc21a; outline-offset: 2px; }
-.biglog-login__visibility-button {
-  position: absolute; right: 1%; top: 0; height: 100%; width: 11%;
-  border: 0; border-radius: 12px; background: transparent; cursor: pointer;
-}
-.biglog-login__submit-hotspot {
-  position: absolute;
-  left: 12.12%; top: 59.94%; width: 37.05%; height: 8.08%;
-  border: none; border-radius: 18px; background: transparent;
-  cursor: pointer; color: #083d79; font-size: clamp(14px, 1.7vw, 29px); font-weight: 800;
-  transition: box-shadow 120ms ease, transform 120ms ease;
-}
-.biglog-login__submit-hotspot:not(:disabled):hover { box-shadow: 0 0 0 3px #f9cf2d9c; }
-.biglog-login__submit-hotspot:active { transform: translateY(2px); }
-.biglog-login__submit-hotspot:disabled { cursor: progress; }
-.biglog-login__submit-hotspot span {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  background: linear-gradient(#ffe21c, #ffaf09); border-radius: inherit;
-}
-.biglog-login__error {
-  position: absolute; z-index: 3;
-  left: 12.5%; top: 57.7%; width: 36.2%;
-  margin: 0; padding: 2px 5px;
-  border-radius: 5px; background: #fff2f0; color: #b51620;
-  font-size: clamp(10px, .7vw, 13px); font-weight: 700; line-height: 1.15;
-}
-.biglog-login__desktop-install { position: absolute; inset: 0; pointer-events: none; }
-.biglog-login__download-hotspot, .biglog-login__browser-hotspot {
-  display: block; position: absolute; pointer-events: auto;
-  top: 76.95%; height: 9.1%; border: 0; border-radius: 18px;
-  background: transparent; cursor: pointer;
-  transition: box-shadow 120ms ease;
-}
-.biglog-login__download-hotspot { left: 10.88%; width: 19.30%; }
-.biglog-login__browser-hotspot { left: 31.45%; width: 19.30%; }
-.biglog-login__download-hotspot:hover, .biglog-login__browser-hotspot:hover { box-shadow: 0 0 0 3px #ffbc238c; }
-.biglog-login :is(button,a,input):focus-visible { outline: 3px solid #ffda3c; outline-offset: 2px; }
-.biglog-login__installed {
-  position: absolute; left: 11%; top: 76.6%; width: 40%; height: 10%;
-  display: grid; place-items: center; border-radius: 16px;
-  color: #fff; font-size: clamp(12px, 1.35vw, 23px); font-weight: 800;
-  background: linear-gradient(145deg,#074383,#00275e); border: 2px solid #6aabed;
-}
-.biglog-login__install-help {
-  position: absolute; z-index: 6;
-  left: 11%; top: 87%; width: 41%;
-  padding: 13px 38px 13px 13px; border: 2px solid #ffc019; border-radius: 12px;
-  color: #0a315d; background: #fffcef;
-  box-shadow: 0 6px 20px #001f4780; font-size: clamp(10px, .9vw, 15px);
-}
-.biglog-login__install-help button { position: absolute; top: 1px; right: 9px; border: 0; background: transparent; color: #113565; font-size: 25px; cursor: pointer; }
-.biglog-login__checking {
-  position: absolute; left: 15%; top: 47%; padding: 6px 12px;
-  border-radius: 8px; color: #03316f; background: #fff9e6;
-  font-size: clamp(11px, 1vw, 16px); font-weight: 700;
+  user-select: none;
 }
 .biglog-login__mobile { display: none; }
+
+@media (min-width: 1025px) {
+  .biglog-login__desktop-card {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    left: 18%;
+    top: 35.2%;
+    width: 32.9%;
+    height: 41.5%;
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    gap: clamp(8px, .8vw, 13px);
+    padding: clamp(18px, 1.8vw, 30px);
+    border: 2px solid #3f9ae5;
+    border-radius: clamp(14px, 1.5vw, 24px);
+    background: linear-gradient(145deg, #093c85 0%, #06316d 46%, #05265b 100%);
+    box-shadow: 0 16px 40px rgba(0, 15, 52, .4), inset 0 1px 0 #ffffff24;
+    color: #fff;
+  }
+  .biglog-login__desktop-card * { box-sizing: border-box; }
+  .biglog-login__desktop-heading {
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, .8vw, 12px);
+    margin: 0;
+    color: #fff;
+    font-size: clamp(19px, 1.55vw, 27px);
+    font-weight: 900;
+    line-height: 1.15;
+  }
+  .biglog-login__desktop-heading svg { flex: none; color: #ffc414; }
+  .biglog-login__desktop-form {
+    display: grid;
+    gap: clamp(8px, .65vw, 12px);
+    min-width: 0;
+    margin: 0;
+  }
+  .biglog-login__desktop-form > label {
+    display: block;
+    margin: 0 0 -5px;
+    color: #fff;
+    font-size: clamp(12px, 1vw, 16px);
+    font-weight: 750;
+  }
+  .biglog-login__desktop-field {
+    width: 100%;
+    height: clamp(36px, 3.2vw, 51px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 45px;
+    align-items: center;
+    overflow: hidden;
+    border: 2px solid #d8e9fd;
+    border-radius: 10px;
+    background: #f9fbff;
+  }
+  .biglog-login__desktop-field:focus-within {
+    outline: 3px solid #ffd139; outline-offset: 2px;
+  }
+  .biglog-login__desktop-field input {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    padding: 0 12px;
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+    background: transparent;
+    color: #132e53;
+    font-size: 16px;
+  }
+  .biglog-login__desktop-field button {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: #3a577d;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .biglog-login__desktop-submit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    height: clamp(41px, 3.5vw, 55px);
+    padding: 0 8px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#ffe120, #ffb100);
+    box-shadow: 0 4px #d99100;
+    color: #092c66;
+    font: inherit;
+    font-size: clamp(16px, 1.35vw, 21px);
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .biglog-login__desktop-submit:disabled { opacity: .75; cursor: wait; }
+  .biglog-login__desktop-submit:not(:disabled):hover { filter: brightness(1.05); }
+  .biglog-login__desktop-install {
+    position: relative;
+    display: grid;
+    gap: clamp(8px, .75vw, 12px);
+    min-width: 0;
+  }
+  .biglog-login__desktop-install > h2 {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin: 0;
+    color: #fff;
+    white-space: nowrap;
+    font-size: clamp(11px, 1vw, 15px);
+    font-weight: 750;
+    text-align: center;
+  }
+  .biglog-login__desktop-install > h2::before,
+  .biglog-login__desktop-install > h2::after {
+    content: "";
+    flex: 1;
+    min-width: 0;
+    height: 1px;
+    background: #5594d0;
+  }
+  .biglog-login__desktop-install-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(6px, .9vw, 13px);
+  }
+  .biglog-login__desktop-install-choice {
+    width: 100%;
+    min-width: 0;
+    min-height: clamp(42px, 3.9vw, 60px);
+    padding: 5px clamp(6px, .6vw, 9px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(4px, .5vw, 8px);
+    border: 2px solid #4da6ec;
+    border-radius: 11px;
+    background: linear-gradient(145deg, #11529e, #063775);
+    color: #fff;
+    text-decoration: none;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+  .biglog-login__desktop-install-choice:hover { border-color: #c8e9ff; color: #fff; }
+  .biglog-login__windows-logo,
+  .biglog-login__desktop-choice-icon {
+    display: block;
+    flex: none;
+    width: clamp(18px, 1.6vw, 25px);
+    height: clamp(18px, 1.6vw, 25px);
+    color: #fff;
+  }
+  .biglog-login__desktop-install-copy {
+    min-width: 0;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.07;
+  }
+  .biglog-login__desktop-install-copy strong {
+    display: block;
+    font-size: clamp(10px, .88vw, 14px);
+    font-weight: 850;
+    white-space: nowrap;
+  }
+  .biglog-login__desktop-install-copy small {
+    display: block;
+    color: #d9e9ff;
+    font-size: clamp(9px, .75vw, 12px);
+    white-space: nowrap;
+  }
+  .biglog-login__desktop-choice-action {
+    flex: none;
+    width: clamp(13px, 1.2vw, 20px);
+    height: clamp(13px, 1.2vw, 20px);
+    color: #ffcd24;
+    font-size: clamp(17px, 1.35vw, 22px);
+    font-weight: 850;
+  }
+  .biglog-login__desktop-error {
+    margin: 0;
+    padding: 7px 9px;
+    background: #fff1ef;
+    border-radius: 7px;
+    font-size: 12px;
+    line-height: 1.25;
+    color: #a3232b;
+    font-weight: 750;
+  }
+  .biglog-login__desktop-installed {
+    margin: 0;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid #87caff;
+    background: #093e7e;
+    color: #fff;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .biglog-login__desktop-install-help {
+    position: absolute;
+    z-index: 3;
+    left: 0;
+    top: calc(100% + 9px);
+    width: 100%;
+    padding: 13px 34px 13px 13px;
+    border-radius: 10px;
+    border: 1px solid #ffcb3b;
+    background: #fffae9;
+    box-shadow: 0 8px 22px #001b3a80;
+    color: #193a64;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .biglog-login__desktop-install-help button {
+    position: absolute;
+    right: 8px;
+    top: 4px;
+    border: 0;
+    color: #193a64;
+    background: transparent;
+    font-size: 23px;
+    cursor: pointer;
+  }
+  .biglog-login__desktop-card :is(input, a, button):focus-visible {
+    outline: 3px solid #ffd139;
+    outline-offset: 3px;
+  }
+}
 
 /* Modo celular/tablet: não utilizar a imagem desktop com hotspots. */
 @media (max-width: 1024px) {
@@ -278,96 +438,4 @@
   .biglog-login :is(button,a) { transition: none; }
 }
 
-/* v5 desktop: fundo continua em tela cheia; arte com card e mascote mais compactos.
-   A imagem nativa (1672×940) está em cover mantendo proporção. Os hotspots
-   são relativos à MESMA composição e não exibem uma segunda camada de botões. */
-@media (min-width: 1025px) {
-  .biglog-login { width: 100%; min-height: 100dvh; padding: 0; }
-  .biglog-login::before { display: none; }
-  .biglog-login__scene {
-    position: relative; width: 100%; height: 100dvh;
-    min-height: 0; max-width: none; max-height: none;
-    aspect-ratio: auto; overflow: hidden; box-shadow: none;
-  }
-  .biglog-login__composition {
-    position: absolute;
-    left: 50%; top: 50%;
-    width: max(100%, 177.8724dvh);
-    aspect-ratio: 1672 / 940;
-    transform: translate(-50%, -50%);
-  }
-  .biglog-login__artwork {
-    display: block; width: 100%; height: 100%;
-    object-fit: contain; user-select: none; pointer-events: none;
-  }
-  .biglog-login__password-wrap {
-    left: 21.32%; top: 47.24%; width: 24.17%; height: 5.42%;
-    border-radius: clamp(8px, .8vw, 13px);
-  }
-  .biglog-login__password-wrap input {
-    width: 100%; height: 100%;
-    border: 0; background: transparent; box-shadow: none;
-    border-radius: inherit; padding: 0 13% 0 3%;
-    color: #152b4d; font-size: clamp(13px, 1.08vw, 18px);
-  }
-  .biglog-login__visibility-button {
-    display: block; position: absolute; right: .7%; top: 0;
-    width: 10%; height: 100%; border: 0; background: transparent; cursor: pointer;
-  }
-  .biglog-login__visibility-button > * { display: none; }
-  .biglog-login__submit-hotspot {
-    left: 20.94%; top: 54.04%; width: 24.97%; height: 6.25%;
-    display: block; padding: 0; border: 0; border-radius: clamp(8px, .95vw, 14px);
-    background: transparent; box-shadow: none; cursor: pointer;
-    transition: box-shadow .14s ease;
-  }
-  .biglog-login__submit-hotspot > * { display: none; }
-  .biglog-login__submit-hotspot:hover:not(:disabled) { box-shadow: inset 0 0 0 2px #fff6b8; }
-  .biglog-login__submit-hotspot:active:not(:disabled) { box-shadow: inset 0 0 0 3px #ffcc35; }
-  .biglog-login__submit-hotspot:disabled::after {
-    content: "Aguarde…"; position: absolute; inset: 0;
-    display: grid; place-items: center; border-radius: inherit;
-    background: linear-gradient(#ffe222, #ffb000); color: #062f6a;
-    font-weight: 800; font-size: clamp(12px, 1.3vw, 20px);
-  }
-  .biglog-login__desktop-install {
-    position: absolute; inset: 0;
-    display: block; width: auto; height: auto; pointer-events: none;
-  }
-  .biglog-login__download-hotspot,
-  .biglog-login__browser-hotspot {
-    display: block; position: absolute; box-sizing: border-box;
-    top: 65.42%; height: 6.10%; width: 12.52%;
-    min-width: 0; min-height: 0; padding: 0;
-    border: 0; border-radius: clamp(6px, .8vw, 13px);
-    background: transparent; box-shadow: none; color: transparent;
-    text-decoration: none; font: inherit; cursor: pointer;
-    pointer-events: auto; transition: box-shadow .14s ease;
-  }
-  .biglog-login__download-hotspot { left: 20.42%; }
-  .biglog-login__browser-hotspot { left: 33.65%; width: 12.8%; }
-  .biglog-login__download-hotspot > *,
-  .biglog-login__browser-hotspot > * { display: none; }
-  .biglog-login__download-hotspot:hover,
-  .biglog-login__browser-hotspot:hover { box-shadow: inset 0 0 0 2px #d1ebff; }
-  .biglog-login__download-hotspot:active,
-  .biglog-login__browser-hotspot:active { box-shadow: inset 0 0 0 3px #ffc629; }
-  .biglog-login__error {
-    left: 21.2%; top: 60.5%; width: 24.3%; padding: 4px 6px;
-    font-size: clamp(10px, .77vw, 13px); line-height: 1.14;
-  }
-  .biglog-login__installed {
-    left: 20.5%; top: 65.5%; width: 25.7%; height: 6.2%;
-    border-radius: 12px; font-size: clamp(12px, 1.2vw, 18px);
-  }
-  .biglog-login__install-help {
-    left: 20.5%; top: 72.5%; width: 25.7%;
-    font-size: clamp(11px, .77vw, 14px);
-  }
-  .biglog-login__checking {
-    left: 22%; top: 42.4%; font-size: clamp(11px, .9vw, 15px);
-  }
-  .biglog-login :is(button, a, input):focus-visible {
-    outline: 3px solid #ffda3c; outline-offset: 3px;
-  }
-}
+

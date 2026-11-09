@@ -104,65 +104,98 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
 
   return (
     <main className="biglog-login" aria-label="Acesso BigLog">
-      {/* Desktop: uma única arte integral. Não há imagem retangular do mascote sobreposta. */}
-      <div className="biglog-login__scene">
+      {/* A arte original é uma camada decorativa imutável. O formulário é DOM
+          independente com CSS Grid: nenhum botão é posicionado sobre pixels da arte. */}
+      <section className="biglog-login__scene" aria-label="Tela de acesso">
         <div className="biglog-login__composition">
-        <img
-          className="biglog-login__artwork"
-          src="/images/biglog-login-compact.avif"
-          width={1672} height={940}
-          alt="BigLog: identidade em azul e amarelo com mascote da Bignotto ao lado direito"
-        />
-        <form className="biglog-login__desktop-form" onSubmit={submitLogin}>
-          <label className="biglog-login__sr-only" htmlFor="biglog-access-password">Senha de acesso</label>
-          <div className="biglog-login__password-wrap">
-            <input
-              id="biglog-access-password"
-              type={visible ? "text" : "password"}
-              autoComplete="current-password"
-              required maxLength={256}
-              value={password}
-              disabled={loading || busy}
-              onChange={(event) => setPassword(event.target.value)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? "biglog-login-error" : undefined}
-            />
-            <button type="button" onClick={() => setVisible(!visible)}
-              aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-              className="biglog-login__visibility-button">{visible ? <EyeOff size={22} /> : <Eye size={22} />}</button>
-          </div>
-          <button className="biglog-login__submit-hotspot" type="submit" disabled={loading || busy}
-            aria-label={loading ? "Verificando acesso" : busy ? "Entrando" : "Entrar"}>
-            <LogIn size={24} aria-hidden="true" /><span>{loading ? "Verificando…" : busy ? "Entrando…" : "Entrar"}</span>
-          </button>
-          {error && <p id="biglog-login-error" role="alert" className="biglog-login__error">{error}</p>}
-        </form>
-        {!runningAsApp ? (
-          <nav className="biglog-login__desktop-install" aria-label="Instalar BigLog">
-            <a className="biglog-login__download-hotspot"
-              href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe"
-              aria-label="Baixar BigLog para Windows">
-              <span className="biglog-login__download-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 3.4 10.8 2v9.4H1zm11-1.6L23 0v11.4H12zM1 12.6h9.8V22L1 20.6zm11 0h11V24l-11-1.7z" /></svg></span>
-              <span className="biglog-login__download-copy"><strong>Baixar BigLog</strong><small>para Windows</small></span>
-              <Download className="biglog-login__download-action" size={23} aria-hidden="true" />
-            </a>
-            <button className="biglog-login__browser-hotspot" type="button"
-              onClick={installWebApp} aria-label="Instalar BigLog pelo navegador">
-              <MonitorDown className="biglog-login__download-icon" size={27} aria-hidden="true" />
-              <span className="biglog-login__download-copy"><strong>Instalar BigLog</strong><small>pelo navegador</small></span>
-              <Download className="biglog-login__download-action biglog-login__download-action--browser" size={22} aria-hidden="true" />
-            </button>
-          </nav>
-        ) : (
-          <span className="biglog-login__installed" role="status">BigLog instalado</span>
-        )}
-        {installHelp && <div role="status" className="biglog-login__install-help">
-          No Chrome ou Edge, abra o menu (⋮ ou ···) e procure por <strong>Instalar este site como aplicativo</strong> ou <strong>Apps → Instalar</strong>. No celular, utilize <strong>Adicionar à tela inicial</strong>.
-          <button type="button" onClick={() => setInstallHelp(false)} aria-label="Fechar instruções">×</button>
-        </div>}
-        {loading && <span className="biglog-login__checking" role="status">Verificando acesso…</span>}
+          <img
+            className="biglog-login__artwork"
+            src="/images/biglog-login-compact.avif"
+            width={1672}
+            height={940}
+            alt=""
+            draggable={false}
+          />
+          <section className="biglog-login__desktop-card" aria-labelledby="biglog-desktop-heading">
+            <h1 id="biglog-desktop-heading" className="biglog-login__desktop-heading">
+              <LockKeyhole size={26} aria-hidden="true" />
+              <span>Acesse sua conta</span>
+            </h1>
+
+            <form className="biglog-login__desktop-form" onSubmit={submitLogin}>
+              <label htmlFor="biglog-access-password">Senha de acesso</label>
+              <div className="biglog-login__desktop-field">
+                <input
+                  id="biglog-access-password"
+                  type={visible ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  maxLength={256}
+                  value={password}
+                  disabled={loading || busy}
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "biglog-login-error" : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisible(!visible)}
+                  aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {visible ? <EyeOff size={21} /> : <Eye size={21} />}
+                </button>
+              </div>
+              {error && <p id="biglog-login-error" role="alert" className="biglog-login__desktop-error">{error}</p>}
+              <button className="biglog-login__desktop-submit" type="submit" disabled={loading || busy}>
+                <LogIn size={22} aria-hidden="true" />
+                {loading ? "Verificando…" : busy ? "Entrando…" : "Entrar"}
+              </button>
+            </form>
+
+            {!runningAsApp ? (
+              <div className="biglog-login__desktop-install">
+                <h2>Use o BigLog como aplicativo</h2>
+                <div className="biglog-login__desktop-install-grid">
+                  <a
+                    className="biglog-login__desktop-install-choice"
+                    href="/downloads/BigLogno-Windows.exe"
+                    download="BigLogno-Windows.exe"
+                  >
+                    <svg className="biglog-login__windows-logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M1 3.4 10.8 2v9.4H1zm11-1.6L23 0v11.4H12zM1 12.6h9.8V22L1 20.6zm11 0h11V24l-11-1.7z" />
+                    </svg>
+                    <span className="biglog-login__desktop-install-copy">
+                      <strong>Baixar BigLog</strong>
+                      <small>para Windows</small>
+                    </span>
+                    <Download size={19} className="biglog-login__desktop-choice-action" aria-hidden="true" />
+                  </a>
+                  <button
+                    className="biglog-login__desktop-install-choice"
+                    type="button"
+                    onClick={installWebApp}
+                  >
+                    <MonitorDown size={24} className="biglog-login__desktop-choice-icon" aria-hidden="true" />
+                    <span className="biglog-login__desktop-install-copy">
+                      <strong>Instalar BigLog</strong>
+                      <small>pelo navegador</small>
+                    </span>
+                    <span className="biglog-login__desktop-choice-action" aria-hidden="true">↗</span>
+                  </button>
+                </div>
+                {installHelp && (
+                  <div className="biglog-login__desktop-install-help" role="status">
+                    No Chrome ou Edge, abra o menu e selecione <strong>Instalar aplicativo</strong>.
+                    <button type="button" onClick={() => setInstallHelp(false)} aria-label="Fechar instruções">×</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="biglog-login__desktop-installed" role="status">BigLog instalado</p>
+            )}
+          </section>
         </div>
-      </div>
+      </section>
 
       {/* Celular e tablet: interface responsiva, sem sobrepor controles à imagem desktop. */}
       <section className="biglog-login__mobile" aria-label="Acesso ao BigLog no celular">
