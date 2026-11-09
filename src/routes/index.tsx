@@ -82,13 +82,13 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Gestão de Logística — Bignotto Ferramentas" },
+      { title: "BigLog — Bignotto Ferramentas" },
       {
         name: "description",
         content:
           "Painel logístico operacional de fluxo físico de materiais da Bignotto Ferramentas.",
       },
-      { property: "og:title", content: "Gestão de Logística — Bignotto Ferramentas" },
+      { property: "og:title", content: "BigLog — Bignotto Ferramentas" },
       {
         property: "og:description",
         content:

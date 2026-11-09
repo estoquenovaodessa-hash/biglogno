@@ -1,127 +1,144 @@
-/* BigLog · login exclusivo. Nenhum estilo vaza para as telas autenticadas. */
-.biglog-access {
-  position: relative;
+/* Identidade BigLog — desktop pixel fiel à arte aprovada (1672 x 941).
+   A arte INTEIRA compõe a tela: o mascote não é mais uma imagem recortada.
+   Controles React acessíveis são alinhados aos elementos representados na arte. */
+.biglog-login {
   isolation: isolate;
-  display: flex;
   min-height: 100dvh;
+  position: relative;
+  display: grid;
+  place-items: center;
   overflow: hidden;
-  align-items: center;
-  justify-content: center;
-  border-top: 4px solid #ffb800;
-  background:
-    radial-gradient(ellipse at 25% 30%, #0c56b6 0%, transparent 42%),
-    radial-gradient(ellipse at 95% 7%, #125cb6 0%, transparent 40%),
-    linear-gradient(133deg, #061942 0%, #052c69 58%, #031640 100%);
-  color: #fff;
-  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+  background: #04255a;
+  color: white;
 }
-.biglog-access::before {
+.biglog-login::before {
   content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(150deg, transparent 0 20%, rgb(1 18 49 / 40%) 20% 34%, transparent 34% 74%, rgb(0 11 40 / 17%) 74%);
+  position: fixed;
+  inset: -35px;
   z-index: -1;
-}
-.biglog-access__glow {
-  position: absolute;
-  inset: auto -18% -38% 40%;
-  width: 80vw;
-  height: 50vw;
-  border-radius: 50%;
-  background: #075abb4d;
-  filter: blur(92px);
+  background: url('/images/biglog-login-approved.avif') center / cover no-repeat;
+  filter: blur(28px) brightness(.65);
   pointer-events: none;
-  z-index: -1;
 }
-.biglog-access__decor { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: #2493ff; z-index: -1; }
-.biglog-access__icon { position: absolute; opacity: .24; stroke-width: 1.25; }
-.biglog-access__icon--truck { width: 145px; height: 145px; top: 4%; left: 2%; }
-.biglog-access__icon--pin { width: 64px; height: 64px; top: 5%; left: 54%; }
-.biglog-access__icon--box { width: 82px; height: 82px; bottom: 12%; left: 49%; }
-.biglog-access__icon--route { width: 83px; height: 83px; bottom: 6%; right: 3%; }
-.biglog-access__layout { width: min(1530px, 100%); min-height: min(900px, 100dvh); margin: 0 auto; padding: clamp(22px, 3.5vw, 56px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; gap: clamp(10px, 2vw, 36px); }
-.biglog-access__content { width: 100%; max-width: 700px; margin: 0 auto; position: relative; z-index: 2; }
-.biglog-access__brand { display: flex; align-items: center; justify-content: center; gap: clamp(14px, 2vw, 26px); }
-.biglog-access__brand-mark { display: grid; place-items: center; width: clamp(86px, 8.5vw, 127px); height: clamp(86px, 8.5vw, 127px); overflow: hidden; border-radius: 18px; box-shadow: 0 14px 30px rgb(0 8 27 / 30%); }
-.biglog-access__brand-mark img { width: 100%; height: 100%; object-fit: cover; }
-.biglog-access__brand h1 { margin: 0; font-size: clamp(66px, 7vw, 108px); letter-spacing: -.075em; font-weight: 900; line-height: .98; white-space: nowrap; }
-.biglog-access__brand h1 span { color: #fff; }
-.biglog-access__brand h1 strong { color: #ffb800; font-weight: 900; }
-.biglog-access__underline { width: 65%; height: 8px; margin: 14px auto 31px; border-radius: 80% 35% 65% 15%; transform: rotate(-1.6deg); background: linear-gradient(90deg, #ffbf00, #ffa900 85%, transparent); }
-.biglog-access__panel { border: 2px solid #318bdbb8; border-radius: 28px; background: linear-gradient(145deg, rgb(17 84 166 / 72%), rgb(1 32 82 / 75%)); padding: clamp(23px, 3.2vw, 45px); box-shadow: 0 26px 70px rgb(0 9 35 / 42%), inset 0 1px rgb(255 255 255 / 12%); backdrop-filter: blur(14px); }
-.biglog-access__panel-title { display: flex; align-items: center; gap: 17px; margin: 0 0 24px; }
-.biglog-access__panel-title h2 { margin: 0; color: #fff; font-size: clamp(26px, 2.4vw, 36px); line-height: 1.15; font-weight: 800; letter-spacing: -.025em; }
-.biglog-access__lock { color: #ffc500; display: grid; place-items: center; }
-.biglog-access__label { display: block; margin-bottom: 10px; color: #f3f8ff; font-weight: 700; font-size: 19px; }
-.biglog-access__field { display: flex; align-items: center; height: 65px; border-radius: 14px; background: #fff; box-shadow: 0 5px 14px #001d4a5b; border: 2px solid #dbe7fa; overflow: hidden; }
-.biglog-access__field:focus-within { outline: 3px solid #ffd155; outline-offset: 3px; }
-.biglog-access__field input { display: block; width: 100%; min-width: 0; height: 100%; border: 0; padding: 0 20px; color: #0b234a; background: transparent; font-size: 19px; outline: none; }
-.biglog-access__show-password { display: grid; flex: 0 0 56px; place-items: center; height: 100%; border: 0; background: transparent; color: #41516a; cursor: pointer; }
-.biglog-access__show-password:hover { color: #003c90; }
-.biglog-access__error { margin: 10px 0 0; padding: 9px 13px; border-radius: 8px; background: #fff5f5; color: #ae1717; font-weight: 700; }
-.biglog-access__enter { width: 100%; height: 72px; display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 23px; border: 0; border-radius: 15px; background: linear-gradient(180deg, #ffe000, #ffb100); color: #053579; font-size: 29px; font-weight: 850; box-shadow: 0 7px 0 #d98b00, 0 13px 24px #001b449e; transition: transform .18s, box-shadow .18s, filter .18s; cursor: pointer; }
-.biglog-access__enter:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.04); }
-.biglog-access__enter:disabled { opacity: .7; cursor: wait; }
-.biglog-access__enter:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 3px 0 #d98b00, 0 7px 14px #001b449e; }
-.biglog-access__loading { margin: 18px 0; color: #eaf5ff; font-size: 18px; }
-.biglog-access__install { margin-top: 39px; }
-.biglog-access__section-heading { display: flex; gap: 15px; align-items: center; justify-content: center; margin-bottom: 19px; color: #fff; text-align: center; white-space: nowrap; font-size: clamp(16px, 1.5vw, 22px); font-weight: 850; }
-.biglog-access__section-heading::before,.biglog-access__section-heading::after { content: ""; flex: 1; height: 1px; background: #8db3dd80; }
-.biglog-access__install-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.biglog-access__download { display: flex; justify-content: center; align-items: center; gap: 11px; width: 100%; min-height: 88px; padding: 11px 14px; border: 2px solid #4fa1ec; border-radius: 17px; background: linear-gradient(165deg, #185db2, #002758); box-shadow: 0 8px 15px #001b4c63; color: #fff; text-decoration: none; cursor: pointer; transition: background .18s, transform .18s, border-color .18s; text-align: left; }
-.biglog-access__download:hover { color: #fff; transform: translateY(-3px); background: linear-gradient(165deg, #2170cf, #003b84); border-color: #85caff; }
-.biglog-access__download > svg:last-child { flex-shrink: 0; color: #ffbc00; }
-.biglog-access__app-icon { flex-shrink: 0; display: grid; place-items: center; width: 31px; height: 31px; }
-.biglog-access__app-icon svg { width: 31px; height: 31px; }
-.biglog-access__install-copy { display: flex; min-width: 0; flex-direction: column; flex: 1; line-height: 1.17; }
-.biglog-access__install-copy strong { font-size: clamp(15px, 1.35vw, 19px); font-weight: 800; }
-.biglog-access__install-copy small { margin-top: 4px; color: #ecf5ff; font-size: 15px; }
-.biglog-access__download--browser { font: inherit; }
-.biglog-access__download--browser > svg:first-child { flex-shrink: 0; color: #fff; }
-.biglog-access__note { margin: 18px 0 0; color: #bdd5f4; text-align: center; font-size: 12px; }
-.biglog-access__help { margin-top: 13px; border-radius: 10px; border: 1px solid #ffcc50; background: #fffbe8; color: #13345d; padding: 12px; font-size: 14px; }
-.biglog-access :is(button,a,input):focus-visible { outline: 3px solid #ffe36d; outline-offset: 3px; }
-.biglog-access__art { position: relative; width: 100%; max-width: 610px; min-height: 690px; margin: 0 auto; display: grid; place-items: center; }
-.biglog-access__art::before { content: ""; position: absolute; width: 88%; height: 77%; border: 4px solid #ffb400; border-radius: 56px; transform: rotate(-1.8deg); box-shadow: 0 0 60px #ffb4001f; }
-.biglog-access__art img { position: relative; display: block; width: min(100%, 540px); max-height: min(76dvh, 760px); aspect-ratio: 260/313; object-fit: cover; border-radius: 24px; filter: drop-shadow(0 15px 29px #0014395e); -webkit-mask-image: radial-gradient(ellipse 74% 75% at 50% 48%, #000 65%, transparent 100%); mask-image: radial-gradient(ellipse 74% 75% at 50% 48%, #000 65%, transparent 100%); }
-@media (max-width: 1120px) {
-  .biglog-access__layout { grid-template-columns: minmax(0,1fr) minmax(0,.75fr); padding: 26px; }
-  .biglog-access__art { min-height: 500px; }
-  .biglog-access__panel { padding: 24px; }
-  .biglog-access__install-options { grid-template-columns: 1fr; gap: 11px; }
-  .biglog-access__download { min-height: 64px; }
-  .biglog-access__brand h1 { font-size: clamp(58px, 6.8vw, 82px); }
+.biglog-login__scene {
+  position: relative;
+  aspect-ratio: 1672 / 941;
+  height: min(100dvh, 56.28vw);
+  width: auto;
+  max-width: 100vw;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: 0 6px 48px #001e4540;
 }
+.biglog-login__artwork {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+.biglog-login__desktop-form { position: absolute; inset: 0; margin: 0; }
+.biglog-login__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.biglog-login__password-wrap {
+  position: absolute;
+  left: 12.55%; top: 50.65%; width: 36.25%; height: 6.93%;
+  border-radius: 14px;
+}
+.biglog-login__password-wrap input {
+  display: block;
+  width: 100%; height: 100%;
+  border: 0; background: transparent;
+  border-radius: inherit;
+  padding: 0 12% 0 3%;
+  color: #192c4a;
+  font-size: clamp(13px, 1.25vw, 21px);
+  box-shadow: none;
+  outline: none;
+}
+.biglog-login__password-wrap:focus-within { outline: 3px solid #ffc21a; outline-offset: 2px; }
+.biglog-login__visibility-button {
+  position: absolute; right: 1%; top: 0; height: 100%; width: 11%;
+  border: 0; border-radius: 12px; background: transparent; cursor: pointer;
+}
+.biglog-login__submit-hotspot {
+  position: absolute;
+  left: 12.12%; top: 59.94%; width: 37.05%; height: 8.08%;
+  border: none; border-radius: 18px; background: transparent;
+  cursor: pointer; color: #083d79; font-size: clamp(14px, 1.7vw, 29px); font-weight: 800;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+.biglog-login__submit-hotspot:not(:disabled):hover { box-shadow: 0 0 0 3px #f9cf2d9c; }
+.biglog-login__submit-hotspot:active { transform: translateY(2px); }
+.biglog-login__submit-hotspot:disabled { cursor: progress; }
+.biglog-login__submit-hotspot span {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: linear-gradient(#ffe21c, #ffaf09); border-radius: inherit;
+}
+.biglog-login__error {
+  position: absolute; z-index: 3;
+  left: 12.5%; top: 57.7%; width: 36.2%;
+  margin: 0; padding: 2px 5px;
+  border-radius: 5px; background: #fff2f0; color: #b51620;
+  font-size: clamp(10px, .7vw, 13px); font-weight: 700; line-height: 1.15;
+}
+.biglog-login__desktop-install { position: absolute; inset: 0; pointer-events: none; }
+.biglog-login__download-hotspot, .biglog-login__browser-hotspot {
+  display: block; position: absolute; pointer-events: auto;
+  top: 76.95%; height: 9.1%; border: 0; border-radius: 18px;
+  background: transparent; cursor: pointer;
+  transition: box-shadow 120ms ease;
+}
+.biglog-login__download-hotspot { left: 10.88%; width: 19.30%; }
+.biglog-login__browser-hotspot { left: 31.45%; width: 19.30%; }
+.biglog-login__download-hotspot:hover, .biglog-login__browser-hotspot:hover { box-shadow: 0 0 0 3px #ffbc238c; }
+.biglog-login :is(button,a,input):focus-visible { outline: 3px solid #ffda3c; outline-offset: 2px; }
+.biglog-login__installed {
+  position: absolute; left: 11%; top: 76.6%; width: 40%; height: 10%;
+  display: grid; place-items: center; border-radius: 16px;
+  color: #fff; font-size: clamp(12px, 1.35vw, 23px); font-weight: 800;
+  background: linear-gradient(145deg,#074383,#00275e); border: 2px solid #6aabed;
+}
+.biglog-login__install-help {
+  position: absolute; z-index: 6;
+  left: 11%; top: 87%; width: 41%;
+  padding: 13px 38px 13px 13px; border: 2px solid #ffc019; border-radius: 12px;
+  color: #0a315d; background: #fffcef;
+  box-shadow: 0 6px 20px #001f4780; font-size: clamp(10px, .9vw, 15px);
+}
+.biglog-login__install-help button { position: absolute; top: 1px; right: 9px; border: 0; background: transparent; color: #113565; font-size: 25px; cursor: pointer; }
+.biglog-login__checking {
+  position: absolute; left: 15%; top: 47%; padding: 6px 12px;
+  border-radius: 8px; color: #03316f; background: #fff9e6;
+  font-size: clamp(11px, 1vw, 16px); font-weight: 700;
+}
+.biglog-login__mobile { display: none; }
+
+/* Em celular, um login realmente responsivo substitui a imagem desktop. */
 @media (max-width: 800px) {
-  .biglog-access { min-height: 100dvh; overflow-y: auto; }
-  .biglog-access__layout { display: block; min-height: 100dvh; padding: 26px 17px 34px; }
-  .biglog-access__content { max-width: 570px; }
-  .biglog-access__art { display: none; }
-  .biglog-access__brand-mark { width: 70px; height: 70px; border-radius: 12px; }
-  .biglog-access__brand h1 { font-size: clamp(51px, 11vw, 82px); }
-  .biglog-access__underline { margin-bottom: 24px; }
-  .biglog-access__panel { padding: clamp(19px, 5vw, 35px); border-radius: 23px; }
-  .biglog-access__enter { height: 63px; }
-  .biglog-access__install-options { grid-template-columns: 1fr; }
-  .biglog-access__install { margin-top: 30px; }
+  .biglog-login { display: block; min-height: 100dvh; padding: 28px 16px 42px; overflow-y: auto; background: radial-gradient(circle at 30% 10%, #0d4caa, transparent 60%), linear-gradient(140deg,#032c70,#05183c); }
+  .biglog-login::before { display: none; }
+  .biglog-login__scene { display: none; }
+  .biglog-login__mobile { display: block; width: min(100%, 530px); margin: 0 auto; }
+  .biglog-login__mobile-brand { display: flex; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: clamp(42px, 11vw, 68px); line-height: 1; font-weight: 900; letter-spacing: -.06em; }
+  .biglog-login__mobile-brand strong { color: #ffc007; }
+  .biglog-login__mobile-logo-mark { display: grid; place-items: center; height: 62px; width: 62px; border-radius: 15px; color: #ffc007; background: #174b8e; font-size: 55px; font-weight: 900; letter-spacing: -.10em; }
+  .biglog-login__mobile-form-card { margin-top: 25px; padding: 25px 21px; border: 2px solid #4093e5; border-radius: 24px; background: linear-gradient(135deg,#0c4f9b,#03265a); box-shadow: 0 16px 45px #00133366; }
+  .biglog-login__mobile-form-card h1 { margin: 0 0 22px; font-size: 28px; font-weight: 800; color: #fff; }
+  .biglog-login__mobile-form-card label { display: block; font-size: 17px; font-weight: 700; margin-bottom: 9px; }
+  .biglog-login__mobile-field { display: flex; width: 100%; background: #fff; border: 2px solid #d8e7fa; border-radius: 12px; height: 54px; overflow: hidden; }
+  .biglog-login__mobile-field:focus-within { outline: 3px solid #ffc21a; }
+  .biglog-login__mobile-field input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; padding: 0 16px; color: #16345a; font-size: 18px; }
+  .biglog-login__mobile-field button { flex: 0 0 52px; display: grid; place-items: center; border: 0; background: transparent; color: #3d516c; }
+  .biglog-login__mobile-submit { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 19px; width: 100%; height: 60px; border: 0; border-radius: 12px; color: #06316f; background: linear-gradient(#ffe125,#ffb100); font-size: 23px; font-weight: 850; box-shadow: 0 5px 0 #df9000; }
+  .biglog-login__mobile-submit:disabled { opacity: .65; }
+  .biglog-login__mobile-error { margin: 9px 0 0; color: #fff; background: #aa2222; border-radius: 6px; padding: 7px 10px; }
+  .biglog-login__mobile-install { margin-top: 29px; }
+  .biglog-login__mobile-install h2 { font-size: 19px; font-weight: 750; text-align: center; margin: 0 0 13px; }
+  .biglog-login__mobile-install :is(a,button) { display: flex; width: 100%; align-items: center; justify-content: center; gap: 10px; min-height: 54px; margin-top: 12px; border: 2px solid #4290d9; border-radius: 12px; background: linear-gradient(140deg,#1458ad,#003374); color: white; text-decoration: none; font-size: 16px; font-weight: 750; }
+  .biglog-login__mobile-help { border: 1px solid #ffc007; border-radius: 8px; padding: 10px; background: #fff8e5; color: #16395c; }
+  .biglog-login__mobile-mascot { width: 100%; height: 260px; margin-top: 25px; background: url('/images/biglog-login-approved.avif') right 14% top 33% / 145% auto no-repeat; -webkit-mask-image: linear-gradient(0deg,transparent,black 35%,black 90%,transparent); mask-image: linear-gradient(0deg,transparent,black 35%,black 90%,transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .biglog-access :is(button,a) { transition: none; }
-}
-
-/* Mascote de alta nitidez: sem máscara radial, blur ou ampliação agressiva. */
-.biglog-access__art::before { display: none; }
-.biglog-access__art img {
-  width: auto;
-  height: min(78dvh, 785px);
-  max-width: 100%;
-  max-height: none;
-  aspect-ratio: 530 / 895;
-  object-fit: contain;
-  border-radius: 24px;
-  -webkit-mask-image: none;
-  mask-image: none;
-  filter: none;
-  box-shadow: 0 20px 48px rgba(0, 8, 30, .28);
+  .biglog-login :is(button,a) { transition: none; }
 }

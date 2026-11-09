@@ -1,12 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  LockKeyhole, LogIn, Eye, EyeOff, Download, MonitorDown,
-  Truck, MapPin, Package, Route, ArrowUpRight,
-} from "lucide-react";
+import { Download, Eye, EyeOff, LogIn, MonitorDown } from "lucide-react";
 import { getAccess, unlockAccess } from "@/lib/access.functions";
 import type { AccessRole } from "@/lib/access-policy";
-import symbol from "@/assets/bignotto-symbol.png.asset.json";
 import "./access-gate.css";
 
 type InstallPromptEvent = Event & {
@@ -14,7 +10,11 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-/** Tela pública apenas visual; a autenticação continua sendo feita pelo servidor. */
+/**
+ * BigLog: composição fiel à arte aprovada, sem o antigo recorte retangular do mascote.
+ * A imagem é exclusivamente visual: autenticação, instalação, senha e downloads
+ * permanecem controles React reais, operados pelo teclado e com acessibilidade.
+ */
 export function AccessGate({ children }: { children: (role: AccessRole, onExit: () => void) => ReactNode }) {
   const [role, setRole] = useState<AccessRole | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,99 +75,129 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
     }
   }
 
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || loading) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await unlock({ data: { password } });
+      if (result.role) {
+        const verified = await get();
+        if (verified.role) {
+          setPassword("");
+          setRole(verified.role);
+        } else {
+          setError("Não foi possível manter seu acesso. Permita cookies e tente entrar novamente.");
+        }
+      } else {
+        setError(result.error ?? "Senha incorreta.");
+      }
+    } catch {
+      setError("Não foi possível entrar. Tente novamente.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (role) return children(role, () => { setRole(null); setPassword(""); setError(""); });
 
   return (
-    <main className="biglog-access">
-      <div className="biglog-access__glow" aria-hidden="true" />
-      <div className="biglog-access__decor" aria-hidden="true">
-        <Truck className="biglog-access__icon biglog-access__icon--truck" />
-        <MapPin className="biglog-access__icon biglog-access__icon--pin" />
-        <Package className="biglog-access__icon biglog-access__icon--box" />
-        <Route className="biglog-access__icon biglog-access__icon--route" />
-      </div>
-      <div className="biglog-access__layout">
-        <section className="biglog-access__content" aria-label="Acesso ao BigLog">
-          <header className="biglog-access__brand">
-            <span className="biglog-access__brand-mark">
-              <img src={symbol.url} alt="" />
-            </span>
-            <h1><span>Big</span><strong>Log</strong></h1>
-          </header>
-          <div className="biglog-access__underline" aria-hidden="true" />
-          <div className="biglog-access__panel">
-            <div className="biglog-access__panel-title">
-              <span className="biglog-access__lock"><LockKeyhole size={27} strokeWidth={2.5} /></span>
-              <h2>Acesse sua conta</h2>
-            </div>
-
-            {loading ? (
-              <p className="biglog-access__loading" role="status">Verificando acesso…</p>
-            ) : (
-              <form onSubmit={async (event) => {
-                event.preventDefault(); setBusy(true); setError("");
-                try {
-                  const result = await unlock({ data: { password } });
-                  if (result.role) {
-                    const verified = await get();
-                    if (verified.role) { setPassword(""); setRole(verified.role); }
-                    else setError("Não foi possível manter seu acesso. Permita cookies e tente entrar novamente.");
-                  } else setError(result.error ?? "Senha incorreta.");
-                } catch { setError("Não foi possível entrar. Tente novamente."); }
-                finally { setBusy(false); }
-              }}>
-                <label className="biglog-access__label" htmlFor="access-password">Senha de acesso</label>
-                <div className="biglog-access__field">
-                  <input
-                    id="access-password" type={visible ? "text" : "password"}
-                    autoComplete="current-password" required maxLength={256}
-                    value={password} onChange={(event) => setPassword(event.target.value)}
-                    aria-invalid={Boolean(error)}
-                    aria-describedby={error ? "biglog-access-error" : undefined}
-                  />
-                  <button type="button" className="biglog-access__show-password"
-                    onClick={() => setVisible(!visible)}
-                    aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-                  >{visible ? <EyeOff size={23} /> : <Eye size={23} />}</button>
-                </div>
-                {error && <p id="biglog-access-error" role="alert" className="biglog-access__error">{error}</p>}
-                <button type="submit" className="biglog-access__enter" disabled={busy}>
-                  <LogIn size={26} /><span>{busy ? "Entrando…" : "Entrar"}</span>
-                </button>
-              </form>
-            )}
-
-            {!runningAsApp && (
-              <section className="biglog-access__install" aria-label="Instalar BigLog">
-                <div className="biglog-access__section-heading"><span>Use o BigLog como aplicativo</span></div>
-                <div className="biglog-access__install-options">
-                  <a className="biglog-access__download" href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe">
-                    <span className="biglog-access__app-icon biglog-access__app-icon--win" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 3.3 10.7 2v9.3H1zm10.8-1.5L23 0v11.3H11.8zM1 12.4h9.7v9.3L1 20.4zm10.8 0H23V24l-11.2-1.7z"/></svg>
-                    </span>
-                    <span className="biglog-access__install-copy"><strong>Baixar BigLog</strong><small>para Windows</small></span>
-                    <Download size={24} aria-hidden="true" />
-                  </a>
-                  <button type="button" className="biglog-access__download biglog-access__download--browser" onClick={installWebApp}>
-                    <MonitorDown size={27} aria-hidden="true" />
-                    <span className="biglog-access__install-copy"><strong>Instalar BigLog</strong><small>pelo navegador</small></span>
-                    <ArrowUpRight size={24} aria-hidden="true" />
-                  </button>
-                </div>
-                {installHelp && (
-                  <p role="status" className="biglog-access__help">
-                    No Chrome ou Edge, abra o menu (⋮ ou ···) e procure por <strong>Instalar este site como aplicativo</strong> ou <strong>Apps → Instalar</strong>. No celular, use <strong>Adicionar à tela inicial</strong>.
-                  </p>
-                )}
-                <p className="biglog-access__note">O aplicativo precisa de internet para acessar os dados.</p>
-              </section>
-            )}
+    <main className="biglog-login" aria-label="Acesso BigLog">
+      {/* Desktop: uma única arte integral. Não há imagem retangular do mascote sobreposta. */}
+      <div className="biglog-login__scene">
+        <img
+          className="biglog-login__artwork"
+          src="/images/biglog-login-approved.avif"
+          width={1672} height={941}
+          alt="BigLog: identidade em azul e amarelo com mascote da Bignotto ao lado direito"
+        />
+        <form className="biglog-login__desktop-form" onSubmit={submitLogin}>
+          <label className="biglog-login__sr-only" htmlFor="biglog-access-password">Senha de acesso</label>
+          <div className="biglog-login__password-wrap">
+            <input
+              id="biglog-access-password"
+              type={visible ? "text" : "password"}
+              autoComplete="current-password"
+              required maxLength={256}
+              value={password}
+              disabled={loading || busy}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "biglog-login-error" : undefined}
+            />
+            <button type="button" onClick={() => setVisible(!visible)}
+              aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
+              className="biglog-login__visibility-button" />
           </div>
-        </section>
-        <aside className="biglog-access__art" aria-label="Mascote do BigLog">
-          <img src="/images/biglog-mascot.avif" width={530} height={895} alt="Mascote do BigLog dando sinal de positivo" />
-        </aside>
+          <button className="biglog-login__submit-hotspot" type="submit" disabled={loading || busy}
+            aria-label={loading ? "Verificando acesso" : busy ? "Entrando" : "Entrar"}>
+            {busy ? <span>Entrando…</span> : null}
+          </button>
+          {error && <p id="biglog-login-error" role="alert" className="biglog-login__error">{error}</p>}
+        </form>
+        {!runningAsApp ? (
+          <nav className="biglog-login__desktop-install" aria-label="Instalar BigLog">
+            <a className="biglog-login__download-hotspot"
+              href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe"
+              aria-label="Baixar BigLog para Windows" />
+            <button className="biglog-login__browser-hotspot" type="button"
+              onClick={installWebApp} aria-label="Instalar BigLog pelo navegador" />
+          </nav>
+        ) : (
+          <span className="biglog-login__installed" role="status">BigLog instalado</span>
+        )}
+        {installHelp && <div role="status" className="biglog-login__install-help">
+          No Chrome ou Edge, abra o menu (⋮ ou ···) e procure por <strong>Instalar este site como aplicativo</strong> ou <strong>Apps → Instalar</strong>. No celular, utilize <strong>Adicionar à tela inicial</strong>.
+          <button type="button" onClick={() => setInstallHelp(false)} aria-label="Fechar instruções">×</button>
+        </div>}
+        {loading && <span className="biglog-login__checking" role="status">Verificando acesso…</span>}
       </div>
+
+      {/* Celular/telas estreitas: controles reais em layout apropriado ao tamanho. */}
+      <section className="biglog-login__mobile">
+        <div className="biglog-login__mobile-brand" aria-label="BigLog">
+          <span className="biglog-login__mobile-logo-mark">B</span>
+          <span>Big<strong>Log</strong></span>
+        </div>
+        <div className="biglog-login__mobile-form-card">
+          <h1>Acesse sua conta</h1>
+          {loading ? <p role="status">Verificando acesso…</p> : (
+            <form onSubmit={submitLogin}>
+              <label htmlFor="biglog-mobile-password">Senha de acesso</label>
+              <div className="biglog-login__mobile-field">
+                <input
+                  id="biglog-mobile-password" type={visible ? "text" : "password"}
+                  value={password} required maxLength={256} autoComplete="current-password"
+                  disabled={busy} onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(error)}
+                />
+                <button type="button" onClick={() => setVisible(!visible)}
+                  aria-label={visible ? "Ocultar senha" : "Mostrar senha"}>
+                  {visible ? <EyeOff size={21} /> : <Eye size={21} />}
+                </button>
+              </div>
+              {error && <p className="biglog-login__mobile-error" role="alert">{error}</p>}
+              <button className="biglog-login__mobile-submit" type="submit" disabled={busy}>
+                <LogIn size={21} />{busy ? "Entrando…" : "Entrar"}
+              </button>
+            </form>
+          )}
+          {!runningAsApp && <section className="biglog-login__mobile-install" aria-label="Instalar BigLog">
+            <h2>Use o BigLog como aplicativo</h2>
+            <a href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe">
+              <Download size={20} /> Baixar BigLog para Windows
+            </a>
+            <button type="button" onClick={installWebApp}>
+              <MonitorDown size={20} /> Instalar pelo navegador
+            </button>
+            {installHelp && <p role="status" className="biglog-login__mobile-help">
+              Abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.
+            </p>}
+          </section>}
+        </div>
+        <div className="biglog-login__mobile-mascot" role="img" aria-label="Mascote BigLog" />
+      </section>
     </main>
   );
 }
