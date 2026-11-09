@@ -128,11 +128,11 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
             />
             <button type="button" onClick={() => setVisible(!visible)}
               aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-              className="biglog-login__visibility-button" />
+              className="biglog-login__visibility-button">{visible ? <EyeOff size={22} /> : <Eye size={22} />}</button>
           </div>
           <button className="biglog-login__submit-hotspot" type="submit" disabled={loading || busy}
             aria-label={loading ? "Verificando acesso" : busy ? "Entrando" : "Entrar"}>
-            {busy ? <span>Entrando…</span> : null}
+            <LogIn size={24} aria-hidden="true" /><span>{loading ? "Verificando…" : busy ? "Entrando…" : "Entrar"}</span>
           </button>
           {error && <p id="biglog-login-error" role="alert" className="biglog-login__error">{error}</p>}
         </form>
@@ -140,9 +140,17 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
           <nav className="biglog-login__desktop-install" aria-label="Instalar BigLog">
             <a className="biglog-login__download-hotspot"
               href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe"
-              aria-label="Baixar BigLog para Windows" />
+              aria-label="Baixar BigLog para Windows">
+              <span className="biglog-login__download-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 3.4 10.8 2v9.4H1zm11-1.6L23 0v11.4H12zM1 12.6h9.8V22L1 20.6zm11 0h11V24l-11-1.7z" /></svg></span>
+              <span className="biglog-login__download-copy"><strong>Baixar BigLog</strong><small>para Windows</small></span>
+              <Download className="biglog-login__download-action" size={23} aria-hidden="true" />
+            </a>
             <button className="biglog-login__browser-hotspot" type="button"
-              onClick={installWebApp} aria-label="Instalar BigLog pelo navegador" />
+              onClick={installWebApp} aria-label="Instalar BigLog pelo navegador">
+              <MonitorDown className="biglog-login__download-icon" size={27} aria-hidden="true" />
+              <span className="biglog-login__download-copy"><strong>Instalar BigLog</strong><small>pelo navegador</small></span>
+              <Download className="biglog-login__download-action biglog-login__download-action--browser" size={22} aria-hidden="true" />
+            </button>
           </nav>
         ) : (
           <span className="biglog-login__installed" role="status">BigLog instalado</span>

@@ -142,3 +142,64 @@
 @media (prefers-reduced-motion: reduce) {
   .biglog-login :is(button,a) { transition: none; }
 }
+/* v3: arte em tela inteira e botões reais com alinhamento uniforme. */
+@media (min-width: 801px) {
+  .biglog-login { width: 100%; min-height: 100dvh; padding: 0; }
+  .biglog-login::before { display: none; }
+  .biglog-login__scene {
+    width: 100%; height: 100dvh; min-height: 0;
+    max-width: none; max-height: none;
+    aspect-ratio: auto; overflow: hidden; box-shadow: none;
+  }
+  .biglog-login__artwork { width: 100%; height: 100%; object-fit: fill; }
+  .biglog-login__password-wrap { border-radius: clamp(8px, 1vw, 14px); }
+  .biglog-login__password-wrap input {
+    background: #f6f8fc; border: 2px solid #dce5f4;
+    border-radius: inherit; padding: 0 13% 0 3%;
+    font-size: clamp(14px, 1.35vw, 19px);
+  }
+  .biglog-login__visibility-button {
+    display: grid; place-items: center; color: #52627a;
+  }
+  .biglog-login__visibility-button:hover { color: #052d70; }
+  .biglog-login__submit-hotspot {
+    display: flex; justify-content: center; align-items: center; gap: 12px;
+    background: linear-gradient(180deg, #ffe024, #ffad00);
+    border: 1px solid #ffe479; border-radius: clamp(8px, 1.05vw, 15px);
+    box-shadow: inset 0 1px rgba(255,255,255,.40), 0 4px 0 #dc9000;
+    font-size: clamp(17px, 1.8vw, 25px); font-weight: 850;
+  }
+  .biglog-login__submit-hotspot span { position: static; inset: auto; display: inline; background: none; border-radius: 0; }
+  .biglog-login__submit-hotspot:hover:not(:disabled) { filter: brightness(1.04); box-shadow: 0 4px 0 #dc9000, 0 0 0 2px #ffe12b66; }
+  .biglog-login__desktop-install {
+    inset: auto; position: absolute;
+    left: 10.88%; top: 76.95%; width: 39.87%; height: 9.1%;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3.18%; align-items: stretch; pointer-events: auto;
+  }
+  .biglog-login__download-hotspot, .biglog-login__browser-hotspot {
+    position: relative; inset: auto; left: auto; top: auto;
+    box-sizing: border-box;
+    display: flex; flex-direction: row; justify-content: center;
+    align-items: center; gap: clamp(5px, 0.9vw, 12px);
+    width: 100%; height: 100%; min-width: 0; min-height: 0;
+    padding: clamp(4px, 0.6vw, 10px) clamp(6px, .85vw, 13px);
+    border: 2px solid #69b9ff;
+    border-radius: clamp(7px, .9vw, 14px);
+    background: linear-gradient(155deg, #1755a1, #00316e);
+    color: #fff; text-align: left; text-decoration: none;
+    box-shadow: 0 4px 12px rgb(0 12 47 / 28%);
+    font: inherit; cursor: pointer;
+  }
+  .biglog-login__download-hotspot:hover, .biglog-login__browser-hotspot:hover {
+    border-color: #c3e7ff; background: linear-gradient(160deg,#1e69bd,#003975);
+    color: #fff; box-shadow: 0 0 0 2px #ffbc2380;
+  }
+  .biglog-login__download-icon { flex: none; width: clamp(18px, 2vw, 28px); height: clamp(18px, 2vw, 28px); color: #fff; }
+  .biglog-login__download-icon svg { display: block; width: 100%; height: 100%; }
+  .biglog-login__download-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: center; gap: 2px; line-height: 1.08; }
+  .biglog-login__download-copy strong { font-size: clamp(11px, 1.15vw, 18px); font-weight: 850; white-space: nowrap; }
+  .biglog-login__download-copy small { font-size: clamp(10px, .94vw, 15px); color: #eaf4ff; white-space: nowrap; }
+  .biglog-login__download-action { flex: none; color: #ffd039; width: clamp(16px,1.65vw,24px); height: clamp(16px,1.65vw,24px); }
+  .biglog-login__download-action--browser { transform: rotate(-135deg); }
+}
