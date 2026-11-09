@@ -277,59 +277,49 @@
 @media (prefers-reduced-motion: reduce) {
   .biglog-login :is(button,a) { transition: none; }
 }
-/* BigLog v4 — controles transparentes sobre a ARTE INTEGRAL.
-   A imagem já contém os botões: não desenhar botões duplicados sobre ela.
-   Coordenadas em % vêm da imagem original (1672 × 941) e acompanham seu
-   redimensionamento até ocupar toda a janela. */
+
+/* v5 desktop: fundo continua em tela cheia; arte com card e mascote mais compactos.
+   A imagem nativa (1672×940) está em cover mantendo proporção. Os hotspots
+   são relativos à MESMA composição e não exibem uma segunda camada de botões. */
 @media (min-width: 1025px) {
   .biglog-login { width: 100%; min-height: 100dvh; padding: 0; }
   .biglog-login::before { display: none; }
   .biglog-login__scene {
-    width: 100%; height: 100dvh; min-height: 0;
-    max-width: none; max-height: none; aspect-ratio: auto;
-    overflow: hidden; box-shadow: none;
+    position: relative; width: 100%; height: 100dvh;
+    min-height: 0; max-width: none; max-height: none;
+    aspect-ratio: auto; overflow: hidden; box-shadow: none;
   }
-  /* A composição mantém a proporção nativa (1672×941), sem achatar o mascote ou esticar o logo.
-     As áreas clicáveis continuam dimensionadas em % desta mesma composição,
-     acompanhando a arte inclusive quando ela é recortada pelo viewport. */
   .biglog-login__composition {
     position: absolute;
-    left: 50%;
-    top: 50%;
-    width: max(100%, 177.6833dvh);
-    aspect-ratio: 1672 / 941;
+    left: 50%; top: 50%;
+    width: max(100%, 177.8724dvh);
+    aspect-ratio: 1672 / 940;
     transform: translate(-50%, -50%);
   }
   .biglog-login__artwork {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+    display: block; width: 100%; height: 100%;
+    object-fit: contain; user-select: none; pointer-events: none;
   }
-
-  /* Entrada real sobre o campo branco já desenhado na arte. */
   .biglog-login__password-wrap {
-    left: 12.7%; top: 51.45%; width: 36.9%; height: 6.85%;
-    border-radius: clamp(8px, 1vw, 15px);
+    left: 21.32%; top: 47.24%; width: 24.17%; height: 5.42%;
+    border-radius: clamp(8px, .8vw, 13px);
   }
   .biglog-login__password-wrap input {
-    width: 100%; height: 100%; border: 0; box-shadow: none;
-    background: transparent; border-radius: inherit;
-    padding: 0 12% 0 3%; color: #152b4d;
-    font-size: clamp(14px, 1.25vw, 21px);
+    width: 100%; height: 100%;
+    border: 0; background: transparent; box-shadow: none;
+    border-radius: inherit; padding: 0 13% 0 3%;
+    color: #152b4d; font-size: clamp(13px, 1.08vw, 18px);
   }
   .biglog-login__visibility-button {
-    display: block; right: .7%; top: 0; width: 11%; height: 100%;
-    border: 0; background: transparent; cursor: pointer;
+    display: block; position: absolute; right: .7%; top: 0;
+    width: 10%; height: 100%; border: 0; background: transparent; cursor: pointer;
   }
   .biglog-login__visibility-button > * { display: none; }
-
-  /* Hotspot alinhado ao botão amarelo desenhado na arte, sem segunda camada. */
   .biglog-login__submit-hotspot {
-    left: 12.35%; top: 60.95%; width: 37.5%; height: 7.65%;
-    display: block; border: 0; border-radius: clamp(8px, 1vw, 16px);
-    padding: 0; background: transparent; box-shadow: none;
-    cursor: pointer; transition: box-shadow .14s ease;
+    left: 20.94%; top: 54.04%; width: 24.97%; height: 6.25%;
+    display: block; padding: 0; border: 0; border-radius: clamp(8px, .95vw, 14px);
+    background: transparent; box-shadow: none; cursor: pointer;
+    transition: box-shadow .14s ease;
   }
   .biglog-login__submit-hotspot > * { display: none; }
   .biglog-login__submit-hotspot:hover:not(:disabled) { box-shadow: inset 0 0 0 2px #fff6b8; }
@@ -337,41 +327,46 @@
   .biglog-login__submit-hotspot:disabled::after {
     content: "Aguarde…"; position: absolute; inset: 0;
     display: grid; place-items: center; border-radius: inherit;
-    background: linear-gradient(#ffe222, #ffb000);
-    color: #062f6a; font-weight: 800; font-size: clamp(14px, 1.5vw, 25px);
+    background: linear-gradient(#ffe222, #ffb000); color: #062f6a;
+    font-weight: 800; font-size: clamp(12px, 1.3vw, 20px);
   }
-
-  /* Cada botão da arte tem área clicável nas coordenadas da própria imagem. */
   .biglog-login__desktop-install {
     position: absolute; inset: 0;
-    display: block; width: auto; height: auto;
-    pointer-events: none;
+    display: block; width: auto; height: auto; pointer-events: none;
   }
   .biglog-login__download-hotspot,
   .biglog-login__browser-hotspot {
-    position: absolute; box-sizing: border-box;
-    display: block; top: 78.15%; height: 9.2%;
-    width: 19.43%; min-width: 0; min-height: 0;
-    padding: 0; border: 0; border-radius: clamp(7px, 1.1vw, 16px);
+    display: block; position: absolute; box-sizing: border-box;
+    top: 65.42%; height: 6.10%; width: 12.52%;
+    min-width: 0; min-height: 0; padding: 0;
+    border: 0; border-radius: clamp(6px, .8vw, 13px);
     background: transparent; box-shadow: none; color: transparent;
-    font: inherit; cursor: pointer; text-decoration: none;
+    text-decoration: none; font: inherit; cursor: pointer;
     pointer-events: auto; transition: box-shadow .14s ease;
   }
-  .biglog-login__download-hotspot { left: 11.1%; }
-  .biglog-login__browser-hotspot { left: 31.98%; }
-  /* Ícones e textos já são parte da arte; ocultar a cópia JSX. */
+  .biglog-login__download-hotspot { left: 20.42%; }
+  .biglog-login__browser-hotspot { left: 33.65%; width: 12.8%; }
   .biglog-login__download-hotspot > *,
   .biglog-login__browser-hotspot > * { display: none; }
   .biglog-login__download-hotspot:hover,
-  .biglog-login__browser-hotspot:hover {
-    color: transparent; border: 0; background: transparent;
-    box-shadow: inset 0 0 0 2px #d1ebff;
-  }
+  .biglog-login__browser-hotspot:hover { box-shadow: inset 0 0 0 2px #d1ebff; }
   .biglog-login__download-hotspot:active,
-  .biglog-login__browser-hotspot:active {
-    box-shadow: inset 0 0 0 3px #ffc629;
+  .biglog-login__browser-hotspot:active { box-shadow: inset 0 0 0 3px #ffc629; }
+  .biglog-login__error {
+    left: 21.2%; top: 60.5%; width: 24.3%; padding: 4px 6px;
+    font-size: clamp(10px, .77vw, 13px); line-height: 1.14;
   }
-  /* Controles mantêm os rótulos acessíveis no React. */
+  .biglog-login__installed {
+    left: 20.5%; top: 65.5%; width: 25.7%; height: 6.2%;
+    border-radius: 12px; font-size: clamp(12px, 1.2vw, 18px);
+  }
+  .biglog-login__install-help {
+    left: 20.5%; top: 72.5%; width: 25.7%;
+    font-size: clamp(11px, .77vw, 14px);
+  }
+  .biglog-login__checking {
+    left: 22%; top: 42.4%; font-size: clamp(11px, .9vw, 15px);
+  }
   .biglog-login :is(button, a, input):focus-visible {
     outline: 3px solid #ffda3c; outline-offset: 3px;
   }

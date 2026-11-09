@@ -109,8 +109,8 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
         <div className="biglog-login__composition">
         <img
           className="biglog-login__artwork"
-          src="/images/biglog-login-approved.avif"
-          width={1672} height={941}
+          src="/images/biglog-login-compact.avif"
+          width={1672} height={940}
           alt="BigLog: identidade em azul e amarelo com mascote da Bignotto ao lado direito"
         />
         <form className="biglog-login__desktop-form" onSubmit={submitLogin}>
