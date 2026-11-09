@@ -3,5 +3,8 @@
   "name": "biglogno",
   "compatibility_date": "2026-10-23",
   "main": "@tanstack/react-start/server-entry",
-  "observability": { "enabled": true }
+  "observability": {
+    "enabled": true
+  },
+  "keep_vars": true
 }
