@@ -106,6 +106,7 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
     <main className="biglog-login" aria-label="Acesso BigLog">
       {/* Desktop: uma única arte integral. Não há imagem retangular do mascote sobreposta. */}
       <div className="biglog-login__scene">
+        <div className="biglog-login__composition">
         <img
           className="biglog-login__artwork"
           src="/images/biglog-login-approved.avif"
@@ -160,6 +161,7 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
           <button type="button" onClick={() => setInstallHelp(false)} aria-label="Fechar instruções">×</button>
         </div>}
         {loading && <span className="biglog-login__checking" role="status">Verificando acesso…</span>}
+        </div>
       </div>
 
       {/* Celular e tablet: interface responsiva, sem sobrepor controles à imagem desktop. */}

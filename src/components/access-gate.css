@@ -289,7 +289,23 @@
     max-width: none; max-height: none; aspect-ratio: auto;
     overflow: hidden; box-shadow: none;
   }
-  .biglog-login__artwork { width: 100%; height: 100%; object-fit: fill; }
+  /* A composição mantém a proporção nativa (1672×941), sem achatar o mascote ou esticar o logo.
+     As áreas clicáveis continuam dimensionadas em % desta mesma composição,
+     acompanhando a arte inclusive quando ela é recortada pelo viewport. */
+  .biglog-login__composition {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 177.6833dvh);
+    aspect-ratio: 1672 / 941;
+    transform: translate(-50%, -50%);
+  }
+  .biglog-login__artwork {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
 
   /* Entrada real sobre o campo branco já desenhado na arte. */
   .biglog-login__password-wrap {
