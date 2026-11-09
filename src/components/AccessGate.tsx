@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Eye, EyeOff, LogIn, MonitorDown } from "lucide-react";
+import { Download, Eye, EyeOff, LogIn, MonitorDown, LockKeyhole } from "lucide-react";
 import { getAccess, unlockAccess } from "@/lib/access.functions";
 import type { AccessRole } from "@/lib/access-policy";
 import "./access-gate.css";
@@ -162,49 +162,85 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
         {loading && <span className="biglog-login__checking" role="status">Verificando acesso…</span>}
       </div>
 
-      {/* Celular/telas estreitas: controles reais em layout apropriado ao tamanho. */}
-      <section className="biglog-login__mobile">
-        <div className="biglog-login__mobile-brand" aria-label="BigLog">
-          <span className="biglog-login__mobile-logo-mark">B</span>
-          <span>Big<strong>Log</strong></span>
-        </div>
+      {/* Celular e tablet: interface responsiva, sem sobrepor controles à imagem desktop. */}
+      <section className="biglog-login__mobile" aria-label="Acesso ao BigLog no celular">
+        <header className="biglog-login__mobile-header">
+          <div className="biglog-login__mobile-brand" aria-label="BigLog — Bignotto Ferramentas">
+            <img className="biglog-login__mobile-logo-mark" src="/favicon.png" alt="" width={64} height={64} />
+            <div className="biglog-login__mobile-wordmark">
+              <span>Big<strong>Log</strong></span>
+              <small>BIGNOTTO FERRAMENTAS</small>
+            </div>
+          </div>
+        </header>
+
         <div className="biglog-login__mobile-form-card">
-          <h1>Acesse sua conta</h1>
-          {loading ? <p role="status">Verificando acesso…</p> : (
+          <div className="biglog-login__mobile-card-heading">
+            <span className="biglog-login__mobile-lock" aria-hidden="true"><LockKeyhole size={23} /></span>
+            <div>
+              <h1>Acesse sua conta</h1>
+              <p>Entre para acessar o BigLog.</p>
+            </div>
+          </div>
+          {loading ? (
+            <p className="biglog-login__mobile-loading" role="status">Verificando acesso…</p>
+          ) : (
             <form onSubmit={submitLogin}>
               <label htmlFor="biglog-mobile-password">Senha de acesso</label>
               <div className="biglog-login__mobile-field">
                 <input
-                  id="biglog-mobile-password" type={visible ? "text" : "password"}
-                  value={password} required maxLength={256} autoComplete="current-password"
-                  disabled={busy} onChange={(event) => setPassword(event.target.value)}
+                  id="biglog-mobile-password"
+                  type={visible ? "text" : "password"}
+                  value={password}
+                  required
+                  maxLength={256}
+                  autoComplete="current-password"
+                  disabled={busy}
+                  onChange={(event) => setPassword(event.target.value)}
                   aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "biglog-mobile-error" : undefined}
                 />
                 <button type="button" onClick={() => setVisible(!visible)}
                   aria-label={visible ? "Ocultar senha" : "Mostrar senha"}>
-                  {visible ? <EyeOff size={21} /> : <Eye size={21} />}
+                  {visible ? <EyeOff size={22} /> : <Eye size={22} />}
                 </button>
               </div>
-              {error && <p className="biglog-login__mobile-error" role="alert">{error}</p>}
+              {error && <p className="biglog-login__mobile-error" id="biglog-mobile-error" role="alert">{error}</p>}
               <button className="biglog-login__mobile-submit" type="submit" disabled={busy}>
-                <LogIn size={21} />{busy ? "Entrando…" : "Entrar"}
+                <LogIn size={22} aria-hidden="true" />{busy ? "Entrando…" : "Entrar"}
               </button>
             </form>
           )}
-          {!runningAsApp && <section className="biglog-login__mobile-install" aria-label="Instalar BigLog">
-            <h2>Use o BigLog como aplicativo</h2>
-            <a href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe">
-              <Download size={20} /> Baixar BigLog para Windows
-            </a>
-            <button type="button" onClick={installWebApp}>
-              <MonitorDown size={20} /> Instalar pelo navegador
-            </button>
-            {installHelp && <p role="status" className="biglog-login__mobile-help">
-              Abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.
-            </p>}
-          </section>}
+
+          {!runningAsApp && (
+            <section className="biglog-login__mobile-install" aria-label="Instalar BigLog">
+              <h2>Use o BigLog como aplicativo</h2>
+              <button className="biglog-login__mobile-install-primary" type="button" onClick={installWebApp}>
+                <MonitorDown size={22} aria-hidden="true" />
+                <span>Instalar pelo navegador</span>
+              </button>
+              <a className="biglog-login__mobile-install-secondary" href="/downloads/BigLogno-Windows.exe" download="BigLogno-Windows.exe">
+                <Download size={20} aria-hidden="true" />
+                <span>Baixar para Windows</span>
+              </a>
+              {installHelp && (
+                <p role="status" className="biglog-login__mobile-help">
+                  No Chrome ou Edge, abra o menu do navegador e escolha <strong>Instalar aplicativo</strong>.
+                  No celular, procure também <strong>Adicionar à tela inicial</strong>.
+                </p>
+              )}
+            </section>
+          )}
         </div>
-        <div className="biglog-login__mobile-mascot" role="img" aria-label="Mascote BigLog" />
+
+        <footer className="biglog-login__mobile-signature">
+          <div className="biglog-login__mobile-signature-copy">
+            <strong>BigLog</strong>
+            <span>Bignotto Ferramentas</span>
+            <small>Precisa de internet para acessar os dados.</small>
+          </div>
+          <img src="/images/biglog-mascot.avif" alt="Mascote da Bignotto" width={94} height={159} loading="lazy" />
+        </footer>
       </section>
     </main>
   );

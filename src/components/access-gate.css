@@ -114,30 +114,165 @@
 }
 .biglog-login__mobile { display: none; }
 
-/* Em celular, um login realmente responsivo substitui a imagem desktop. */
-@media (max-width: 800px) {
-  .biglog-login { display: block; min-height: 100dvh; padding: 28px 16px 42px; overflow-y: auto; background: radial-gradient(circle at 30% 10%, #0d4caa, transparent 60%), linear-gradient(140deg,#032c70,#05183c); }
+/* Modo celular/tablet: não utilizar a imagem desktop com hotspots. */
+@media (max-width: 1024px) {
+  .biglog-login {
+    display: block;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: max(22px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    overflow: visible;
+    background:
+      radial-gradient(ellipse at 11% -4%, rgba(32, 116, 230, .58), transparent 51%),
+      radial-gradient(ellipse at 101% 93%, rgba(0, 92, 198, .28), transparent 55%),
+      linear-gradient(160deg, #061a48 0%, #082f71 48%, #03183e 100%);
+    color: white;
+  }
   .biglog-login::before { display: none; }
   .biglog-login__scene { display: none; }
-  .biglog-login__mobile { display: block; width: min(100%, 530px); margin: 0 auto; }
-  .biglog-login__mobile-brand { display: flex; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: clamp(42px, 11vw, 68px); line-height: 1; font-weight: 900; letter-spacing: -.06em; }
-  .biglog-login__mobile-brand strong { color: #ffc007; }
-  .biglog-login__mobile-logo-mark { display: grid; place-items: center; height: 62px; width: 62px; border-radius: 15px; color: #ffc007; background: #174b8e; font-size: 55px; font-weight: 900; letter-spacing: -.10em; }
-  .biglog-login__mobile-form-card { margin-top: 25px; padding: 25px 21px; border: 2px solid #4093e5; border-radius: 24px; background: linear-gradient(135deg,#0c4f9b,#03265a); box-shadow: 0 16px 45px #00133366; }
-  .biglog-login__mobile-form-card h1 { margin: 0 0 22px; font-size: 28px; font-weight: 800; color: #fff; }
-  .biglog-login__mobile-form-card label { display: block; font-size: 17px; font-weight: 700; margin-bottom: 9px; }
-  .biglog-login__mobile-field { display: flex; width: 100%; background: #fff; border: 2px solid #d8e7fa; border-radius: 12px; height: 54px; overflow: hidden; }
-  .biglog-login__mobile-field:focus-within { outline: 3px solid #ffc21a; }
-  .biglog-login__mobile-field input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; padding: 0 16px; color: #16345a; font-size: 18px; }
-  .biglog-login__mobile-field button { flex: 0 0 52px; display: grid; place-items: center; border: 0; background: transparent; color: #3d516c; }
-  .biglog-login__mobile-submit { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 19px; width: 100%; height: 60px; border: 0; border-radius: 12px; color: #06316f; background: linear-gradient(#ffe125,#ffb100); font-size: 23px; font-weight: 850; box-shadow: 0 5px 0 #df9000; }
-  .biglog-login__mobile-submit:disabled { opacity: .65; }
-  .biglog-login__mobile-error { margin: 9px 0 0; color: #fff; background: #aa2222; border-radius: 6px; padding: 7px 10px; }
-  .biglog-login__mobile-install { margin-top: 29px; }
-  .biglog-login__mobile-install h2 { font-size: 19px; font-weight: 750; text-align: center; margin: 0 0 13px; }
-  .biglog-login__mobile-install :is(a,button) { display: flex; width: 100%; align-items: center; justify-content: center; gap: 10px; min-height: 54px; margin-top: 12px; border: 2px solid #4290d9; border-radius: 12px; background: linear-gradient(140deg,#1458ad,#003374); color: white; text-decoration: none; font-size: 16px; font-weight: 750; }
-  .biglog-login__mobile-help { border: 1px solid #ffc007; border-radius: 8px; padding: 10px; background: #fff8e5; color: #16395c; }
-  .biglog-login__mobile-mascot { width: 100%; height: 260px; margin-top: 25px; background: url('/images/biglog-login-approved.avif') right 14% top 33% / 145% auto no-repeat; -webkit-mask-image: linear-gradient(0deg,transparent,black 35%,black 90%,transparent); mask-image: linear-gradient(0deg,transparent,black 35%,black 90%,transparent); }
+  .biglog-login__mobile {
+    display: block;
+    width: min(100%, 480px);
+    margin: 0 auto;
+  }
+  .biglog-login__mobile-header { padding: 10px 2px 23px; }
+  .biglog-login__mobile-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    gap: clamp(11px, 3vw, 17px);
+    letter-spacing: normal;
+  }
+  .biglog-login__mobile-logo-mark {
+    display: block;
+    flex: 0 0 auto;
+    width: clamp(52px, 15vw, 66px);
+    height: clamp(52px, 15vw, 66px);
+    border-radius: 12px;
+    object-fit: contain;
+    background: #173b79;
+    box-shadow: 0 6px 18px #0012346b;
+  }
+  .biglog-login__mobile-wordmark { display: flex; flex-direction: column; min-width: 0; }
+  .biglog-login__mobile-wordmark > span {
+    color: #fff; font-weight: 900;
+    font-size: clamp(44px, 12.5vw, 65px);
+    line-height: .99; letter-spacing: -.075em; white-space: nowrap;
+  }
+  .biglog-login__mobile-wordmark strong { color: #ffc31a; font-weight: 900; }
+  .biglog-login__mobile-wordmark small {
+    margin-top: 5px; font-size: clamp(9px, 2.45vw, 12px);
+    font-weight: 800; letter-spacing: .14em; color: #b9d6fc; white-space: nowrap;
+  }
+  .biglog-login__mobile-form-card {
+    margin: 0;
+    padding: clamp(20px, 5vw, 29px);
+    border: 1.5px solid #4b9feb;
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(20, 88, 175, .95), rgba(4, 37, 94, .97));
+    box-shadow: 0 18px 45px rgba(0, 10, 37, .36), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .biglog-login__mobile-card-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .biglog-login__mobile-lock {
+    display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px;
+    border-radius: 12px; color: #ffce1c; background: rgba(0, 34, 92, .54);
+  }
+  .biglog-login__mobile-card-heading h1 {
+    margin: 0; color: #fff; font-weight: 850;
+    font-size: clamp(23px, 6.1vw, 29px); line-height: 1.16;
+  }
+  .biglog-login__mobile-card-heading p {
+    margin: 4px 0 0; color: #cee4ff; font-size: 13px; line-height: 1.3;
+  }
+  .biglog-login__mobile-form-card label {
+    display: block; margin: 0 0 9px;
+    color: #fff; font-size: 15px; font-weight: 750;
+  }
+  .biglog-login__mobile-field {
+    display: flex; width: 100%; height: 56px;
+    background: #fff; border: 2px solid #e2ebfa; border-radius: 12px;
+    overflow: hidden; box-shadow: 0 4px 12px rgba(0, 18, 58, .17);
+  }
+  .biglog-login__mobile-field:focus-within { outline: 3px solid #ffd348; outline-offset: 3px; }
+  .biglog-login__mobile-field input {
+    display: block; width: 100%; min-width: 0; flex: 1;
+    padding: 0 14px; background: transparent;
+    border: 0; outline: none; color: #152a4e; font-size: 16px;
+  }
+  .biglog-login__mobile-field button {
+    flex: 0 0 54px; display: grid; place-items: center;
+    border: 0; background: transparent; color: #405673; cursor: pointer;
+  }
+  .biglog-login__mobile-submit {
+    display: flex; align-items: center; justify-content: center; gap: 11px;
+    width: 100%; min-height: 58px; margin-top: 20px;
+    padding: 10px 16px; border: 0; border-radius: 12px;
+    background: linear-gradient(180deg, #ffdf28, #ffb100);
+    color: #092c61; font-size: 21px; font-weight: 850;
+    box-shadow: 0 4px 0 #d99000; cursor: pointer;
+  }
+  .biglog-login__mobile-submit:disabled { opacity: .7; cursor: wait; }
+  .biglog-login__mobile-error {
+    margin: 11px 0 0; padding: 10px 12px;
+    border-radius: 9px; background: #fff5f4;
+    color: #a21b1b; font-size: 13px; line-height: 1.35; font-weight: 700;
+  }
+  .biglog-login__mobile-loading { margin: 0; padding: 16px 0; font-size: 16px; }
+  .biglog-login__mobile-install { margin-top: 32px; border-top: 1px solid rgba(174, 210, 251, .37); padding-top: 20px; }
+  .biglog-login__mobile-install h2 {
+    margin: 0 0 14px; font-size: clamp(15px, 4.4vw, 17px);
+    font-weight: 800; text-align: center; color: #f8fbff;
+  }
+  .biglog-login__mobile-install-primary,
+  .biglog-login__mobile-install-secondary {
+    display: flex; align-items: center; justify-content: center; gap: 11px;
+    width: 100%; min-height: 54px; box-sizing: border-box;
+    padding: 10px 14px; border-radius: 12px;
+    text-decoration: none; text-align: center;
+    font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
+  }
+  .biglog-login__mobile-install-primary {
+    color: #fff; border: 1.5px solid #77c4ff;
+    background: linear-gradient(150deg, #1e67bc, #06438d);
+  }
+  .biglog-login__mobile-install-secondary {
+    margin-top: 10px; color: #e5f2ff;
+    border: 1px solid rgba(137, 191, 249, .6);
+    background: rgba(0, 30, 75, .35);
+  }
+  .biglog-login__mobile-install-secondary:hover,
+  .biglog-login__mobile-install-primary:hover { color: #fff; border-color: #ffcb2b; }
+  .biglog-login__mobile-help {
+    margin: 13px 0 0; padding: 13px; border-radius: 10px;
+    color: #14345f; background: #fff9e9; font-size: 13px; line-height: 1.45;
+  }
+  .biglog-login__mobile-signature {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%; min-height: 112px; margin-top: 18px; padding: 10px 15px 10px 18px;
+    overflow: hidden; border-radius: 18px;
+    border: 1px solid rgba(88, 158, 230, .54);
+    background: linear-gradient(115deg, #0a397b 0%, #0d4b92 55%, #0b3370 100%);
+  }
+  .biglog-login__mobile-signature-copy { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+  .biglog-login__mobile-signature-copy strong { color: #ffca27; font-weight: 900; font-size: 20px; }
+  .biglog-login__mobile-signature-copy span { color: #fff; font-size: 14px; font-weight: 750; }
+  .biglog-login__mobile-signature-copy small { color: #b8d4f4; font-size: 11px; max-width: 175px; line-height: 1.3; }
+  .biglog-login__mobile-signature img {
+    display: block; width: auto; height: 102px; flex-shrink: 0;
+    object-fit: contain; border-radius: 8px;
+  }
+  .biglog-login__mobile :is(button, a, input):focus-visible { outline: 3px solid #ffcf2e; outline-offset: 3px; }
+}
+@media (max-width: 359px) {
+  .biglog-login { padding-left: 12px; padding-right: 12px; }
+  .biglog-login__mobile-form-card { padding: 18px; }
+  .biglog-login__mobile-logo-mark { width: 48px; height: 48px; }
+  .biglog-login__mobile-wordmark > span { font-size: 42px; }
+  .biglog-login__mobile-wordmark small { font-size: 9px; letter-spacing: .09em; }
+  .biglog-login__mobile-card-heading { gap: 9px; }
+  .biglog-login__mobile-lock { flex-basis: 37px; width: 37px; height: 37px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .biglog-login :is(button,a) { transition: none; }
@@ -146,7 +281,7 @@
    A imagem já contém os botões: não desenhar botões duplicados sobre ela.
    Coordenadas em % vêm da imagem original (1672 × 941) e acompanham seu
    redimensionamento até ocupar toda a janela. */
-@media (min-width: 801px) {
+@media (min-width: 1025px) {
   .biglog-login { width: 100%; min-height: 100dvh; padding: 0; }
   .biglog-login::before { display: none; }
   .biglog-login__scene {
