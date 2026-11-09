@@ -165,7 +165,7 @@ export function AccessGate({ children }: { children: (role: AccessRole, onExit: 
           </div>
         </section>
         <aside className="biglog-access__art" aria-label="Mascote do BigLog">
-          <img src="/images/biglog-mascot.webp" alt="Mascote da Bignotto dando sinal de positivo" />
+          <img src="/images/biglog-mascot.avif" width={530} height={895} alt="Mascote do BigLog dando sinal de positivo" />
         </aside>
       </div>
     </main>

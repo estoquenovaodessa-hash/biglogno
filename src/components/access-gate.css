@@ -109,3 +109,19 @@
 @media (prefers-reduced-motion: reduce) {
   .biglog-access :is(button,a) { transition: none; }
 }
+
+/* Mascote de alta nitidez: sem máscara radial, blur ou ampliação agressiva. */
+.biglog-access__art::before { display: none; }
+.biglog-access__art img {
+  width: auto;
+  height: min(78dvh, 785px);
+  max-width: 100%;
+  max-height: none;
+  aspect-ratio: 530 / 895;
+  object-fit: contain;
+  border-radius: 24px;
+  -webkit-mask-image: none;
+  mask-image: none;
+  filter: none;
+  box-shadow: 0 20px 48px rgba(0, 8, 30, .28);
+}
