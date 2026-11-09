@@ -1,7 +1,7 @@
 {
-  "name": "BigLogno — Gestão de Logística",
-  "short_name": "BigLogno",
-  "description": "Gestão de Logística — Bignotto Ferramentas",
+  "name": "BigLog",
+  "short_name": "BigLog",
+  "description": "BigLog — aplicativo operacional Bignotto Ferramentas",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
@@ -10,8 +10,8 @@
     "fullscreen",
     "standalone"
   ],
-  "background_color": "#ffffff",
-  "theme_color": "#102e57",
+  "background_color": "#061942",
+  "theme_color": "#061942",
   "icons": [
     {
       "src": "/icons/icon-192.png",
