@@ -6,6 +6,27 @@ export type IndividualGroupingAction =
   | { action: "group_one"; id: string; targetId: string }
   | { action: "ungroup_one"; id: string };
 
+/** Outras notas compatíveis para unificação manual. Um pedido isolado
+ * só oferece o botão Unificar quando existe pelo menos outra nota
+ * pendente do mesmo cliente e veículo. */
+export function individualUnifyTargets(all: Delivery[], selected: Delivery): Delivery[] {
+  if (selected.status !== "nao_iniciada" || selected.source === "coleta"
+    || isConsumerDelivery(selected) || !!selected.deliveryGroupId) return [];
+  const identity = deliveryCompanyIdentity(selected);
+  const vehicle = vehicleForDelivery(selected);
+  return all.filter(target => {
+    if (target.id === selected.id) return false;
+    const group = target.deliveryGroupId
+      ? all.filter(row => row.deliveryGroupId === target.deliveryGroupId)
+      : [target];
+    return group.every(row => row.id !== selected.id
+      && row.source !== "coleta" && !isConsumerDelivery(row)
+      && row.status === "nao_iniciada" && deliveryCompanyIdentity(row) === identity
+      && vehicleForDelivery(row) === vehicle
+      && !(row.separate && !!row.deliveryGroupId));
+  });
+}
+
 /** Alterações atômicas de unificação individual.
  * A Expedição apenas muda deliveryGroupId; nenhuma nota, status, rota
  * ou comprovante de assinatura é modificado. */

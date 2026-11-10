@@ -8,6 +8,7 @@ import {
 import {deliveryGroups,fmtBrasilia,isConsumerDelivery,type Delivery} from "@/lib/deliveries";
 import {listDeliveries,setExpeditionVehicle,setExpeditionGrouping} from "@/lib/deliveries.functions";
 import {clientAccent,deliveryCompanyIdentity,vehicleForDelivery,type ExpeditionVehicle} from "@/lib/delivery-dispatch";
+import {individualUnifyTargets} from "@/lib/delivery-grouping";
 import {expeditionLocalDay} from "@/lib/expedition-history";
 import {ExpeditionVehiclePicker} from "./ExpeditionVehiclePicker";
 import {
@@ -71,13 +72,14 @@ function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
     </DropdownMenuContent>
   </DropdownMenu>;
 }
-function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,onUnifyOne,onUngroupOne,accentColor}:{
+function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,onUnifyOne,onUngroupOne,canUnify,accentColor}:{
   orders:Delivery[];readOnly:boolean;busy:boolean;canTransfer:boolean;
   onSetVehicle:(ids:string[],vehicle:ExpeditionVehicle|null)=>Promise<void>;
   onEdit:(orders:Delivery[])=>void;
   onTransfer:(company:string,orders:Delivery[])=>void;
   onUnifyOne:(order:Delivery)=>void;
   onUngroupOne:(order:Delivery)=>void;
+  canUnify:(order:Delivery)=>boolean;
   accentColor?:string;
 }){
   const first=orders[0];if(!first)return null;
@@ -99,7 +101,7 @@ function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTr
       <div className="space-y-1.5">
         {orders.map(order=><div key={order.id} className="flex flex-wrap items-center gap-1.5">
           <span className="font-semibold">{order.onlyDelivery?"Somente entrega":order.document||"—"}</span>
-          {!readOnly&&<Button type="button" variant="outline" size="sm"
+          {!readOnly&&(!!order.deliveryGroupId||canUnify(order))&&<Button type="button" variant="outline" size="sm"
             className="h-7 shrink-0 rounded-md border-sky-500/50 px-2 text-[10px] font-bold text-sky-100"
             aria-label={(order.deliveryGroupId?"Desunificar":"Unificar")+" pedido "+(order.document||order.id)}
             title={isConsumerDelivery(order)?"Notas do CONSUMIDOR devem permanecer individuais":undefined}
@@ -243,12 +245,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     && !order.onlyDelivery && !!order.document && Number.isFinite(order.value));
   // Outras notas do mesmo cliente e veículo, inclusive grupos já unificados.
   // A escolha é sempre explícita: nenhuma nota adicional entra sozinha.
-  const groupingOptions=groupingSelected?deliveries.filter(row=>
-    row.id!==groupingSelected.id && row.source!=="coleta" && row.status==="nao_iniciada"
-    && !isConsumerDelivery(row)
-    && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(groupingSelected)
-    && vehicleForDelivery(row)===vehicleForDelivery(groupingSelected)
-  ):[];
+  const groupingOptions=groupingSelected
+    ? individualUnifyTargets(deliveries,groupingSelected):[];
 
 
 
@@ -425,6 +423,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
               onSetVehicle={updateVehicle}
               onUnifyOne={order=>{setGroupingSelected(order);setGroupingTargetId("");setError("");}}
               onUngroupOne={order=>{void changeOneGrouping({action:"ungroup_one",id:order.id});}}
+              canUnify={order=>individualUnifyTargets(deliveries,order).length>0}
               accentColor={(companyCounts.get(deliveryCompanyIdentity(orders[0]))||0)>1?clientAccent(deliveryCompanyIdentity(orders[0])):undefined}
               onEdit={list=>{setError("");setEditing({kind:"delivery",ids:list.map(row=>row.id)});}}
               onTransfer={(company,eligible)=>openTransfer({
