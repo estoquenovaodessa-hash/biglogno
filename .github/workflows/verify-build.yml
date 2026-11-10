@@ -69,5 +69,7 @@ jobs:
         run: bun test src/lib/loading-mascot.test.js
       - name: Testar fila simplificada, unificação explícita, veículos e turnos automáticos
         run: bun test src/lib/deliveries.test.js src/lib/delivery-dispatch.test.js src/lib/delivery-grouping.test.js src/lib/expedition-schedule.test.js
+      - name: Testar impressão S.B.O remota 60x30mm por lotes
+        run: bun test src/lib/sbo-print.test.js
       - name: Executar build de producao
         run: npm run build

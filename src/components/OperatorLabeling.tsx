@@ -1,4 +1,6 @@
 import {useEffect,useMemo,useRef,useState} from "react";
+import {useQuery} from "@tanstack/react-query";
+import {useServerFn} from "@tanstack/react-start";
 import {ArrowLeft,CheckCircle2,ClipboardCheck,FileDown,PackagePlus,Printer,ScanLine,Tag,Trash2,X} from "lucide-react";
 import {toast} from "sonner";
 import {useStore} from "@/lib/store";
@@ -9,6 +11,7 @@ import {
   createSboLabelsPdf,sboLabelFilename,sboQuantityText,type SboUnit,type SboLabel,
 } from "@/lib/sbo-label";
 import symbol from "@/assets/bignotto-symbol.png.asset.json";
+import {requestSboPrint,getSboPrintRequestStatus} from "@/lib/sbo-print.functions";
 import {OperatorConferenceLabels} from "./OperatorConferenceLabels";
 
 type SboRow={key:number;code:string;description:string;quantityText:string;unit:SboUnit};
@@ -31,6 +34,18 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
   const [rows,setRows]=useState<SboRow[]>([]);
   const [error,setError]=useState("");
   const [generating,setGenerating]=useState(false);
+  const [sendingToArgox,setSendingToArgox]=useState(false);
+  const [lastPrintRequestId,setLastPrintRequestId]=useState<string|null>(null);
+  const printRef=useRef<{id:string;snapshot:string;sent:boolean}|null>(null);
+  const sendPrint=useServerFn(requestSboPrint);
+  const readPrintStatus=useServerFn(getSboPrintRequestStatus);
+  const remotePrint=useQuery({
+    queryKey:["sbo-remote-print",lastPrintRequestId],
+    enabled:!!lastPrintRequestId,
+    queryFn:()=>readPrintStatus({data:{requestId:lastPrintRequestId!}}),
+    refetchInterval:query=>query.state.data?.completed?false:5000,
+    refetchOnWindowFocus:true,
+  });
   const serial=useRef(0);
   const codeRef=useRef<HTMLInputElement>(null);
   const product=useMemo(()=>findSboItem(catalog,code),[catalog,code]);
@@ -75,6 +90,33 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
       const message=e instanceof Error?e.message:"Não foi possível gerar as etiquetas.";
       toast.error(message);setError(message);
     }finally{setGenerating(false);}
+  }
+  async function sendToArgox(){
+    const valid=rows.map(toLabel);
+    if(!valid.length||valid.some(record=>!record)){
+      setError("Adicione itens e corrija as quantidades antes de solicitar impressão.");return;
+    }
+    const labels=valid as SboLabel[];
+    const snapshot=JSON.stringify(labels);
+    const previous=printRef.current;
+    if(previous?.sent&&previous.snapshot===snapshot&&!window.confirm(
+      "Esta lista já foi enviada para impressão. Deseja enviar NOVAMENTE? Isso pode imprimir etiquetas duplicadas."
+    ))return;
+    if(!window.confirm("Enviar "+labels.length+" etiqueta(s) de 60 × 30 mm à Argox conectada ao computador?"))return;
+    // Em caso de falha de conexão, repetir com o MESMO identificador evita duplicar jobs.
+    const requestId=previous&&!previous.sent&&previous.snapshot===snapshot
+      ?previous.id:crypto.randomUUID();
+    printRef.current={id:requestId,snapshot,sent:false};
+    setSendingToArgox(true);setError("");
+    try{
+      const response=await sendPrint({data:{requestId,labels}});
+      printRef.current={id:requestId,snapshot,sent:true};
+      setLastPrintRequestId(response.requestId);
+      toast.success("Solicitação de "+response.labelCount+" etiqueta(s) enviada à fila da Argox. Acompanhe abaixo.");
+    }catch(e){
+      const message=e instanceof Error?e.message:"Não foi possível enviar a lista para impressão.";
+      setError(message);toast.error(message);
+    }finally{setSendingToArgox(false);}
   }
   return <section className="min-h-[100dvh] bg-background text-foreground" aria-label="Etiquetagem do operador">
     <header className="border-b-4 border-brand-gold bg-card px-3 py-3 shadow-sm sm:px-6">
@@ -225,8 +267,39 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
               <Button type="button" onClick={download} disabled={!readyForPdf||generating} className="gap-2">
                 <FileDown className="h-4 w-4"/> Gerar PDF ({rows.length})
               </Button>
+              <Button type="button" variant="secondary" onClick={()=>void sendToArgox()}
+                disabled={!readyForPdf||generating||sendingToArgox}
+                className="gap-2 font-extrabold">
+                <Printer className="h-4 w-4"/>
+                {sendingToArgox?"Enviando à Argox…":"Imprimir na Argox ("+rows.length+")"}
+              </Button>
             </div>
           </div>
+          {lastPrintRequestId && <div role="status" aria-live="polite"
+            className="mb-3 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-3 text-sm">
+            <p className="font-extrabold">Impressão S.B.O solicitada pelo tablet/computador</p>
+            {remotePrint.isError?<p className="mt-1 text-amber-600">
+              Solicitação enviada, mas não foi possível consultar o andamento. Atualize a tela para tentar novamente.
+            </p>:!remotePrint.data||!remotePrint.data.total?
+              <p className="mt-1">Aguardando atualização da fila da impressora…</p>:
+              <p className="mt-1">
+                {remotePrint.data.completed && !remotePrint.data.errors
+                  ?"Todos os lotes foram enviados ao spooler da Argox."
+                  :remotePrint.data.errors
+                    ?"Atenção: houve falha em "+remotePrint.data.errors+" lote(s)."
+                    :remotePrint.data.claimed
+                      ?"O computador está processando a impressão…"
+                      :"Aguardando o computador conectado à Argox."}
+                {" "}Lotes enviados ao spooler: {remotePrint.data.spooled}/{remotePrint.data.total}.
+                {remotePrint.data.error&&<span className="mt-1 block text-destructive">
+                  Erro: {remotePrint.data.error}
+                </span>}
+              </p>}
+            <p className="mt-1 text-xs text-muted-foreground">
+              “Enviado ao spooler” confirma o encaminhamento ao Windows, não a saída física do papel.
+              Não solicite novamente sem conferir a impressora.
+            </p>
+          </div>}
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead className="bg-muted/80 text-foreground"><tr>
@@ -265,7 +338,7 @@ export function OperatorLabeling({onBack}:{onBack:()=>void}){
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
             Cada linha gera uma etiqueta de 60 × 30 mm em uma página separada do PDF.
-            Imprima na Argox com a configuração de papel já testada, em escala 100%.
+            Você também pode solicitar a impressão diretamente do tablet. O computador com BigLogno Print ativo envia à Argox em escala 100%.
           </p>
         </div>
       </section>}
