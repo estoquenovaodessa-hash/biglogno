@@ -71,11 +71,13 @@ function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
     </DropdownMenuContent>
   </DropdownMenu>;
 }
-function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,accentColor}:{
+function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,onUnifyOne,onUngroupOne,accentColor}:{
   orders:Delivery[];readOnly:boolean;busy:boolean;canTransfer:boolean;
   onSetVehicle:(ids:string[],vehicle:ExpeditionVehicle|null)=>Promise<void>;
   onEdit:(orders:Delivery[])=>void;
   onTransfer:(company:string,orders:Delivery[])=>void;
+  onUnifyOne:(order:Delivery)=>void;
+  onUngroupOne:(order:Delivery)=>void;
   accentColor?:string;
 }){
   const first=orders[0];if(!first)return null;
@@ -93,9 +95,21 @@ function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTr
       {orders.length>1&&<span className="mt-0.5 block text-[11px] font-semibold text-sky-200">
         {orders.length} notas unificadas</span>}
     </td>
-    <td className="max-w-[200px] break-words px-3 py-2 text-sky-100">
-      {orders.every(o=>o.onlyDelivery)?"Somente entrega":
-        orders.map(o=>o.document||"—").join(" · ")}
+    <td className="max-w-[270px] break-words px-3 py-2 text-sky-100">
+      <div className="space-y-1.5">
+        {orders.map(order=><div key={order.id} className="flex flex-wrap items-center gap-1.5">
+          <span className="font-semibold">{order.onlyDelivery?"Somente entrega":order.document||"—"}</span>
+          {!readOnly&&<Button type="button" variant="outline" size="sm"
+            className="h-7 shrink-0 rounded-md border-sky-500/50 px-2 text-[10px] font-bold text-sky-100"
+            aria-label={(order.deliveryGroupId?"Desunificar":"Unificar")+" pedido "+(order.document||order.id)}
+            title={isConsumerDelivery(order)?"Notas do CONSUMIDOR devem permanecer individuais":
+              order.separate?"Nota separada no modelo anterior":undefined}
+            disabled={busy||!canTransfer||hasStarted||isConsumerDelivery(order)||!!order.separate}
+            onClick={()=>order.deliveryGroupId?onUngroupOne(order):onUnifyOne(order)}>
+            {order.deliveryGroupId?"Desunificar":"Unificar"}
+          </Button>}
+        </div>)}
+      </div>
     </td>
     <td className="px-3 py-2"><span className="exp-type exp-type-delivery">
       <Truck className="h-4 w-4"/> Entrega <span className="opacity-70">· {originOf(first)}</span>
@@ -144,6 +158,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const assignGrouping = useServerFn(setExpeditionGrouping);
   const [target, setTarget] = useState<TransferTarget | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
+  const [groupingSelected,setGroupingSelected] = useState<Delivery|null>(null);
+  const [groupingTargetId,setGroupingTargetId] = useState("");
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -233,6 +249,14 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(editingFirst)
       && vehicleForDelivery(row)===vehicleForDelivery(editingFirst))
     : [];
+  // Outras notas do mesmo cliente e veículo, inclusive grupos já unificados.
+  // A escolha é sempre explícita: nenhuma nota adicional entra sozinha.
+  const groupingOptions=groupingSelected?deliveries.filter(row=>
+    row.id!==groupingSelected.id && row.source!=="coleta" && row.status==="nao_iniciada"
+    && !row.separate && !isConsumerDelivery(row)
+    && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(groupingSelected)
+    && vehicleForDelivery(row)===vehicleForDelivery(groupingSelected)
+  ):[];
 
 
 
@@ -279,6 +303,23 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     } catch(e) {
       setError(e instanceof Error?e.message:"Não foi possível alterar a unificação.");
     } finally {setBusy(false);}
+  }
+
+  async function changeOneGrouping(request:
+    {action:"group_one";id:string;targetId:string}|{action:"ungroup_one";id:string}) {
+    if(readOnly||!canTransfer||busy)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await assignGrouping({data:request});
+      await deliveriesQuery.refetch();
+      await queryClient.invalidateQueries({queryKey:["deliveries"]});
+      setGroupingSelected(null);setGroupingTargetId("");
+      setNotice(request.action==="group_one"
+        ?"Pedido unificado. As notas do grupo serão concluídas com uma assinatura."
+        :"Pedido desunificado individualmente. As demais notas permanecem juntas.");
+    }catch(e){
+      setError(e instanceof Error?e.message:"Não foi possível alterar o pedido.");
+    }finally{setBusy(false);}
   }
 
   async function confirmTransfer() {
@@ -406,6 +447,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
             {visibleGroups.slice(0,listLimit).map(orders=><DeliveryLine key={orders[0].id}
               orders={orders} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
               onSetVehicle={updateVehicle}
+              onUnifyOne={order=>{setGroupingSelected(order);setGroupingTargetId("");setError("");}}
+              onUngroupOne={order=>{void changeOneGrouping({action:"ungroup_one",id:order.id});}}
               accentColor={(companyCounts.get(deliveryCompanyIdentity(orders[0]))||0)>1?clientAccent(deliveryCompanyIdentity(orders[0])):undefined}
               onEdit={list=>{setError("");setEditing({kind:"delivery",ids:list.map(row=>row.id)});}}
               onTransfer={(company,eligible)=>openTransfer({
@@ -462,6 +505,49 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       </p>}
     {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold text-success">{notice}</p>}
     {error && !target && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+    {!readOnly && <Dialog open={!!groupingSelected} onOpenChange={open=>{
+      if(!open&&!busy){setGroupingSelected(null);setGroupingTargetId("");setError("");}
+    }}>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader><DialogTitle>Unificar pedido</DialogTitle></DialogHeader>
+        {groupingSelected&&<>
+          <p className="text-sm">
+            <strong>{groupingSelected.company}</strong><span className="block text-muted-foreground">
+              Nota {groupingSelected.document||"Somente entrega"}.
+              Escolha o pedido com o qual deseja unificá-la.
+            </span>
+          </p>
+          {groupingOptions.length>0?<fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-semibold">Pedido de destino</legend>
+            {groupingOptions.map(row=><label key={row.id}
+              className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card/50 px-3 py-2.5 text-sm">
+              <input type="radio" name="unify-target" className="h-4 w-4 shrink-0 accent-primary"
+                checked={groupingTargetId===row.id} disabled={busy}
+                onChange={()=>setGroupingTargetId(row.id)}/>
+              <span className="min-w-0 flex-1 break-words">
+                <strong>Nota {row.document||"Somente entrega"}</strong>
+                <span className="block text-xs text-muted-foreground">
+                  {row.deliveryGroupId?"Já unificada — adicionar a este grupo":"Pedido individual"}
+                </span>
+              </span>
+            </label>)}
+          </fieldset>:<p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            Não existem outras notas pendentes do mesmo cliente e veículo para unificar.
+          </p>}
+          {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" disabled={busy}
+              onClick={()=>{setGroupingSelected(null);setGroupingTargetId("");setError("");}}>Cancelar</Button>
+            <Button type="button" disabled={busy||!groupingTargetId}
+              onClick={()=>{void changeOneGrouping({
+                action:"group_one",id:groupingSelected.id,targetId:groupingTargetId,
+              });}}>
+              {busy?"Unificando…":"Confirmar unificação"}
+            </Button>
+          </div>
+        </>}
+      </DialogContent>
+    </Dialog>}
     {!readOnly && <Dialog open={!!editing} onOpenChange={open => {
       if (!open && !busy) { setEditing(null); setError(""); }
     }}>

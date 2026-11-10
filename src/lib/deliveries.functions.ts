@@ -5,6 +5,7 @@ import { expeditionScheduleInputSchema, advanceExpeditionShift } from './expedit
 import { expeditionLocalDay } from './expedition-history';
 import { applyDeliveryGroupAction, deliveryGroups, isConsumerDelivery, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
 import { assignedDriverForVehicle, canSeeInMyDeliveries, deliveryCompanyIdentity, vehicleForDelivery } from './delivery-dispatch';
+import { individualGroupingChanges } from './delivery-grouping';
 
 type Row = { id: string; created_at: string; position: number; payload: unknown };
 const toDelivery = (r: Row): Delivery => ({ ...(r.payload as Omit<Delivery, 'id' | 'position' | 'createdAt'>), id: r.id, position: r.position, createdAt: r.created_at });
@@ -216,10 +217,28 @@ export const setExpeditionGrouping = createServerFn({method:'POST'})
   .inputValidator(z.discriminatedUnion('action', [
     z.object({action:z.literal('group'), ids:z.array(z.string().uuid()).min(2).max(1000)}),
     z.object({action:z.literal('ungroup'), id:z.string().uuid()}),
+    z.object({action:z.literal('group_one'), id:z.string().uuid(), targetId:z.string().uuid()}),
+    z.object({action:z.literal('ungroup_one'), id:z.string().uuid()}),
   ])).handler(async ({data}) => {
     const {requireOperatorPermission} = await import('./employees.functions');
     await requireOperatorPermission('expedicao');
     const {db,rows,list} = await loadAll();
+    if (data.action === 'group_one' || data.action === 'ungroup_one') {
+      // Cada nota é movida individualmente. Apenas a Expedição tem acesso
+      // a esta função; a operação é atômica e não altera notas ou rota.
+      const changed = individualGroupingChanges(list, data);
+      const changes = changed.map(row => ({
+        id: row.id, position: row.position, payload: payloadOf(row),
+      }));
+      const { data: saved, error } = await db.rpc('commit_logistics_changes', {
+        kind: 'deliveries',
+        expected: rows.map(row => ({id:row.id, payload:row.payload})) as never,
+        changes,
+      });
+      if (error) throw logisticsCommitError('alterar a unificação individual', error);
+      if (saved !== true) throw new Error('A unificação não foi confirmada. Atualize e tente novamente.');
+      return {ok:true};
+    }
     let targets:Delivery[];
     let nextGroup:string|undefined;
     if (data.action === 'group') {
