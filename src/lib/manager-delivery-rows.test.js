@@ -10,8 +10,8 @@ const note = (id, extra = {}) => ({
 
 describe("grid do gestor: entrega unificada", () => {
   test("notas da mesma operação ficam em uma linha, mantendo os dados originais", () => {
-    const a = note("n1", { position: 2 });
-    const b = note("n2", { position: 1, source: "manual" });
+    const a = note("n1", { position: 2, deliveryGroupId: "g1" });
+    const b = note("n2", { position: 1, source: "manual", deliveryGroupId: "g1" });
     const c = note("n3", { company: "OUTRA" });
     const records = [a, c, b];
     const rows = managerDeliveryRows(records, "open");
@@ -28,12 +28,12 @@ describe("grid do gestor: entrega unificada", () => {
       .toEqual([["n1"], ["n2"], ["n3"], ["n4"], ["n5"]]);
   });
   test("lotes, turnos, situação e viagens diferentes nunca se misturam", () => {
-    const records = [note("n1", { expeditionShift: "manha", expeditionBatchId: "A" }),
+    const records = [note("n1", { expeditionShift: "manha", expeditionBatchId: "A", deliveryGroupId: "g2" }),
       note("n2", { expeditionShift: "manha", expeditionBatchId: "B" }),
       note("n3", { expeditionShift: "tarde", expeditionBatchId: "A" }),
       note("n4", { expeditionShift: "manha", expeditionBatchId: "A", status: "em_rota", startedAt: "2026-10-29T12:00:00Z" }),
       note("n5", { expeditionShift: "manha", expeditionBatchId: "A", status: "em_rota", startedAt: "2026-10-29T13:00:00Z" }),
-      note("n6", { expeditionShift: "manha", expeditionBatchId: "A" })];
+      note("n6", { expeditionShift: "manha", expeditionBatchId: "A", deliveryGroupId: "g2" })];
     expect(managerDeliveryRows(records, "open").map(g => g.map(d => d.id)))
       .toEqual([["n1", "n6"], ["n2"], ["n3"], ["n4"], ["n5"]]);
   });
