@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { canonicalCode, errorComment, parseClients, salesMetrics, verifierSchema, type Verifier, type VerificationRecord } from "@/lib/sales-verification";
 import { readSalesVerification, replaceSalesClients, saveSalesVerifiers, saveSalesPeriodCount, deleteSalesVerification } from "@/lib/sales-verification.functions";
 import { SalesVerificationForm } from "./SalesVerificationForm";
+import { MiniSboLabels } from "./MiniSboLabels";
 import { Retira } from "./Retira";
 import type { AccessRole } from "@/lib/access-policy";
 import { createSalesReport } from "@/lib/pdfSalesVerification";
@@ -52,13 +53,23 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const data = query.data;
   if (!data) return <div className="py-8">{query.isError ? <><p role="alert" className="text-destructive">Não foi possível carregar a conferência.</p><Button variant="outline" onClick={() => query.refetch()}>Tentar novamente</Button></> : <p role="status">Carregando conferência…</p>}</div>;
-  if (role === "operador") return <div className="mx-auto grid max-w-6xl items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><SalesVerificationForm clients={data.clients} prefix={data.prefix} lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode} onRegistered={() => {
-    void query.refetch();
-    void queryClient.invalidateQueries({ queryKey: ["pickups"] });
-    void queryClient.invalidateQueries({ queryKey: ["deliveries"] });
-    void queryClient.invalidateQueries({ queryKey: ["expedition-pickups"] });
-    void queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] });
-  }} /><Retira role={role} clients={data.clients} /></div>;
+  if (role === "operador") return (
+    <div className="mx-auto grid max-w-6xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-8">
+      <SalesVerificationForm clients={data.clients} prefix={data.prefix}
+        lastClientCode={data.clientCode} lastVerifierCode={data.verifierCode}
+        onRegistered={() => {
+          void query.refetch();
+          void queryClient.invalidateQueries({ queryKey: ["pickups"] });
+          void queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+          void queryClient.invalidateQueries({ queryKey: ["expedition-pickups"] });
+          void queryClient.invalidateQueries({ queryKey: ["expedition-deliveries"] });
+        }} />
+      <div className="min-w-0 space-y-5">
+        <MiniSboLabels />
+        <Retira role={role} clients={data.clients} />
+      </div>
+    </div>
+  );
   // O período escolhido é a base dos relatórios e da quantidade total de vendas.
   const periodKey = conferencePeriodKey(period, new Date());
   const periodRecords = data.records.filter(r => conferencePeriodContains(r.createdAt, periodKey));
