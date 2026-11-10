@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { deliveryGroups } from "./deliveries";
-import { individualGroupingChanges } from "./delivery-grouping";
+import { individualGroupingChanges, individualUnifyTargets } from "./delivery-grouping";
 
 const row = (id, extra = {}) => ({
   id, position: 1, createdAt: "2026-11-10T12:00:00Z", document: id,
@@ -10,6 +10,28 @@ const row = (id, extra = {}) => ({
 const apply = (all, changes) => all.map(item => changes.find(row => row.id === item.id) ?? item);
 
 describe("Unificar e desunificar cada pedido, somente pela Expedição", () => {
+  test("mostra Unificar somente se houver pelo menos outro pedido compatível",()=>{
+    const single=[row("1")];
+    expect(individualUnifyTargets(single,single[0])).toHaveLength(0);
+
+    const two=[row("1"),row("2")];
+    expect(individualUnifyTargets(two,two[0]).map(item=>item.id)).toEqual(["2"]);
+
+    const otherVehicle=[row("1"),row("2",{expeditionVehicle:"carro"})];
+    expect(individualUnifyTargets(otherVehicle,otherVehicle[0])).toHaveLength(0);
+
+    const otherClient=[row("1"),row("2",{companyCode:"999"})];
+    expect(individualUnifyTargets(otherClient,otherClient[0])).toHaveLength(0);
+    const delivered=[row("1"),row("2",{status:"finalizada"})];
+    expect(individualUnifyTargets(delivered,delivered[0])).toHaveLength(0);
+  });
+
+  test("permite adicionar nota individual a grupo existente, mas não mostrar em nota já unificada",()=>{
+    const all=[row("1",{deliveryGroupId:"g"}),row("2",{deliveryGroupId:"g"}),row("3")];
+    expect(individualUnifyTargets(all,all[2]).map(item=>item.id)).toEqual(["1","2"]);
+    expect(individualUnifyTargets(all,all[0])).toHaveLength(0);
+  });
+
   test("unifica duas notas escolhidas, sem incluir uma terceira automaticamente", () => {
     const all = [row("1"), row("2"), row("3")];
     const changes = individualGroupingChanges(all, { action: "group_one", id: "1", targetId: "2" }, () => "grupo-1");
