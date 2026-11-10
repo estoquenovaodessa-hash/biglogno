@@ -11,29 +11,26 @@ import { googleMapsPointUrl } from "@/lib/google-maps-location";
 import type { Delivery } from "@/lib/deliveries";
 import { fmtBrasilia } from "@/lib/deliveries";
 import { parseMoneyInput } from "@/lib/sales-verification";
-import { shiftOf, shiftLabel, scheduledDateLabel, type ExpeditionShift, type ShiftSection } from "@/lib/expedition-schedule";
+import { scheduledDateLabel } from "@/lib/expedition-schedule";
+import { vehicleForDelivery, type ExpeditionVehicle } from "@/lib/delivery-dispatch";
+import { ExpeditionVehiclePicker } from "./ExpeditionVehiclePicker";
 import { pendingExpeditionCollections, expeditionLocalDay } from "@/lib/expedition-history";
 import { ExpeditionCollectionEditor } from "./ExpeditionCollectionEditor";
-import { ExpeditionShiftPicker } from "./ExpeditionShiftPicker";
-import { ExpeditionRowShift } from "./ExpeditionRowShift";
-import { Sun, Sunset, CalendarDays } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
 const money = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 function collectionLabel(order: Delivery): string {
-  if (order.status === "finalizada") return "COLETADO";
-  if (order.status === "nao_iniciada") return "AGUARDANDO COLETA";
-  if (order.status === "no_destino") return "NO DESTINO";
-  return "COLETANDO";
+  return order.status==="finalizada"?"COLETADO":"PENDENTE";
 }
 
-export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetShift, scheduleBusy, compact = false, searchQuery = "", shiftFilter = "all", periodFilter = "all" }: {
+export function ExpeditionCollections({ records, canManage, readOnly, onCreated, onSetVehicle, scheduleBusy, compact = false, searchQuery = "", vehicleFilter = "all", periodFilter = "all" }: {
   records: Delivery[];
   canManage: boolean;
   readOnly: boolean;
   onCreated: () => Promise<void>;
-  onSetShift: (ids: string[], shift: ExpeditionShift | null) => Promise<void>;
+  onSetVehicle: (ids: string[], vehicle: ExpeditionVehicle | null) => Promise<void>;
   scheduleBusy: boolean;
-  compact?:boolean; searchQuery?:string; shiftFilter?:ShiftSection|"all"; periodFilter?:"all"|"today"|"yesterday";
+  compact?:boolean; searchQuery?:string; vehicleFilter?:ExpeditionVehicle|"unassigned"|"all"; periodFilter?:"all"|"today"|"yesterday";
 }) {
   const client = useQueryClient();
   const list = useServerFn(listCollectionCompanies);
@@ -55,14 +52,14 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
   const [contact, setContact] = useState("");
   const [payment, setPayment] = useState<"dinheiro" | "faturado">("dinheiro");
   const [scheduledDate, setScheduledDate] = useState("");
-  const [shift, setShift] = useState<ExpeditionShift | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const requestId = useRef<string | null>(null);
   const collections = pendingExpeditionCollections(records).filter(order=>{
     if(!compact)return true;
-    if(shiftFilter!=="all"&&shiftOf(order)!==shiftFilter)return false;
+    if(vehicleFilter!=="all"&&(vehicleFilter==="unassigned"
+      ? vehicleForDelivery(order)!==null : vehicleForDelivery(order)!==vehicleFilter))return false;
     if(periodFilter!=="all"){
       const today=expeditionLocalDay(new Date().toISOString());
       const prior=new Date(today+"T12:00:00Z");prior.setUTCDate(prior.getUTCDate()-1);
@@ -98,13 +95,13 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
       await addOrder({ data: {
         requestId: requestId.current, companyId, address: address.trim(),
         value: moneyNumber, vehicle, contact: contact.trim(),
-        payment, scheduledDate, shift,
+        payment, scheduledDate, shift:null,
       } });
       requestId.current = null;
       await onCreated();
       setCollectionDialog(false);
       setAddress(""); setValue(""); setVehicle(null); setContact(""); setCompanyId("");
-      setPayment("dinheiro"); setScheduledDate(""); setShift(null);
+      setPayment("dinheiro"); setScheduledDate("");
       setNotice("Coleta adicionada à Expedição e à fila do entregador.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível adicionar a coleta.");
@@ -135,15 +132,15 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
       <div className="overflow-x-auto">
         <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
           <thead><tr>
-            {["Turno","Cliente / empresa","Nota / guia","Tipo / origem","Valor","Status","Saída / previsão",...(!readOnly?["Ações"]:[])].map(col=>
+            {["Veículo","Cliente / empresa","Nota / guia","Tipo / origem","Valor","Status","Saída / previsão",...(!readOnly?["Ações"]:[])].map(col=>
               <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
           </tr></thead>
           <tbody>
             {collections.map(order=><tr key={order.id} className="exp-table-row">
-              <td className="px-3 py-2"><ExpeditionRowShift
-                shift={shiftOf(order)} readOnly={readOnly}
+              <td className="px-3 py-2"><ExpeditionVehiclePicker
+                vehicle={vehicleForDelivery(order)} readOnly={readOnly}
                 disabled={!canWrite||busy||scheduleBusy||order.status!=="nao_iniciada"}
-                onChange={shift=>onSetShift([order.id],shift)}/></td>
+                onChange={vehicle=>{void onSetVehicle([order.id],vehicle);}}/></td>
               <td className="max-w-[260px] px-3 py-2 font-extrabold text-white">
                 {order.company}
                 {!!order.collectionContact&&<span className="mt-0.5 block text-[11px] font-normal text-sky-200">
@@ -177,9 +174,10 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
       {notice && <p role="status" className="text-xs font-medium text-emerald-600">{notice}</p>}
       {error && !companyDialog && !collectionDialog && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {collections.map(order => <article key={order.id} className="rounded-lg border border-orange-400/40 bg-orange-500/[0.10] p-3">
-        <ExpeditionShiftPicker placement="top" ids={[order.id]} shift={shiftOf(order)} date={order.scheduledDate || order.expeditionShiftDate}
-          readOnly={readOnly} disabled={!canWrite || busy || scheduleBusy || order.status !== "nao_iniciada"}
-          onSetShift={onSetShift} />
+        <ExpeditionVehiclePicker
+          vehicle={vehicleForDelivery(order)} readOnly={readOnly}
+          disabled={!canWrite||busy||scheduleBusy||order.status!=="nao_iniciada"}
+          onChange={vehicle=>{void onSetVehicle([order.id],vehicle);}} />
         {order.scheduledDate && <div className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-orange-800 dark:text-orange-200">
           <CalendarDays className="h-4 w-4" /> {scheduledDateLabel(order.scheduledDate)}
         </div>}
@@ -269,19 +267,6 @@ export function ExpeditionCollections({ records, canManage, readOnly, onCreated,
           <label className="space-y-1.5 text-sm font-semibold">Data específica (opcional)
             <Input type="date" value={scheduledDate} onChange={event => setScheduledDate(event.target.value)} />
           </label>
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Turno da coleta</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(["manha", "tarde"] as const).map(value => <Button key={value} type="button"
-                variant={shift === value ? "default" : "outline"}
-                aria-pressed={shift === value} className="h-10 gap-2"
-                onClick={() => setShift(current => current === value ? null : value)}>
-                {value === "manha" ? <Sun className="h-4 w-4" /> : <Sunset className="h-4 w-4" />}
-                {shiftLabel(value)}
-              </Button>)}
-            </div>
-            <p className="text-xs text-muted-foreground">{shift ? "Turno: " + shiftLabel(shift) : "Turno indefinido até selecionar manhã ou tarde."}</p>
-          </div>
           <label className="space-y-1.5 text-sm font-semibold">Falar com (opcional)
             <Input value={contact} maxLength={150} onChange={event => setContact(event.target.value)}
               placeholder="Nome ou referência" />

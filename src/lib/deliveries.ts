@@ -21,6 +21,10 @@ export interface Delivery {
   collectionCompanyId?: string;
   /** Veículo informado pela Expedição; coletas anteriores podem não ter o campo. */
   collectionTransport?: "moto" | "carro";
+  /** Veículo e responsável designados pela Expedição para entregas. */
+  expeditionVehicle?: "moto" | "carro";
+  /** Identificador explícito de unificação, definido SOMENTE pela Expedição. */
+  deliveryGroupId?: string;
   /** False indica valor não informado; zero informado continua sendo um valor válido. */
   collectionValueProvided?: boolean;
   /** Programação definida pelo responsável da Expedição. */
@@ -79,6 +83,8 @@ export const deliveryActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("arrive"), id: z.string().uuid() }),
   z.object({ action: z.literal("finish"), id: z.string().uuid(), receiver: z.string().trim().min(1, "Informe o nome do recebedor.").max(150) }),
   z.object({ action: z.literal("finish_collection"), id: z.string().uuid() }),
+  z.object({ action: z.literal("deliver"), id: z.string().uuid(), receiver: z.string().trim().min(1).max(150) }),
+  z.object({ action: z.literal("collect"), id: z.string().uuid() }),
   z.object({ action: z.literal("separate"), id: z.string().uuid() }),
   z.object({ action: z.literal("unify"), id: z.string().uuid() }),
 ]);
@@ -99,9 +105,10 @@ export function isConsumerDelivery(d: Pick<Delivery, "companyCode">): boolean {
 export function deliveryGroups(all: Delivery[]): Delivery[][] {
   const groups = new Map<string, Delivery[]>();
   for (const d of all) {
-    const key = d.source === "coleta" || isConsumerDelivery(d) || d.separate || d.status === "finalizada"
-      ? d.id
-      : `${companyKey(d)}|${d.status}|${d.expeditionShift ?? ""}|${d.expeditionShiftDate ?? ""}|${d.expeditionBatchId ?? (d.expeditionShift ? "legado" : "novo")}|${d.scheduledDate ?? ""}|${d.startedAt ?? ""}|${d.arrivedAt ?? ""}`;
+    const key = d.source === "coleta" || isConsumerDelivery(d) || d.separate
+      || d.status === "finalizada" || !d.deliveryGroupId
+      ? "item:" + d.id
+      : "group:" + d.deliveryGroupId;
     const group = groups.get(key) ?? []; group.push(d); groups.set(key, group);
   }
   return [...groups.values()];
@@ -114,8 +121,7 @@ export function isLocked(d: Delivery, all: Delivery[]) {
 }
 
 export function statusLabel(d: Delivery, all: Delivery[]) {
-  if (isLocked(d, all)) return "Pendente";
-  return { nao_iniciada: "Não iniciada", em_rota: "Em rota", pausada: "Pausada", no_destino: "No destino", finalizada: "Finalizado" }[d.status];
+  return d.status === "finalizada" ? "Entregue" : "Pendente";
 }
 
 /** Aplica a ação e retorna a entrega atualizada, ou lança erro com a regra violada. */
@@ -144,6 +150,14 @@ export function applyDeliveryAction(d: Delivery, all: Delivery[], a: DeliveryAct
       if (d.source === "coleta") throw new Error("Coleta não exige recebedor; use a confirmação de coleta.");
       if (d.status !== "no_destino") throw new Error("Pressione \"Cheguei\" antes de informar o recebedor.");
       return { ...d, status: "finalizada", receiver: a.receiver, finishedAt: iso };
+    case "deliver":
+      if (d.source === "coleta") throw new Error("Coleta não recebe assinatura de entrega.");
+      if (d.status === "finalizada") throw new Error("Entrega já concluída.");
+      return { ...d, status: "finalizada", receiver: a.receiver, finishedAt: iso };
+    case "collect":
+      if (d.source !== "coleta") throw new Error("Ação permitida somente para coletas.");
+      if (d.status === "finalizada") throw new Error("Coleta já concluída.");
+      return { ...d, status: "finalizada", finishedAt: iso };
     case "finish_collection":
       if (d.source !== "coleta") throw new Error("Ação permitida somente para coletas.");
       if (d.status !== "no_destino") throw new Error("Pressione \"Cheguei ao destino\" antes de confirmar a coleta.");

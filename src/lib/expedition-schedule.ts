@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Delivery } from "./deliveries";
 import { expeditionLocalDay } from "./expedition-history";
+import { shiftFromCompletion } from "./delivery-dispatch";
 
 export const expeditionShiftSchema = z.enum(["manha", "tarde"]);
 export type ExpeditionShift = z.infer<typeof expeditionShiftSchema>;
@@ -19,7 +20,8 @@ export const expeditionScheduleInputSchema = z.object({
   scheduledDate: scheduledDateSchema.nullable().optional(),
 });
 
-export function shiftOf(record: Pick<Delivery, "expeditionShift">): ShiftSection {
+export function shiftOf(record: Pick<Delivery, "expeditionShift"> & Partial<Pick<Delivery, "status" | "finishedAt">>): ShiftSection {
+  if (record.status === "finalizada" && record.finishedAt) return shiftFromCompletion(record.finishedAt);
   return record.expeditionShift === "manha" || record.expeditionShift === "tarde"
     ? record.expeditionShift : "indefinido";
 }
@@ -30,7 +32,7 @@ export const shiftLabel = (shift: ShiftSection) =>
  * atrasada) vira manhã do dia seguinte. Função pura e idempotente.
  * A agenda futura da coleta tem prioridade sobre uma data antiga do turno. */
 export function advanceExpeditionShift<T extends Delivery>(record: T, now: Date = new Date()): T {
-  if (record.status === "finalizada" || !record.expeditionShift) return record;
+  if (record.status === "finalizada" || record.expeditionVehicle || !record.expeditionShift) return record;
   const today = expeditionLocalDay(now.toISOString());
   const timeParts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23",

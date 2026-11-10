@@ -3,16 +3,15 @@ import {useQuery,useQueryClient} from "@tanstack/react-query";
 import {useServerFn} from "@tanstack/react-start";
 import {
   CalendarDays,ChevronDown,ClipboardList,Clock3,Package,PackageCheck,
-  Search,Truck,ArrowLeftRight,Sun,Sunset,Pencil,RotateCcw,
+  Search,Truck,ArrowLeftRight,Pencil,RotateCcw,
 } from "lucide-react";
-import {deliveryGroups,fmtBrasilia,type Delivery} from "@/lib/deliveries";
-import {listDeliveries,setExpeditionSchedule} from "@/lib/deliveries.functions";
-import {shiftOf,type ExpeditionShift,type ShiftSection} from "@/lib/expedition-schedule";
+import {deliveryGroups,fmtBrasilia,isConsumerDelivery,type Delivery} from "@/lib/deliveries";
+import {listDeliveries,setExpeditionVehicle,setExpeditionGrouping} from "@/lib/deliveries.functions";
+import {clientAccent,deliveryCompanyIdentity,vehicleForDelivery,type ExpeditionVehicle} from "@/lib/delivery-dispatch";
 import {expeditionLocalDay} from "@/lib/expedition-history";
-import {ExpeditionShiftPicker} from "./ExpeditionShiftPicker";
-import {ExpeditionRowShift} from "./ExpeditionRowShift";
+import {ExpeditionVehiclePicker} from "./ExpeditionVehiclePicker";
 import {
-  listExpeditionPickups,transferExpeditionOrders,setExpeditionPickupShift,
+  listExpeditionPickups,transferExpeditionOrders,
 } from "@/lib/pickups.functions";
 import {canTransferExpedition} from "@/lib/employees.functions";
 import {useActiveEmployee} from "./EmployeeGate";
@@ -47,10 +46,6 @@ function filteredByText(text:string,raw:string):boolean{
     .toLocaleLowerCase("pt-BR").includes(raw.trim().normalize("NFD")
       .replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR"));
 }
-function ShiftFilterIcon({value}:{value:ShiftSection|"all"}){
-  return value==="manha"?<Sun className="h-4 w-4"/>:
-    value==="tarde"?<Sunset className="h-4 w-4"/>:<Clock3 className="h-4 w-4"/>;
-}
 function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
   kind:"delivery"|"pickup";busy:boolean;canTransfer:boolean;eligible:boolean;
   onTransfer:()=>void;onEdit:()=>void;
@@ -76,21 +71,23 @@ function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
     </DropdownMenuContent>
   </DropdownMenu>;
 }
-function DeliveryLine({orders,readOnly,busy,canTransfer,onSetShift,onEdit,onTransfer}:{
+function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,accentColor}:{
   orders:Delivery[];readOnly:boolean;busy:boolean;canTransfer:boolean;
-  onSetShift:(ids:string[],shift:ExpeditionShift|null)=>Promise<void>;
+  onSetVehicle:(ids:string[],vehicle:ExpeditionVehicle|null)=>Promise<void>;
   onEdit:(orders:Delivery[])=>void;
   onTransfer:(company:string,orders:Delivery[])=>void;
+  accentColor?:string;
 }){
   const first=orders[0];if(!first)return null;
   const eligible=orders.filter(o=>o.source==="conferencia"&&o.status==="nao_iniciada"&&
     !o.onlyDelivery&&!!o.document&&Number.isFinite(o.value));
   const hasStarted=orders.some(o=>o.status!=="nao_iniciada");
   const total=orders.reduce((sum,o)=>sum+(o.onlyDelivery?0:Number(o.value)||0),0);
-  return <tr className="exp-order-row">
-    <td className="px-3 py-2"><ExpeditionRowShift shift={shiftOf(first)} readOnly={readOnly}
+  return <tr className="exp-order-row" style={accentColor?{borderLeft:"4px solid "+accentColor}:undefined}>
+    <td className="px-3 py-2"><ExpeditionVehiclePicker
+      vehicle={vehicleForDelivery(first)} readOnly={readOnly}
       disabled={busy||!canTransfer||hasStarted}
-      onChange={shift=>onSetShift(orders.map(o=>o.id),shift)}/></td>
+      onChange={vehicle=>{void onSetVehicle(orders.map(o=>o.id),vehicle);}}/></td>
     <td className="max-w-[330px] px-3 py-2 font-extrabold text-white">
       {first.company}
       {orders.length>1&&<span className="mt-0.5 block text-[11px] font-semibold text-sky-200">
@@ -105,24 +102,20 @@ function DeliveryLine({orders,readOnly,busy,canTransfer,onSetShift,onEdit,onTran
     </span></td>
     <td className="whitespace-nowrap px-3 py-2 font-bold">
       {orders.every(o=>o.onlyDelivery)?"Somente entrega":MONEY.format(total)}</td>
-    <td className="px-3 py-2"><span className={"exp-status "+(hasStarted?"exp-status-route":"exp-status-success")}>
-      {hasStarted?"EM ROTA":"SEPARADO"}</span></td>
+    <td className="px-3 py-2"><span className="exp-status exp-status-success">PENDENTE</span></td>
     <td className="whitespace-nowrap px-3 py-2 text-sky-100">{when(first.createdAt)}</td>
     {!readOnly&&<td className="px-3 py-2"><TransferActions kind="delivery" busy={busy}
       canTransfer={canTransfer} eligible={eligible.length>0&&!hasStarted}
       onEdit={()=>onEdit(orders)} onTransfer={()=>onTransfer(first.company,eligible)}/></td>}
   </tr>;
 }
-function PickupLine({order,readOnly,busy,canTransfer,onSetShift,onEdit,onTransfer}:{
+function PickupLine({order,readOnly,busy,canTransfer,onEdit,onTransfer}:{
   order:Pickup;readOnly:boolean;busy:boolean;canTransfer:boolean;
-  onSetShift:(id:string,shift:ExpeditionShift|null)=>Promise<void>;
   onEdit:(order:Pickup)=>void;
   onTransfer:(order:Pickup)=>void;
 }){
   return <tr className="exp-order-row">
-    <td className="px-3 py-2"><ExpeditionRowShift shift={shiftOf(order)} readOnly={readOnly}
-      disabled={busy||!canTransfer||order.status!=="pendente"||order.source!=="conferencia"}
-      onChange={shift=>onSetShift(order.id,shift)}/></td>
+    <td className="px-3 py-2 text-sky-300">—</td>
     <td className="max-w-[330px] px-3 py-2 font-extrabold text-white">{order.company}</td>
     <td className="px-3 py-2 text-sky-100">{order.document||"—"}</td>
     <td className="px-3 py-2"><span className="exp-type exp-type-pickup">
@@ -147,8 +140,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const fetchPickups = useServerFn(listExpeditionPickups);
   const readPermission = useServerFn(canTransferExpedition);
   const transferOrders = useServerFn(transferExpeditionOrders);
-  const assignSchedule = useServerFn(setExpeditionSchedule);
-  const assignPickupShift = useServerFn(setExpeditionPickupShift);
+  const assignVehicle = useServerFn(setExpeditionVehicle);
+  const assignGrouping = useServerFn(setExpeditionGrouping);
   const [target, setTarget] = useState<TransferTarget | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
@@ -157,7 +150,7 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search,setSearch]=useState("");
-  const [shiftFilter,setShiftFilter]=useState<ShiftSection|"all">("all");
+  const [vehicleFilter,setVehicleFilter]=useState<ExpeditionVehicle|"unassigned"|"all">("all");
   const [periodFilter,setPeriodFilter]=useState<PeriodFilter>("all");
   const [typeFilter,setTypeFilter]=useState<TypeFilter>("all");
   const [listLimit,setListLimit]=useState(PAGE_SIZE);
@@ -206,15 +199,24 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     return d.toISOString().slice(0,10);})();
   const matchesPeriod=(date:string)=>periodFilter==="all"||
     expeditionLocalDay(date)===(periodFilter==="today"?today:yesterday);
+  const companyFirst=new Map<string,number>();
+  const companyCounts=new Map<string,number>();
+  groups.forEach((group,i)=>{
+    const k=deliveryCompanyIdentity(group[0]);
+    if(!companyFirst.has(k))companyFirst.set(k,i);
+    companyCounts.set(k,(companyCounts.get(k)||0)+1);
+  });
+  // Ordenação apenas visual: a sequência persistida para o mapa não é alterada.
   const visibleGroups=groups.filter(group=>{
-    const first=group[0];
-    return first && (shiftFilter==="all"||shiftOf(first)===shiftFilter)
+    const item=group[0]; if(!item)return false;
+    const vehicle=vehicleForDelivery(item);
+    return (vehicleFilter==="all"||vehicleFilter==="unassigned"&&vehicle===null||vehicle===vehicleFilter)
       && group.some(order=>matchesPeriod(order.createdAt))
       && filteredByText(group.flatMap(o=>[o.company,o.document,o.companyCode]).join(" "),search);
-  });
+  }).sort((a,b)=>(companyFirst.get(deliveryCompanyIdentity(a[0]))||0)
+    -(companyFirst.get(deliveryCompanyIdentity(b[0]))||0)||a[0].position-b[0].position);
   const visiblePickups=pickups.filter(order=>
-    (shiftFilter==="all"||shiftOf(order)===shiftFilter)
-    && matchesPeriod(order.createdAt)
+    matchesPeriod(order.createdAt)
     && filteredByText([order.company,order.document,order.companyCode].join(" "),search));
   // A edição sempre consulta a versão mais recente, inclusive após atualizar a fila.
   const editingDeliveries = editing?.kind === "delivery"
@@ -224,6 +226,14 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const editTransferable = editingDeliveries.filter(order =>
     order.source === "conferencia" && order.status === "nao_iniciada"
     && !order.onlyDelivery && !!order.document && Number.isFinite(order.value));
+  const editingFirst=editingDeliveries[0];
+  const sameClientCandidates=editingFirst
+    ? deliveries.filter(row=>row.source!=="coleta" && row.status==="nao_iniciada"
+      && !isConsumerDelivery(row) && !row.separate && !row.deliveryGroupId
+      && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(editingFirst)
+      && vehicleForDelivery(row)===vehicleForDelivery(editingFirst))
+    : [];
+
 
 
   function openTransfer(next: TransferTarget) {
@@ -241,31 +251,34 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     ? target.orders
     : target.orders.filter(order => selectedIds.includes(order.id));
 
-  async function updateSchedule(ids: string[], shift: ExpeditionShift | null, scheduledDate?: string | null) {
-    if (readOnly || !canTransfer || busy || !ids.length) return;
-    setBusy(true); setError(""); setNotice("");
+  async function updateVehicle(ids:string[],vehicle:ExpeditionVehicle|null) {
+    if(readOnly||!canTransfer||busy||!ids.length)return;
+    setBusy(true);setError("");setNotice("");
     try {
-      await assignSchedule({ data: { ids, shift, ...(scheduledDate === undefined ? {} : { scheduledDate }) } });
+      await assignVehicle({data:{ids,vehicle}});
       await deliveriesQuery.refetch();
-      await queryClient.invalidateQueries({ queryKey: ["deliveries"] });
-      setEditing(null);
-      setNotice("Programação atualizada na Expedição e na fila do entregador.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a programação.");
-    } finally { setBusy(false); }
+      await queryClient.invalidateQueries({queryKey:["deliveries"]});
+      setNotice(vehicle==="moto"?"Atribuído a MOTO / Marcelo.":vehicle==="carro"?
+        "Atribuído a CARRO / Luciano.":"Atribuição de veículo removida.");
+    } catch(e) {
+      setError(e instanceof Error?e.message:"Não foi possível atribuir o veículo.");
+    } finally {setBusy(false);}
   }
 
-  async function updatePickupSchedule(id:string,shift:ExpeditionShift|null){
-    if(readOnly||!canTransfer||busy)return;
+  async function changeGrouping(action:"group"|"ungroup",ids:string[]) {
+    if(readOnly||!canTransfer||busy||!ids.length)return;
     setBusy(true);setError("");setNotice("");
-    try{
-      await assignPickupShift({data:{id,shift}});
-      await pickupsQuery.refetch();
-      await queryClient.invalidateQueries({queryKey:["pickups"]});
-      setNotice("Turno da Retira atualizado com sucesso.");
-    }catch(e){
-      setError(e instanceof Error?e.message:"Não foi possível definir o turno da Retira.");
-    }finally{setBusy(false);}
+    try {
+      if(action==="group")await assignGrouping({data:{action:"group",ids}});
+      else await assignGrouping({data:{action:"ungroup",id:ids[0]}});
+      await deliveriesQuery.refetch();
+      await queryClient.invalidateQueries({queryKey:["deliveries"]});
+      setEditing(null);
+      setNotice(action==="group"?"Notas unificadas: uma assinatura para todo o grupo.":
+        "Notas desunificadas com sucesso.");
+    } catch(e) {
+      setError(e instanceof Error?e.message:"Não foi possível alterar a unificação.");
+    } finally {setBusy(false);}
   }
 
   async function confirmTransfer() {
@@ -349,20 +362,20 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         </select>
       </label>
       <label className="min-w-[130px] flex-1 text-[11px] font-bold text-sky-200">
-        <span className="inline-flex items-center gap-1"><ShiftFilterIcon value={shiftFilter}/> Turno</span>
+        <span className="inline-flex items-center gap-1"><Truck className="h-4 w-4"/> Veículo</span>
         <select className="exp-input mt-1 h-9 w-full rounded-md px-3 text-sm"
-          value={shiftFilter}
-          onChange={e=>{setShiftFilter(e.target.value as ShiftSection|"all");setListLimit(PAGE_SIZE);}}
-          aria-label="Filtrar turno da Expedição">
-          <option value="all">Todos os turnos</option>
-          <option value="indefinido">N/D</option>
-          <option value="manha">Manhã</option>
-          <option value="tarde">Tarde</option>
+          value={vehicleFilter}
+          onChange={e=>{setVehicleFilter(e.target.value as ExpeditionVehicle|"unassigned"|"all");setListLimit(PAGE_SIZE);}}
+          aria-label="Filtrar veículo da Expedição">
+          <option value="all">Todos veículos</option>
+          <option value="unassigned">N/D</option>
+          <option value="moto">MOTO · Marcelo</option>
+          <option value="carro">CARRO · Luciano</option>
         </select>
       </label>
       <Button type="button" variant="outline" size="sm" className="exp-clear h-9 gap-1.5 px-3"
-        disabled={!search&&shiftFilter==="all"&&periodFilter==="all"&&typeFilter==="all"}
-        onClick={()=>{setSearch("");setShiftFilter("all");setPeriodFilter("all");setTypeFilter("all");setListLimit(PAGE_SIZE);}}>
+        disabled={!search&&vehicleFilter==="all"&&periodFilter==="all"&&typeFilter==="all"}
+        onClick={()=>{setSearch("");setVehicleFilter("all");setPeriodFilter("all");setTypeFilter("all");setListLimit(PAGE_SIZE);}}>
         Limpar
       </Button>
     </div>
@@ -370,8 +383,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     {/* Coletas ficam no topo, antes de Entregas e Retiras. */}
     {(typeFilter==="all"||typeFilter==="collection")&&
       <ExpeditionCollections records={deliveriesQuery.data??[]} canManage={canTransfer} readOnly={readOnly}
-        compact searchQuery={search} shiftFilter={shiftFilter} periodFilter={periodFilter}
-        scheduleBusy={busy} onSetShift={updateSchedule}
+        compact searchQuery={search} vehicleFilter={vehicleFilter} periodFilter={periodFilter}
+        scheduleBusy={busy} onSetVehicle={updateVehicle}
         onCreated={async()=>{
           await deliveriesQuery.refetch();
           await queryClient.invalidateQueries({queryKey:["deliveries"]});
@@ -386,13 +399,14 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       <div className="overflow-x-auto">
         <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
           <thead><tr>
-            {["Turno","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
+            {["Veículo","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
               <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
           </tr></thead>
           <tbody>
             {visibleGroups.slice(0,listLimit).map(orders=><DeliveryLine key={orders[0].id}
               orders={orders} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
-              onSetShift={updateSchedule}
+              onSetVehicle={updateVehicle}
+              accentColor={(companyCounts.get(deliveryCompanyIdentity(orders[0]))||0)>1?clientAccent(deliveryCompanyIdentity(orders[0])):undefined}
               onEdit={list=>{setError("");setEditing({kind:"delivery",ids:list.map(row=>row.id)});}}
               onTransfer={(company,eligible)=>openTransfer({
                 kind:"toPickup",company,orders:eligible.map(row=>({
@@ -420,13 +434,12 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
       <div className="overflow-x-auto">
         <table className="exp-data-table w-full min-w-[1020px] text-left text-xs sm:text-sm">
           <thead><tr>
-            {["Turno","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
+            {["Veículo","Cliente / empresa","Nota","Tipo / origem","Valor total","Status","Separado às",...(!readOnly?["Ações"]:[])].map(col=>
               <th key={col} className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide">{col}</th>)}
           </tr></thead>
           <tbody>
             {visiblePickups.slice(0,listLimit).map(order=><PickupLine key={order.id}
               order={order} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
-              onSetShift={updatePickupSchedule}
               onEdit={row=>{setError("");setEditing({kind:"pickup",id:row.id});}}
               onTransfer={row=>openTransfer({kind:"toDelivery",company:row.company,
                 orders:[{id:row.id,document:row.document||"—",value:Number(row.value)||0,
@@ -464,12 +477,25 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
             </p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Escolha o turno da entrega. A alteração será aplicada às notas deste grupo.
+            Escolha MOTO (Marcelo) ou CARRO (Luciano). O responsável é definido pela Expedição.
           </p>
-          <ExpeditionShiftPicker ids={editingDeliveries.map(row => row.id)}
-            shift={shiftOf(editingDeliveries[0])} date={editingDeliveries[0].expeditionShiftDate} readOnly={false}
-            disabled={busy || !canTransfer || editingDeliveries.some(row => row.status !== "nao_iniciada")}
-            onSetShift={updateSchedule} />
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold">Veículo:</span>
+            <ExpeditionVehiclePicker
+              vehicle={vehicleForDelivery(editingDeliveries[0])} readOnly={false}
+              disabled={busy||!canTransfer||editingDeliveries.some(row=>row.status!=="nao_iniciada")}
+              onChange={vehicle=>{void updateVehicle(editingDeliveries.map(row=>row.id),vehicle);}}/>
+          </div>
+          {editingFirst?.deliveryGroupId&&<Button type="button" variant="outline"
+            className="w-full gap-2" disabled={busy||!canTransfer}
+            onClick={()=>{void changeGrouping("ungroup",[editingFirst.id]);}}>
+            Desunificar {editingDeliveries.length} notas
+          </Button>}
+          {!editingFirst?.deliveryGroupId&&sameClientCandidates.length>1&&<Button type="button" variant="outline"
+            className="w-full gap-2" disabled={busy||!canTransfer}
+            onClick={()=>{void changeGrouping("group",sameClientCandidates.map(row=>row.id));}}>
+            Unificar {sameClientCandidates.length} notas do cliente
+          </Button>}
           {editTransferable.length > 0 && <div className="border-t border-border pt-3">
             <Button type="button" variant="outline" className="w-full gap-2" disabled={busy || !canTransfer}
               onClick={() => openTransfer({

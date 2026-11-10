@@ -23,15 +23,15 @@ const statusColors: Record<DeliveryStatus, string> = {
   finalizada: "border-[#106c59] bg-[#075244]/65 text-[#7ff2d0]",
 };
 const statusText: Record<DeliveryStatus, string> = {
-  nao_iniciada: "Pendente", em_rota: "Em rota", no_destino: "No destino",
-  pausada: "Pausada", finalizada: "Entregue",
+  nao_iniciada: "Pendente", em_rota: "Pendente", no_destino: "Pendente",
+  pausada: "Pendente", finalizada: "Entregue",
 };
 const timeOf = (date?: string) => date ? fmtBrasilia(date) : "—";
 
 export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Props) {
   const finished = kind === "finished";
   const rows = managerDeliveryRows(records, kind);
-  const label = finished ? "Entregas finalizadas" : "Entregas pendentes e em rota";
+  const label = finished ? "Entregas entregues" : "Entregas pendentes";
   return <section id={finished ? "manager-finished-grid" : "manager-open-grid"}
     className="manager-delivery-panel min-w-0 overflow-hidden rounded-2xl p-3 sm:p-4"
     aria-label={label}>
@@ -99,7 +99,7 @@ export function ManagerDeliveryTable({ kind, records, isLoading, onSelect }: Pro
             <td><span className={"inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-bold " + (d.source === "coleta"
               ? "border-orange-500/45 bg-orange-500/15 text-orange-200"
               : statusColors[d.status])}>
-              {d.source === "coleta" ? d.status === "finalizada" ? "Coletado" : d.status === "nao_iniciada" ? "Aguardando coleta" : "Coletando" : statusText[d.status]}
+              {d.source === "coleta" ? d.status === "finalizada" ? "Coletado" : "Pendente" : statusText[d.status]}
             </span></td>
             <td className="whitespace-nowrap tabular-nums text-[#b1c9e7]">
               {timeOf(finished ? d.finishedAt : d.startedAt)}

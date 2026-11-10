@@ -62,11 +62,11 @@ describe("programação de turnos da Expedição", () => {
     expect(advanceExpeditionShift(done, now)).toBe(done);
     expect(advanceExpeditionShift(noShift, now)).toBe(noShift);
   });
-  test("entregas do mesmo cliente só unificam dentro do mesmo turno", () => {
+  test("somente unificação explícita junta notas do mesmo cliente", () => {
     const all = [
-      order(1, { expeditionShift: "manha" }),
+      order(1, { expeditionShift: "manha", deliveryGroupId:"grupo-a" }),
       order(2, { expeditionShift: "tarde" }),
-      order(3, { expeditionShift: "manha" }),
+      order(3, { expeditionShift: "manha", deliveryGroupId:"grupo-a" }),
       order(4),
     ];
     expect(deliveryGroups(all).map(group => group.map(item => item.document)))
