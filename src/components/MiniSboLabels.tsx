@@ -159,9 +159,14 @@ export function MiniSboLabels() {
             <Plus className="h-4 w-4" /> Adicionar
           </Button>
         </div>
-        {!!code && <p className="break-words text-xs text-muted-foreground" role="status">
-          {selected ? selected.description : "Produto não encontrado no cadastro."}
-        </p>}
+        {!!code && (selected
+          ? <p role="status" className="break-words rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-lg font-extrabold leading-snug text-emerald-800 dark:text-emerald-300 sm:text-xl">
+              {selected.description}
+            </p>
+          : <p role="status" className="break-words text-sm font-semibold text-destructive">
+              Produto não encontrado no cadastro.
+            </p>
+        )}
         {!ready && <p role="status" className="text-xs text-muted-foreground">Carregando cadastro de itens…</p>}
         {!canWrite && <p role="status" className="text-xs text-muted-foreground">Sem permissão de Conferência.</p>}
       </form>
