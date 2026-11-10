@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {parseBarcodes} from "./csv";
-import {adjustCollectorCount,collectorProgress,createCollectorState,finalizeCollector,scanCollector,resolveCollectorBarcode,setCollectorCount,createCollectorPdf} from "./counting-collector";
+import {adjustCollectorCount,collectorProgress,createCollectorState,finalizeCollector,scanCollector,resolveCollectorBarcode,setCollectorCount,createCollectorPdf,directedCollectorItems,scanDirectedCollector} from "./counting-collector";
 const items=[{codigo:"03610",descricao:"Produto A",endereco:"A-01"},{codigo:"01162",descricao:"Produto B",endereco:"B-02"}];
 const barcodes={registros:{},porBarcode:{"7891234567890":"03610","7891040004973":"01162","47891040004971":"01162","9999999999999":"99999"}};
 const cycle={id:"ciclo1",tipo:"padrao",numero:1,titulo:"Padrão NR 1",criadoEm:"2026-11-04T13:00:00Z",status:"aberto",itens:items,enviadoZona:false};
@@ -52,6 +52,37 @@ describe("Coletor de ciclos",()=>{
     const good=scanCollector(state,"7891234567890",barcodes,items,"03610");
     expect(good.result.ok).toBe(true);
     expect(good.state.quantidades["03610"]).toBe(1);
+  });
+  test("direcionamento segue endereços numéricos e coloca endereços ausentes ao final",()=>{
+    const all=[
+      {codigo:"4",endereco:"B-10"}, {codigo:"2",endereco:"A-2"},
+      {codigo:"3",endereco:""}, {codigo:"1",endereco:"A-10"},
+    ];
+    expect(directedCollectorItems(all).map(item=>item.codigo)).toEqual(["2","1","4","3"]);
+    expect(all[0].codigo).toBe("4"); // Não altera a ordem original do ciclo.
+  });
+  test("direcionado só aceita o código de barras pertencente ao item exibido",()=>{
+    const state={...createCollectorState(),modo:"restrita"};
+    const wrong=scanDirectedCollector(state,"7891040004973",barcodes,items,"03610");
+    expect(wrong.result).toMatchObject({ok:false,bloquear:true});
+    expect(wrong.state.quantidades).toEqual({});
+    const unknown=scanDirectedCollector(state,"7890000000000",barcodes,items,"03610");
+    expect(unknown.result).toMatchObject({ok:false,bloquear:true});
+    const internalCode=scanDirectedCollector(state,"03610",barcodes,items,"03610");
+    expect(internalCode.result).toMatchObject({ok:false,bloquear:true});
+    const correct=scanDirectedCollector(state,"7891234567890",barcodes,items,"03610");
+    expect(correct.result).toMatchObject({ok:true,codigo:"03610",quantidade:1});
+    const alternate=scanDirectedCollector(state,"47891040004971",barcodes,items,"01162");
+    expect(alternate.result).toMatchObject({ok:true,codigo:"01162",quantidade:1});
+  });
+  test("posição do item direcionado continua salva após bipagem e finalização",()=>{
+    const base={...createCollectorState(),modo:"restrita",directedCode:"01162"};
+    const counted=scanDirectedCollector(base,"7891040004973",barcodes,items,"01162");
+    expect(counted.state.directedCode).toBe("01162");
+    const done=finalizeCollector(counted.state);
+    expect(done.directedCode).toBe("01162");
+    expect(done.quantidades["01162"]).toBe(1);
+    expect(cycle.status).toBe("aberto");
   });
   test("bipagem finalizada fica travada até reabrir para correção",()=>{
     const final=finalizeCollector({...createCollectorState(),quantidades:{"03610":2}});
