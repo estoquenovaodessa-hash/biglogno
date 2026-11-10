@@ -23,11 +23,11 @@ import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
 import {
   CalendarDays, CheckCircle2, ChevronRight, Clock3, Download, FileText, Upload,
-  MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound, Timer, Hourglass, X,
+  MapPin, Package, Pause, RefreshCw, Search, Truck, UserRound, Timer, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fmtBrasilia, fmtDuration, travelMs, waitMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
+import { fmtBrasilia, fmtDuration, travelMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
 import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
 
  type StatusFilter = "all" | DeliveryStatus;
@@ -286,15 +286,12 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
       </div>
     </form>
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Notas e coletas · unificadas no grid" />
       <Summary icon={CheckCircle2} label="Finalizadas hoje" value={finishedToday} hint="Entregas concluídas no dia" tone="success" />
       <Summary icon={Timer} label="Tempo de trajeto total"
         value={totalTimes.travelCount ? fmtDuration(totalTimes.travelMs) : "—"}
         hint={totalTimes.travelCount + (totalTimes.travelCount === 1 ? " percurso com chegada" : " percursos com chegada")} />
-      <Summary icon={Hourglass} label="Tempo de espera total"
-        value={totalTimes.waitCount ? fmtDuration(totalTimes.waitMs) : "—"}
-        hint={totalTimes.waitCount + (totalTimes.waitCount === 1 ? " operação concluída" : " operações concluídas")} tone="warning" />
       <Summary icon={MapPin} label="KM estimados" value={kmSummary.meters === null ? "—" :
         (kmSummary.meters / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " km"}
         hint={kmSummary.total && kmSummary.ready < kmSummary.total ? "Total parcial — rotas sem cálculo" : "Distâncias pelas ruas"} tone="warning" />
@@ -376,7 +373,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
             <div><p className="text-xs text-muted-foreground">Criado em</p><p className="mt-1 font-semibold">{fmtBrasilia(selected.createdAt)}</p></div>
             {selected.source === "coleta" && <div><p className="text-xs text-muted-foreground">Data programada</p><p className="mt-1 font-semibold">{selected.scheduledDate ? scheduledDateLabel(selected.scheduledDate) : "Não definida"}</p></div>}
             <div><p className="text-xs text-muted-foreground">Tempo de trajeto</p><p className="mt-1 font-semibold">{fmtDuration(travelMs(selected))}</p></div>
-            <div><p className="text-xs text-muted-foreground">Tempo de espera</p><p className="mt-1 font-semibold">{fmtDuration(waitMs(selected))}</p></div>
+
           </div>
 
           {selectedGroup.length > 1 && <div className="mt-5 rounded-lg border border-sky-400/30 bg-sky-500/10 p-4">
