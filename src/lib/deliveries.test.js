@@ -21,7 +21,7 @@ describe("entregas", () => {
     expect(() => applyDeliveryAction(c, [a, started, c], { action: "start", id: "c", driver: "X" }, t(0))).toThrow();
   });
   test("mesma empresa unifica manual e conferência e finaliza juntos", () => {
-    let all = [base("a", { company: " Empresa ", source: "conferencia" }), base("b", { company: "EMPRESA", onlyDelivery: true })];
+    let all = [base("a", { company: " Empresa ", source: "conferencia", deliveryGroupId:"uniao-1" }), base("b", { company: "EMPRESA", onlyDelivery: true, deliveryGroupId:"uniao-1" })];
     expect(deliveryGroups(all)).toHaveLength(1);
     all = applyDeliveryGroupAction(all, { action: "start", id: "a", driver: "João" }, t(0));
     expect(all.map(d => d.driver)).toEqual(["João", "João"]);
@@ -66,11 +66,11 @@ describe("entregas", () => {
       base("a", { company: "LOJA A", companyCode: "101", document: "400" }),
       base("b", { company: "LOJA A", companyCode: "101", document: "401" }),
     ];
-    expect(deliveryGroups(other).map(group => group.length)).toEqual([2]);
+    expect(deliveryGroups(other).map(group => group.length)).toEqual([1, 1]);
   });
 
   test("desunificação persiste e pode ser revertida antes de iniciar", () => {
-    const all = [base("a"), base("b")];
+    const all = [base("a", {deliveryGroupId:"grupo"}), base("b", {deliveryGroupId:"grupo"})];
     const split = applyDeliveryGroupAction(all, { action: "separate", id: "a" }, t(0));
     expect(deliveryGroups(split)).toHaveLength(2);
     expect(deliveryGroups(applyDeliveryGroupAction(split, { action: "unify", id: "a" }, t(0)))).toHaveLength(1);
@@ -105,8 +105,8 @@ describe("entregas", () => {
   });
   test("várias notas marcadas juntas compartilham um lote de uma única visita", () => {
     const group = [
-      base("a", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1" }),
-      base("b", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1" }),
+      base("a", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1", deliveryGroupId:"grupo-1" }),
+      base("b", { company: "EMPRESA X", expeditionShift: "manha", expeditionBatchId: "grupo-1", deliveryGroupId:"grupo-1" }),
     ];
     expect(deliveryGroups(group)).toHaveLength(1);
     expect(applyDeliveryGroupAction(group, { action: "start", id: "a", driver: "Ana" }, t(0))
@@ -140,6 +140,19 @@ describe("entregas", () => {
       .toThrow(/Cheguei ao destino/);
     expect(() => applyDeliveryGroupAction([base("normal")], { action: "finish_collection", id: "normal" }, t(30)))
       .toThrow(/somente para coletas/);
+  });
+  test("entrega pendente é concluída com uma assinatura para grupo explícito",()=>{
+    const rows=[base("a",{company:"LOJA",deliveryGroupId:"grupo-1"}),
+      base("b",{company:"LOJA",deliveryGroupId:"grupo-1"})];
+    const result=applyDeliveryGroupAction(rows,{action:"deliver",id:"a",receiver:"Maria"},t(4));
+    expect(result.map(row=>row.status)).toEqual(["finalizada","finalizada"]);
+    expect(result.map(row=>row.receiver)).toEqual(["Maria","Maria"]);
+    expect(result[0].finishedAt).toBe(t(4).toISOString());
+    expect(travelMs(result[0])).toBeNull();
+  });
+  test("coleta pendente pode ser confirmada sem iniciar viagem",()=>{
+    const row=base("coleta",{source:"coleta"});
+    expect(applyDeliveryAction(row,[row],{action:"collect",id:"coleta"},t(4)).status).toBe("finalizada");
   });
   test("Somente entrega dispensa valor e documento", () => {
     const data = { requestId: "00000000-0000-4000-8000-000000000001", companyCode: "1", onlyDelivery: true };

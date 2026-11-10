@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { logisticsCommitError } from './logistics-commit-error';
 import { expeditionScheduleInputSchema, advanceExpeditionShift } from './expedition-schedule';
 import { expeditionLocalDay } from './expedition-history';
-import { applyDeliveryGroupAction, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
+import { applyDeliveryGroupAction, deliveryGroups, isConsumerDelivery, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
+import { assignedDriverForVehicle, canSeeInMyDeliveries, deliveryCompanyIdentity, vehicleForDelivery } from './delivery-dispatch';
 
 type Row = { id: string; created_at: string; position: number; payload: unknown };
 const toDelivery = (r: Row): Delivery => ({ ...(r.payload as Omit<Delivery, 'id' | 'position' | 'createdAt'>), id: r.id, position: r.position, createdAt: r.created_at });
@@ -45,9 +46,20 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   const { requireOperatorPermission, deliveryResponsibleForOperator } = await import('./employees.functions');
   const actor = await requireOperatorPermission('entregas');
   const { isCaue, isLuciano } = await import('./delivery-accountability');
+  if (data.action !== 'deliver' && data.action !== 'collect')
+    throw new Error('O fluxo foi simplificado. Use Entregar ou Coletar para concluir a operação.');
   const { db, rows, list } = await loadAll();
   const original = list.find(row => row.id === data.id);
   if (!original) throw new Error('Entrega não encontrada.');
+  const isNewCompletion = data.action === 'deliver' || data.action === 'collect';
+  if (isNewCompletion) {
+    const group = deliveryGroups(list).find(rows => rows.some(row => row.id === data.id)) ?? [original];
+    const vehicle = vehicleForDelivery(original);
+    if (!vehicle || !canSeeInMyDeliveries(original, actor.name))
+      throw new Error('Esta operação não foi atribuída ao seu veículo pela Expedição.');
+    if (group.some(row => row.status === 'finalizada' || vehicleForDelivery(row) !== vehicle))
+      throw new Error('A entrega foi alterada. Atualize a fila.');
+  }
   // Apoio do Cauê é exclusivo das operações do Luciano; não interfere na
   // Expedição dos demais motoristas nem em viagens próprias do Marcelo.
   if (isCaue(actor.name) && original.status !== 'nao_iniciada' && original.driver
@@ -63,6 +75,7 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   const next = applyDeliveryGroupAction(list, action, new Date()).map((row, i) => {
     const old = list[i];
     if (row === old) return row;
+    const completed = isNewCompletion && row.status === 'finalizada' && old.status !== 'finalizada';
     const started = data.action === 'start' && row.status === 'em_rota'
       && row.startedAt && old.status === 'nao_iniciada';
     const cancelled = data.action === 'cancel' && row.status === 'nao_iniciada'
@@ -82,6 +95,10 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
         startedBy: undefined, startedByEmployeeId: undefined,
       } : {}),
       ...(owner ? { driver: owner.name, driverEmployeeId: owner.id } : {}),
+      ...(completed ? {
+        driver: assignedDriverForVehicle(vehicleForDelivery(old)) ?? responsible.name,
+        driverEmployeeId: responsible.id,
+      } : {}),
       lastActionBy: actor.name,
       lastActionByEmployeeId: actor.id,
     };
@@ -153,3 +170,91 @@ export const reorderDeliveries = createServerFn({ method: 'POST' }).inputValidat
   if (saved !== true) throw new Error('A nova ordem não foi confirmada pelo Supabase. Atualize e tente novamente.');
   return { ok: true };
 });
+
+/** Atribuição independente do turno: MOTO = Marcelo; CARRO = Luciano.
+ * O status, a posição na rota e o histórico de assinaturas não são alterados. */
+export const setExpeditionVehicle = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    ids: z.array(z.string().uuid()).min(1).max(1000),
+    vehicle: z.enum(['moto', 'carro']).nullable(),
+  })).handler(async ({data}) => {
+    const { requireOperatorPermission } = await import('./employees.functions');
+    await requireOperatorPermission('expedicao');
+    const {db, rows, list} = await loadAll();
+    const ids = new Set(data.ids);
+    if (ids.size !== data.ids.length) throw new Error('Existem pedidos repetidos.');
+    const targets = list.filter(row => ids.has(row.id));
+    if (targets.length !== ids.size) throw new Error('Pedidos não encontrados. Atualize a Expedição.');
+    if (targets.some(row => row.status !== 'nao_iniciada'))
+      throw new Error('Não altere o veículo de uma operação já iniciada ou concluída.');
+    const driver = assignedDriverForVehicle(data.vehicle);
+    const changes = targets.map(row => ({
+      id: row.id, position: row.position,
+      payload: payloadOf({
+        ...row,
+        ...(row.source === 'coleta'
+          ? {collectionTransport: data.vehicle ?? undefined}
+          : {expeditionVehicle: data.vehicle ?? undefined}),
+        driver: driver ?? undefined,
+        driverEmployeeId: undefined,
+      }),
+    }));
+    const { data: saved, error } = await db.rpc('commit_logistics_changes', {
+      kind: 'deliveries',
+      expected: rows.map(r => ({id:r.id, payload:r.payload})) as never,
+      changes,
+    });
+    if (error) throw logisticsCommitError('atribuir veículo', error);
+    if (saved !== true) throw new Error('Não foi possível confirmar o veículo. Atualize e tente novamente.');
+    return {ok:true};
+  });
+
+/** A unificação é explícita e exclusiva da Expedição. Coletas e CONSUMIDOR
+ * permanecem individuais. A confirmação do recebedor encerra o grupo em
+ * uma operação atômica, com um nome de recebedor para todas as notas. */
+export const setExpeditionGrouping = createServerFn({method:'POST'})
+  .inputValidator(z.discriminatedUnion('action', [
+    z.object({action:z.literal('group'), ids:z.array(z.string().uuid()).min(2).max(1000)}),
+    z.object({action:z.literal('ungroup'), id:z.string().uuid()}),
+  ])).handler(async ({data}) => {
+    const {requireOperatorPermission} = await import('./employees.functions');
+    await requireOperatorPermission('expedicao');
+    const {db,rows,list} = await loadAll();
+    let targets:Delivery[];
+    let nextGroup:string|undefined;
+    if (data.action === 'group') {
+      if(new Set(data.ids).size !== data.ids.length) throw new Error('Pedidos repetidos.');
+      const idSet = new Set(data.ids);
+      targets = list.filter(row => idSet.has(row.id));
+      if(targets.length !== idSet.size) throw new Error('Pedido não encontrado.');
+      const identity = deliveryCompanyIdentity(targets[0]);
+      const vehicle = vehicleForDelivery(targets[0]);
+      if(targets.some(row => row.source === 'coleta' || isConsumerDelivery(row)
+        || row.status !== 'nao_iniciada' || deliveryCompanyIdentity(row) !== identity
+        || vehicleForDelivery(row) !== vehicle || row.separate))
+        throw new Error('Unifique somente notas pendentes do mesmo cliente, veículo e operação.');
+      if(targets.some(row => row.deliveryGroupId &&
+        list.some(other => other.deliveryGroupId === row.deliveryGroupId && !idSet.has(other.id))))
+        throw new Error('Desunifique o grupo existente antes de criar outro.');
+      nextGroup = crypto.randomUUID();
+    } else {
+      const target = list.find(row => row.id === data.id);
+      if(!target || !target.deliveryGroupId) throw new Error('A nota não faz parte de um grupo.');
+      targets = list.filter(row => row.deliveryGroupId === target.deliveryGroupId);
+      if(targets.some(row => row.status !== 'nao_iniciada'))
+        throw new Error('Não altere um grupo que já foi concluído.');
+      nextGroup = undefined;
+    }
+    const changes = targets.map(row => ({
+      id:row.id, position:row.position,
+      payload:payloadOf({...row, deliveryGroupId:nextGroup}),
+    }));
+    const {data:saved,error} = await db.rpc('commit_logistics_changes',{
+      kind:'deliveries',
+      expected:rows.map(r=>({id:r.id,payload:r.payload})) as never,
+      changes,
+    });
+    if(error) throw logisticsCommitError('unificar ou desunificar notas',error);
+    if(saved !== true) throw new Error('Não foi possível confirmar a alteração. Atualize e tente novamente.');
+    return {ok:true};
+  });

@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { fmtBrasilia, fmtDuration, travelMs, type Delivery, type DeliveryStatus } from "@/lib/deliveries";
 import { shiftLabel, shiftOf, scheduledDateLabel } from "@/lib/expedition-schedule";
 
- type StatusFilter = "all" | DeliveryStatus;
+ type StatusFilter = "all" | "nao_iniciada" | "finalizada";
 type Filters = { period: "today"; driver: string; shift: "all" | "manha" | "tarde" | "indefinido"; status: StatusFilter; search: string };
 // A consulta gerencial abre e permanece no dia civil atual de São Paulo.
 const initial: Filters = { period: "today", driver: "all", shift: "all", status: "all", search: "" };
@@ -38,10 +38,10 @@ const currency = (n: number) => Number(n || 0).toLocaleString("pt-BR", { style: 
 
 const statusInfo: Record<DeliveryStatus, { label: string; className: string }> = {
   nao_iniciada: { label: "Pendente", className: "border-warning/30 bg-warning/10 text-warning" },
-  em_rota: { label: "Em rota", className: "border-primary/30 bg-primary/15 text-primary" },
-  pausada: { label: "Pausada", className: "border-warning/30 bg-warning/10 text-warning" },
-  no_destino: { label: "No destino", className: "border-primary/30 bg-primary/15 text-primary" },
-  finalizada: { label: "Finalizada", className: "border-success/30 bg-success/10 text-success" },
+  em_rota: { label: "Pendente", className: "border-primary/30 bg-primary/15 text-primary" },
+  pausada: { label: "Pendente", className: "border-warning/30 bg-warning/10 text-warning" },
+  no_destino: { label: "Pendente", className: "border-primary/30 bg-primary/15 text-primary" },
+  finalizada: { label: "Entregue", className: "border-success/30 bg-success/10 text-success" },
 };
 
 function dateBR(date: Date | string) {
@@ -53,7 +53,7 @@ function dateBR(date: Date | string) {
 }
 function statusBadge(d: Delivery) {
   if (d.source === "coleta") {
-    const label = d.status === "finalizada" ? "Coletado" : d.status === "nao_iniciada" ? "Aguardando coleta" : d.status === "no_destino" ? "No destino" : "Coletando";
+    const label = d.status === "finalizada" ? "Coletado" : "Pendente";
     return <span className="inline-flex items-center rounded-md border border-orange-400/45 bg-orange-500/15 px-2.5 py-1 text-xs font-bold text-orange-700 dark:text-orange-300">{label}</span>;
   }
   const status = statusInfo[d.status] ?? statusInfo.nao_iniciada;
@@ -153,7 +153,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     managerDeliveryInPeriod(d, "today", now) &&
     (filters.shift === "all" || shiftOf(d) === filters.shift) &&
     managerMatchesDriver(d, filters.driver, employees) &&
-    (filters.status === "all" || d.status === filters.status) &&
+    (filters.status === "all" || (filters.status === "finalizada" ? d.status === "finalizada" : d.status !== "finalizada")) &&
     (!term || [d.company, d.companyCode, d.document, d.driver, d.receiver, d.collectionAddress, d.collectionContact].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(term)))
   );
   const pending = scoped.filter(d => d.status !== "finalizada");
@@ -270,8 +270,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         </label>
         <label><span className="manager-field-label">Situação</span>
           <select className="manager-field" value={draft.status} onChange={e => setDraft(p => ({ ...p, status: e.target.value as StatusFilter }))}>
-            <option value="all">Todas</option>{(Object.keys(statusInfo) as DeliveryStatus[]).map(k =>
-              <option key={k} value={k}>{statusInfo[k].label}</option>)}
+            <option value="all">Todas</option><option value="nao_iniciada">Pendente</option><option value="finalizada">Entregue</option>
           </select>
         </label>
         <label><span className="manager-field-label">Busca</span>
@@ -287,7 +286,7 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
     </form>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      <Summary icon={Truck} label="Pendentes e em rota" value={pending.length} hint="Notas e coletas · unificadas no grid" />
+      <Summary icon={Truck} label="Pendentes" value={pending.length} hint="Notas e coletas · unificadas no grid" />
       <Summary icon={CheckCircle2} label="Finalizadas hoje" value={finishedToday} hint="Entregas concluídas no dia" tone="success" />
       <Summary icon={Timer} label="Tempo de trajeto total"
         value={totalTimes.travelCount ? fmtDuration(totalTimes.travelMs) : "—"}
