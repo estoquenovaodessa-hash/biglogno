@@ -68,6 +68,6 @@ jobs:
       - name: Validar mascote animado e mensagem do carregamento
         run: bun test src/lib/loading-mascot.test.js
       - name: Testar fila simplificada, unificação explícita, veículos e turnos automáticos
-        run: bun test src/lib/deliveries.test.js src/lib/delivery-dispatch.test.js src/lib/expedition-schedule.test.js
+        run: bun test src/lib/deliveries.test.js src/lib/delivery-dispatch.test.js src/lib/delivery-grouping.test.js src/lib/expedition-schedule.test.js
       - name: Executar build de producao
         run: npm run build
