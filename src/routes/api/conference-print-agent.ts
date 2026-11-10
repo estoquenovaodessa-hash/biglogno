@@ -94,8 +94,10 @@ export const Route=createFileRoute("/api/conference-print-agent")({
 
         // Mesma marcação verde da Etiquetagem, deixando explícito no campo
         // printedBy que a confirmação foi do spooler, não da saída de papel.
-        if(body.status==="spooled"){
-          const recordId=(data as unknown as {verification_id:string}).verification_id;
+        const recordId=(data as unknown as {verification_id:string|null}).verification_id;
+        // Trabalhos S.B.O não pertencem a uma conferência: o ACK confirma
+        // somente o spooler e não cria um marcador de nota inexistente.
+        if(body.status==="spooled" && recordId){
           const {error:markerError}=await supabaseAdmin.from("app_state")
             .upsert({
               key:conferencePrintStateKey(recordId),
