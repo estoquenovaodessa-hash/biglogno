@@ -35,8 +35,6 @@ export function individualGroupingChanges(
 
   if (selected.deliveryGroupId)
     throw new Error("Esta nota já está unificada. Desunifique-a antes de juntá-la a outro grupo.");
-  if (selected.separate)
-    throw new Error("Esta nota está marcada como separada e não pode ser unificada.");
   if (request.targetId === selected.id)
     throw new Error("Selecione outra nota para unificar.");
 
@@ -48,7 +46,7 @@ export function individualGroupingChanges(
   const identity = deliveryCompanyIdentity(selected);
   const vehicle = vehicleForDelivery(selected);
   if (members.some(row => row.id === selected.id || row.source === "coleta"
-    || isConsumerDelivery(row) || row.separate || row.status !== "nao_iniciada"
+    || isConsumerDelivery(row) || (row.separate && !!row.deliveryGroupId) || row.status !== "nao_iniciada"
     || deliveryCompanyIdentity(row) !== identity || vehicleForDelivery(row) !== vehicle))
     throw new Error("Unifique somente pedidos pendentes do mesmo cliente e veículo.");
 
@@ -56,5 +54,5 @@ export function individualGroupingChanges(
   // Grupo existente: adicionar apenas a nota selecionada.
   // Novo grupo: marcar a nota selecionada e a nota de destino.
   return (target.deliveryGroupId ? [selected] : [selected, target])
-    .map(row => ({ ...row, deliveryGroupId: groupId }));
+    .map(row => ({ ...row, deliveryGroupId: groupId, separate: undefined }));
 }

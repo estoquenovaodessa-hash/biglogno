@@ -102,9 +102,8 @@ function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTr
           {!readOnly&&<Button type="button" variant="outline" size="sm"
             className="h-7 shrink-0 rounded-md border-sky-500/50 px-2 text-[10px] font-bold text-sky-100"
             aria-label={(order.deliveryGroupId?"Desunificar":"Unificar")+" pedido "+(order.document||order.id)}
-            title={isConsumerDelivery(order)?"Notas do CONSUMIDOR devem permanecer individuais":
-              order.separate?"Nota separada no modelo anterior":undefined}
-            disabled={busy||!canTransfer||hasStarted||isConsumerDelivery(order)||!!order.separate}
+            title={isConsumerDelivery(order)?"Notas do CONSUMIDOR devem permanecer individuais":undefined}
+            disabled={busy||!canTransfer||hasStarted||isConsumerDelivery(order)}
             onClick={()=>order.deliveryGroupId?onUngroupOne(order):onUnifyOne(order)}>
             {order.deliveryGroupId?"Desunificar":"Unificar"}
           </Button>}
@@ -242,18 +241,11 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const editTransferable = editingDeliveries.filter(order =>
     order.source === "conferencia" && order.status === "nao_iniciada"
     && !order.onlyDelivery && !!order.document && Number.isFinite(order.value));
-  const editingFirst=editingDeliveries[0];
-  const sameClientCandidates=editingFirst
-    ? deliveries.filter(row=>row.source!=="coleta" && row.status==="nao_iniciada"
-      && !isConsumerDelivery(row) && !row.separate && !row.deliveryGroupId
-      && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(editingFirst)
-      && vehicleForDelivery(row)===vehicleForDelivery(editingFirst))
-    : [];
   // Outras notas do mesmo cliente e veículo, inclusive grupos já unificados.
   // A escolha é sempre explícita: nenhuma nota adicional entra sozinha.
   const groupingOptions=groupingSelected?deliveries.filter(row=>
     row.id!==groupingSelected.id && row.source!=="coleta" && row.status==="nao_iniciada"
-    && !row.separate && !isConsumerDelivery(row)
+    && !isConsumerDelivery(row)
     && deliveryCompanyIdentity(row)===deliveryCompanyIdentity(groupingSelected)
     && vehicleForDelivery(row)===vehicleForDelivery(groupingSelected)
   ):[];
@@ -286,22 +278,6 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         "Atribuído a CARRO / Luciano.":"Atribuição de veículo removida.");
     } catch(e) {
       setError(e instanceof Error?e.message:"Não foi possível atribuir o veículo.");
-    } finally {setBusy(false);}
-  }
-
-  async function changeGrouping(action:"group"|"ungroup",ids:string[]) {
-    if(readOnly||!canTransfer||busy||!ids.length)return;
-    setBusy(true);setError("");setNotice("");
-    try {
-      if(action==="group")await assignGrouping({data:{action:"group",ids}});
-      else await assignGrouping({data:{action:"ungroup",id:ids[0]}});
-      await deliveriesQuery.refetch();
-      await queryClient.invalidateQueries({queryKey:["deliveries"]});
-      setEditing(null);
-      setNotice(action==="group"?"Notas unificadas: uma assinatura para todo o grupo.":
-        "Notas desunificadas com sucesso.");
-    } catch(e) {
-      setError(e instanceof Error?e.message:"Não foi possível alterar a unificação.");
     } finally {setBusy(false);}
   }
 
@@ -572,16 +548,6 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
               disabled={busy||!canTransfer||editingDeliveries.some(row=>row.status!=="nao_iniciada")}
               onChange={vehicle=>{void updateVehicle(editingDeliveries.map(row=>row.id),vehicle);}}/>
           </div>
-          {editingFirst?.deliveryGroupId&&<Button type="button" variant="outline"
-            className="w-full gap-2" disabled={busy||!canTransfer}
-            onClick={()=>{void changeGrouping("ungroup",[editingFirst.id]);}}>
-            Desunificar {editingDeliveries.length} notas
-          </Button>}
-          {!editingFirst?.deliveryGroupId&&sameClientCandidates.length>1&&<Button type="button" variant="outline"
-            className="w-full gap-2" disabled={busy||!canTransfer}
-            onClick={()=>{void changeGrouping("group",sameClientCandidates.map(row=>row.id));}}>
-            Unificar {sameClientCandidates.length} notas do cliente
-          </Button>}
           {editTransferable.length > 0 && <div className="border-t border-border pt-3">
             <Button type="button" variant="outline" className="w-full gap-2" disabled={busy || !canTransfer}
               onClick={() => openTransfer({

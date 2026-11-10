@@ -41,6 +41,12 @@ describe("Unificar e desunificar cada pedido, somente pela Expedição", () => {
     expect(deliveryGroups(next)).toHaveLength(2);
   });
 
+  test("permite re-unificar nota separada pelo fluxo antigo", () => {
+    const all=[row("1",{separate:true}),row("2",{separate:true})];
+    const changes=individualGroupingChanges(all,{action:"group_one",id:"1",targetId:"2"},()=>"g");
+    expect(changes.every(item=>item.separate===undefined && item.deliveryGroupId==="g")).toBe(true);
+    expect(deliveryGroups(apply(all,changes))).toHaveLength(1);
+  });
   test("bloqueia clientes ou veículos diferentes, consumidor e notas concluídas", () => {
     expect(() => individualGroupingChanges([row("1"),row("2",{companyCode:"456"})],
       {action:"group_one",id:"1",targetId:"2"})).toThrow(/mesmo cliente/);
