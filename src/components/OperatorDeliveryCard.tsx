@@ -36,7 +36,7 @@ export function OperatorDeliveryCard({ orders, controlsDisabled, onDeliver, onCo
         <div className="min-w-0">
           <h3 className="break-words text-sm font-extrabold leading-snug sm:text-base">{order.company}</h3>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-[#a7bfe2]">
-            <span>{collection?"COLETA":vehicle==="moto"?"MOTO":vehicle==="carro"?"CARRO":"SEM VEÍCULO"}</span>
+            <span>{collection?"COLETA · ":""}{vehicle==="moto"?"MOTO":vehicle==="carro"?"CARRO":"SEM VEÍCULO"}</span>
             <span>· {responsible??"Aguardando Expedição"}</span>
             {orders.length>1&&<span className="font-bold text-[#a8d2ff]">· {orders.length} notas unificadas</span>}
           </p>

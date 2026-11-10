@@ -46,8 +46,8 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   const { requireOperatorPermission, deliveryResponsibleForOperator } = await import('./employees.functions');
   const actor = await requireOperatorPermission('entregas');
   const { isCaue, isLuciano } = await import('./delivery-accountability');
-  if (data.action === 'unify' || data.action === 'separate')
-    throw new Error('Somente a Expedição pode unificar e desunificar notas.');
+  if (data.action !== 'deliver' && data.action !== 'collect')
+    throw new Error('O fluxo foi simplificado. Use Entregar ou Coletar para concluir a operação.');
   const { db, rows, list } = await loadAll();
   const original = list.find(row => row.id === data.id);
   if (!original) throw new Error('Entrega não encontrada.');
