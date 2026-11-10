@@ -4,6 +4,7 @@ import {AlertTriangle,ArrowLeft,Barcode,CheckCircle2,ClipboardCheck,
 import {toast} from "sonner";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
+import {DirectedCountingMode,requestDirectedLandscape,releaseDirectedLandscape} from "./DirectedCountingMode";
 import type {BarcodesBase} from "@/lib/types";
 import type {Ciclo} from "@/lib/ciclos";
 import {
@@ -61,6 +62,8 @@ export function CountingCollector({
     onSave(cycle.id,updated);
     setModeOverride(next);
     setSelected(null);setBlocked(null);setRaw("");
+    if(next==="restrita")requestDirectedLandscape();
+    else releaseDirectedLandscape();
     inputRef.current?.focus();
   }
   function register(event:FormEvent<HTMLFormElement>){
@@ -109,6 +112,7 @@ export function CountingCollector({
     }
     if(!window.confirm("Finalizar a bipagem de "+cycle.titulo+"? O ciclo permanecerá aberto para o fechamento padrão."))return;
     onSave(cycle.id,finalizeCollector({...state,modo}));
+    releaseDirectedLandscape();
     toast.success("Bipagem finalizada! O botão PDF de bipagem foi liberado no grid do ciclo.");
     onBack();
   }
@@ -116,6 +120,16 @@ export function CountingCollector({
     if(!cycle||!state||!canOperate||state.status!=="finalizado")return;
     if(!window.confirm("Reabrir a bipagem? As quantidades registradas serão preservadas para correção."))return;
     onSave(cycle.id,{...state,status:"em_andamento",finalizadoEm:undefined,atualizadoEm:new Date().toISOString()});
+  }
+
+  // O modo livre abaixo permanece idêntico. Apenas a Bipagem restrita usa
+  // a tela guiada horizontal, com um endereço e um item por vez.
+  if(cycle&&state&&mode==="restrita"&&state.status==="em_andamento"){
+    return <DirectedCountingMode
+      cycle={cycle} state={state} barcodeBase={barcodeBase}
+      canOperate={canOperate} onSave={onSave}
+      onFreeMode={()=>changeMode("livre")} onBack={()=>{releaseDirectedLandscape();onBack();}}
+      onFinish={finish}/>;
   }
 
   return <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-[#061b33] text-white"

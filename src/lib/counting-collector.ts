@@ -7,6 +7,8 @@ export type CollectorMode = "livre" | "restrita";
 export type CollectorState = {
   status:"em_andamento"|"finalizado";
   modo:CollectorMode;
+  /** Item atual da bipagem restrita direcionada, persistido com o ciclo. */
+  directedCode?:string;
   quantidades:Record<string,number>;
   iniciadoEm:string;
   atualizadoEm:string;
@@ -70,6 +72,41 @@ export function scanCollector(
   if(current>=10000000)return {state,result:{ok:false,reason:"limite",codigo:match.code,bloquear:false}};
   const next={...state,quantidades:{...state.quantidades,[match.code]:current+1},atualizadoEm:new Date().toISOString()};
   return {state:next,result:{ok:true,codigo:match.code,quantidade:current+1}};
+}
+
+/** O coletor direcionado percorre endereços de forma estável, sem
+ * reorganizar a lista original nem modificar os relatórios do ciclo. */
+export function directedCollectorItems<T extends Pick<CicloItem,"codigo"|"endereco">>(items:T[]):T[]{
+  const collator=new Intl.Collator("pt-BR",{numeric:true,sensitivity:"base"});
+  return [...items].sort((a,b)=>{
+    const addressA=(a.endereco||"").trim();
+    const addressB=(b.endereco||"").trim();
+    if(!addressA)return addressB?1:collator.compare(a.codigo,b.codigo);
+    if(!addressB)return -1;
+    return collator.compare(addressA,addressB)||collator.compare(a.codigo,b.codigo);
+  });
+}
+
+/** Bipagem direcionada aceita EXCLUSIVAMENTE códigos de barras da planilha
+ * do produto mostrado. O código interno digitado NÃO libera a contagem.
+ * Leituras divergentes ou desconhecidas bloqueiam sem somar unidades. */
+export function scanDirectedCollector(
+  state:CollectorState,raw:string,
+  base:Pick<BarcodesBase,"porBarcode"|"registros">,
+  items:Pick<CicloItem,"codigo">[],
+  expectedCode:string,
+):{state:CollectorState;result:CollectorResult}{
+  const barcode=String(raw??"").replace(/[\r\n\t ]/g,"").trim();
+  const justDigits=barcode.replace(/\D/g,"");
+  const barcodeItem=base.porBarcode[barcode]??(justDigits?base.porBarcode[justDigits]:undefined);
+  if(!barcodeItem || normalizeCode(barcodeItem)!==normalizeCode(expectedCode)){
+    return {state,result:{
+      ok:false,
+      reason:barcodeItem?"restrito_diferente":"desconhecido",
+      codigo:barcodeItem,bloquear:true,
+    }};
+  }
+  return scanCollector({...state,modo:"restrita"},barcode,base,items,expectedCode);
 }
 
 export function adjustCollectorCount(state:CollectorState,code:string,delta:number):CollectorState{
