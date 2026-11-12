@@ -65,7 +65,11 @@ function CompletedRows({ mode, deliveries, pickups }: {
             const delivery = !isPickup ? item as Delivery : null;
             return <Fragment key={item.id}>
               <tr className={`border-b border-sky-500/15 align-top transition-colors hover:bg-sky-300/15 ${index % 2 ? "bg-sky-300/[0.07]" : "bg-transparent"}`}>
-                <td className="whitespace-nowrap px-3 py-3 font-bold tabular-nums">{expeditionDateTime(item.finishedAt)}</td>
+                <td className="whitespace-nowrap px-3 py-3 font-bold tabular-nums">
+                  {expeditionDateTime(item.finishedAt)}
+                  {(pickup?.completedVia==="expedicao"||delivery?.completedVia==="expedicao")&&
+                    <span className="mt-1 block text-[10px] font-extrabold text-sky-700 dark:text-sky-200">Finalizado pela Expedição</span>}
+                </td>
                 <td className="max-w-[220px] px-3 py-3 font-semibold [overflow-wrap:anywhere]">{text(item.company)}</td>
                 <td className="max-w-[260px] break-words px-3 py-3">{isCollection ? text(delivery?.collectionAddress) : document(item)}</td>
                 <td className="px-3 py-3">{isCollection ? delivery?.collectionTransport === "moto" ? "MOTO" : delivery?.collectionTransport === "carro" ? "CARRO" : "—" : origin(item)}</td>
@@ -94,6 +98,11 @@ function CompletedRows({ mode, deliveries, pickups }: {
                     {pickup ? <>
                       <Detail label="Quem retirou" value={text(pickup.receiver)} />
                       <Detail label="Funcionário que entregou" value={text(pickup.handedBy)} />
+                      {pickup.completedVia==="expedicao"&&<>
+                        <Detail label="Ação realizada pela área" value="Expedição" />
+                        <Detail label="Responsável da Expedição que confirmou" value={text(pickup.completedBy??pickup.handedBy)} />
+                        <Detail label="ID do funcionário que confirmou" value={text(pickup.completedByEmployeeId)} />
+                      </>}
                       <Detail label="Retirador informado" value={text(pickup.collector)} />
                       <Detail label="Preparado em (legado)" value={expeditionDateTime(pickup.preparedAt)} />
                       <Detail label="Preparado por (legado)" value={text(pickup.preparedBy)} />
@@ -118,6 +127,11 @@ function CompletedRows({ mode, deliveries, pickups }: {
                       <Detail label="ID originalmente registrado" value={text(delivery.driverEmployeeId)} />
                        <Detail label="Iniciado por" value={text(delivery.startedBy ?? (isCaue(delivery.driver) ? delivery.driver : undefined))} />
                        <Detail label="Última ação por" value={text(delivery.lastActionBy)} />
+                       {delivery.completedVia==="expedicao"&&<>
+                         <Detail label="Finalização realizada pela área" value="Expedição" />
+                         <Detail label="Responsável da Expedição que confirmou" value={text(delivery.completedBy??delivery.lastActionBy)} />
+                         <Detail label="ID do funcionário que confirmou" value={text(delivery.completedByEmployeeId)} />
+                       </>}
                       <Detail label="Posição original" value={String(delivery.position)} />
                       <Detail label="Notas separadas" value={delivery.separate ? "Sim" : "Não"} />
                       <Detail label="Preparado em (legado)" value={expeditionDateTime(delivery.preparedAt)} />

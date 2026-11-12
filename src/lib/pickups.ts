@@ -10,6 +10,10 @@ export interface Pickup {
   /** Pessoa que efetivamente levou o pedido; handedBy é o funcionário que entregou. */
   receiver?: string;
   finishedAt?: string; handedBy?: string;
+  /** Confirmação manual pela Expedição, independente do retirador. */
+  completedBy?: string;
+  completedByEmployeeId?: string;
+  completedVia?: "expedicao";
   /** Programação do turno na Expedição, inclusive para Retiras pendentes. */
   expeditionShift?: "manha" | "tarde";
   expeditionShiftDate?: string;

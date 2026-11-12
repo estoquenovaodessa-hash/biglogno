@@ -22,6 +22,16 @@ export async function deliveryResponsibleForOperator(actor: Employee): Promise<E
   return luciano;
 }
 
+/** Resolve o cadastro real do motorista, sem confiar no ID enviado pelo navegador.
+ * Nome escolhido permanece valido mesmo se nao houver cadastro unico. */
+export async function findExpeditionDriverEmployee(name: "Marcelo" | "Luciano"): Promise<Employee | null> {
+  const { firstEmployeeName } = await import("./delivery-accountability");
+  const matches = (await fetchEmployees()).filter(e =>
+    e.active && e.badge === "ENTREGADOR" &&
+    firstEmployeeName(e.name) === name.toLowerCase());
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export const listEmployees = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
   const role = await requireAccess();

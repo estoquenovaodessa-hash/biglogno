@@ -49,6 +49,10 @@ export interface Delivery {
   startedByEmployeeId?: string;
   lastActionBy?: string;
   lastActionByEmployeeId?: string;
+  /** Baixa manual da Expedição: nome e ID do funcionário autenticado. */
+  completedBy?: string;
+  completedByEmployeeId?: string;
+  completedVia?: "expedicao";
   /** Conferência que originou o pedido: futuro Balcão poderá direcionar para Entrega/Retira. */
   channel?: "balcao" | "expedicao";
   /** Campos legados preservados para compatibilidade; não comandam o status Expedição. */

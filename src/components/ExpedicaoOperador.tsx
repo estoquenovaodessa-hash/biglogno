@@ -3,16 +3,16 @@ import {useQuery,useQueryClient} from "@tanstack/react-query";
 import {useServerFn} from "@tanstack/react-start";
 import {
   CalendarDays,ChevronDown,ClipboardList,Clock3,Package,PackageCheck,
-  Search,Truck,ArrowLeftRight,Pencil,RotateCcw,
+  Search,Truck,ArrowLeftRight,Pencil,RotateCcw,CheckCheck,
 } from "lucide-react";
 import {deliveryGroups,fmtBrasilia,isConsumerDelivery,type Delivery} from "@/lib/deliveries";
-import {listDeliveries,setExpeditionVehicle,setExpeditionGrouping} from "@/lib/deliveries.functions";
+import {listDeliveries,setExpeditionVehicle,setExpeditionGrouping,finishDeliveryFromExpedition} from "@/lib/deliveries.functions";
 import {clientAccent,deliveryCompanyIdentity,vehicleForDelivery,type ExpeditionVehicle} from "@/lib/delivery-dispatch";
 import {individualUnifyTargets} from "@/lib/delivery-grouping";
 import {expeditionLocalDay} from "@/lib/expedition-history";
 import {ExpeditionVehiclePicker} from "./ExpeditionVehiclePicker";
 import {
-  listExpeditionPickups,transferExpeditionOrders,
+  listExpeditionPickups,transferExpeditionOrders,finishPickupFromExpedition,
 } from "@/lib/pickups.functions";
 import {canTransferExpedition} from "@/lib/employees.functions";
 import {useActiveEmployee} from "./EmployeeGate";
@@ -31,6 +31,9 @@ import "./expedition-operator.css";
 type Origin="BALCÃO"|"EXPEDIÇÃO";
 type TransferNote={id:string;document:string;value:number;separatedAt:string};
 type EditTarget={kind:"delivery";ids:string[]}|{kind:"pickup";id:string};
+type FinishTarget=
+  |{kind:"delivery";id:string;company:string;documents:string[]}
+  |{kind:"pickup";id:string;company:string;document:string};
 type TransferTarget={
   kind:"toPickup"|"toDelivery";company:string;orders:TransferNote[];
 };
@@ -47,9 +50,9 @@ function filteredByText(text:string,raw:string):boolean{
     .toLocaleLowerCase("pt-BR").includes(raw.trim().normalize("NFD")
       .replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR"));
 }
-function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
+function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit,onComplete,canComplete}:{
   kind:"delivery"|"pickup";busy:boolean;canTransfer:boolean;eligible:boolean;
-  onTransfer:()=>void;onEdit:()=>void;
+  canComplete:boolean;onTransfer:()=>void;onEdit:()=>void;onComplete:()=>void;
 }){
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -59,6 +62,12 @@ function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="z-[80] min-w-[225px] border border-sky-600/50 bg-[#0a2543] p-1.5 text-white shadow-xl">
+      <DropdownMenuItem disabled={!canComplete} onSelect={onComplete}
+        className="cursor-pointer gap-2 rounded-md py-2.5 text-emerald-100 focus:bg-sky-700 focus:text-white">
+        <CheckCheck className="h-4 w-4"/>
+        {kind==="delivery"?"Finalizar entrega":"Confirmar retirada"}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator className="bg-sky-700/40"/>
       <DropdownMenuItem disabled={!eligible} onSelect={onTransfer}
         className="cursor-pointer gap-2 rounded-md py-2.5 text-sky-100 focus:bg-sky-700 focus:text-white">
         <ArrowLeftRight className="h-4 w-4"/>
@@ -72,11 +81,12 @@ function TransferActions({kind,busy,canTransfer,eligible,onTransfer,onEdit}:{
     </DropdownMenuContent>
   </DropdownMenu>;
 }
-function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,onUnifyOne,onUngroupOne,canUnify,accentColor}:{
+function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTransfer,onComplete,onUnifyOne,onUngroupOne,canUnify,accentColor}:{
   orders:Delivery[];readOnly:boolean;busy:boolean;canTransfer:boolean;
   onSetVehicle:(ids:string[],vehicle:ExpeditionVehicle|null)=>Promise<void>;
   onEdit:(orders:Delivery[])=>void;
   onTransfer:(company:string,orders:Delivery[])=>void;
+  onComplete:(orders:Delivery[])=>void;
   onUnifyOne:(order:Delivery)=>void;
   onUngroupOne:(order:Delivery)=>void;
   canUnify:(order:Delivery)=>boolean;
@@ -121,13 +131,16 @@ function DeliveryLine({orders,readOnly,busy,canTransfer,onSetVehicle,onEdit,onTr
     <td className="whitespace-nowrap px-3 py-2 text-sky-100">{when(first.createdAt)}</td>
     {!readOnly&&<td className="px-3 py-2"><TransferActions kind="delivery" busy={busy}
       canTransfer={canTransfer} eligible={eligible.length>0&&!hasStarted}
+      canComplete={orders.every(o=>o.status!=="finalizada"&&o.source!=="coleta")}
+      onComplete={()=>onComplete(orders)}
       onEdit={()=>onEdit(orders)} onTransfer={()=>onTransfer(first.company,eligible)}/></td>}
   </tr>;
 }
-function PickupLine({order,readOnly,busy,canTransfer,onEdit,onTransfer}:{
+function PickupLine({order,readOnly,busy,canTransfer,onEdit,onTransfer,onComplete}:{
   order:Pickup;readOnly:boolean;busy:boolean;canTransfer:boolean;
   onEdit:(order:Pickup)=>void;
   onTransfer:(order:Pickup)=>void;
+  onComplete:(order:Pickup)=>void;
 }){
   return <tr className="exp-order-row">
     <td className="px-3 py-2 text-sky-300">—</td>
@@ -142,6 +155,8 @@ function PickupLine({order,readOnly,busy,canTransfer,onEdit,onTransfer}:{
     {!readOnly&&<td className="px-3 py-2"><TransferActions kind="pickup" busy={busy}
       canTransfer={canTransfer} eligible={order.source==="conferencia"&&order.status==="pendente"&&
         !!order.document&&Number.isFinite(order.value)}
+      canComplete={order.source==="conferencia"&&order.status==="pendente"}
+      onComplete={()=>onComplete(order)}
       onEdit={()=>onEdit(order)} onTransfer={()=>onTransfer(order)}/></td>}
   </tr>;
 }
@@ -157,8 +172,13 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
   const transferOrders = useServerFn(transferExpeditionOrders);
   const assignVehicle = useServerFn(setExpeditionVehicle);
   const assignGrouping = useServerFn(setExpeditionGrouping);
+  const completeDelivery = useServerFn(finishDeliveryFromExpedition);
+  const completePickup = useServerFn(finishPickupFromExpedition);
   const [target, setTarget] = useState<TransferTarget | null>(null);
   const [editing, setEditing] = useState<EditTarget | null>(null);
+  const [completion,setCompletion] = useState<FinishTarget|null>(null);
+  const [finishDriver,setFinishDriver] = useState<""|"Marcelo"|"Luciano">("");
+  const [finishReceiver,setFinishReceiver] = useState("");
   const [groupingSelected,setGroupingSelected] = useState<Delivery|null>(null);
   const [groupingTargetId,setGroupingTargetId] = useState("");
   const [transferMode, setTransferMode] = useState<"all" | "selected">("selected");
@@ -249,6 +269,41 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
     ? individualUnifyTargets(deliveries,groupingSelected):[];
 
 
+
+  function openCompletion(next:FinishTarget) {
+    if (readOnly || !canTransfer || busy) return;
+    setEditing(null);setTarget(null);
+    setFinishDriver("");setFinishReceiver("");setError("");setNotice("");
+    setCompletion(next);
+  }
+
+  async function confirmCompletion() {
+    if (readOnly || !canTransfer || !completion || busy) return;
+    if (completion.kind==="delivery" && !finishDriver) return;
+    if (completion.kind==="pickup" && !finishReceiver.trim()) return;
+    setBusy(true);setError("");setNotice("");
+    try {
+      if (completion.kind==="delivery") {
+        const result=await completeDelivery({data:{
+          id:completion.id,driver:finishDriver as "Marcelo"|"Luciano",
+          receiver:finishReceiver.trim()||undefined,
+        }});
+        setNotice(`${result.count} ${result.count===1?"nota finalizada":"notas finalizadas"} por ${finishDriver}. Confirmação registrada pelo responsável da Expedição: ${result.completedBy}.`);
+      } else {
+        const result=await completePickup({data:{id:completion.id,receiver:finishReceiver.trim()}});
+        setNotice(`Retira confirmada para ${result.receiver}. Ação registrada pelo responsável da Expedição: ${result.completedBy}.`);
+      }
+      setCompletion(null);setFinishDriver("");setFinishReceiver("");
+      await Promise.allSettled([
+        deliveriesQuery.refetch(),pickupsQuery.refetch(),
+        queryClient.invalidateQueries({queryKey:["deliveries"]}),
+        queryClient.invalidateQueries({queryKey:["pickups"]}),
+        queryClient.invalidateQueries({queryKey:["expedition-completed-pickups"]}),
+      ]);
+    } catch(cause) {
+      setError(cause instanceof Error?cause.message:"Não foi possível confirmar a operação.");
+    } finally {setBusy(false);}
+  }
 
   function openTransfer(next: TransferTarget) {
     if (readOnly || !canTransfer || busy) return;
@@ -425,6 +480,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
               onUngroupOne={order=>{void changeOneGrouping({action:"ungroup_one",id:order.id});}}
               canUnify={order=>individualUnifyTargets(deliveries,order).length>0}
               accentColor={(companyCounts.get(deliveryCompanyIdentity(orders[0]))||0)>1?clientAccent(deliveryCompanyIdentity(orders[0])):undefined}
+              onComplete={list=>openCompletion({kind:"delivery",id:list[0].id,
+                company:list[0].company,documents:list.map(row=>row.document||"Somente entrega")})}
               onEdit={list=>{setError("");setEditing({kind:"delivery",ids:list.map(row=>row.id)});}}
               onTransfer={(company,eligible)=>openTransfer({
                 kind:"toPickup",company,orders:eligible.map(row=>({
@@ -458,6 +515,8 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
           <tbody>
             {visiblePickups.slice(0,listLimit).map(order=><PickupLine key={order.id}
               order={order} readOnly={readOnly} busy={busy} canTransfer={canTransfer}
+              onComplete={row=>openCompletion({kind:"pickup",id:row.id,
+                company:row.company,document:row.document||"—"})}
               onEdit={row=>{setError("");setEditing({kind:"pickup",id:row.id});}}
               onTransfer={row=>openTransfer({kind:"toDelivery",company:row.company,
                 orders:[{id:row.id,document:row.document||"—",value:Number(row.value)||0,
@@ -479,7 +538,60 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
         Falha ao atualizar uma das listas. Uma nova tentativa será realizada automaticamente.
       </p>}
     {notice && <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm font-semibold text-success">{notice}</p>}
-    {error && !target && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+    {error && !target && !completion && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+    {!readOnly && <Dialog open={!!completion} onOpenChange={open=>{
+      if(!open&&!busy){setCompletion(null);setError("");}
+    }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader><DialogTitle>
+          {completion?.kind==="delivery"?"Finalizar entrega pela Expedição":"Confirmar retirada pela Expedição"}
+        </DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="font-extrabold">{completion?.company}</p>
+            {completion?.kind==="delivery"
+              ? <p className="mt-1 text-xs text-muted-foreground">
+                  {completion.documents.length} nota(s): {completion.documents.join(" · ")}
+                </p>
+              : <p className="mt-1 text-xs text-muted-foreground">Nota: {completion?.document}</p>}
+          </div>
+          {completion?.kind==="delivery" && <label className="block space-y-1.5 font-semibold">
+            Quem realizou a entrega? *
+            <select className="exp-input h-11 w-full rounded-md border px-3 text-sm"
+              aria-label="Quem realizou a entrega" value={finishDriver}
+              onChange={e=>setFinishDriver(e.target.value as ""|"Marcelo"|"Luciano")}>
+              <option value="">Selecione o entregador</option>
+              <option value="Marcelo">Marcelo</option>
+              <option value="Luciano">Luciano</option>
+            </select>
+          </label>}
+          <label className="block space-y-1.5 font-semibold">
+            {completion?.kind==="delivery"?"Nome de quem recebeu (opcional)":"Nome de quem retirou *"}
+            <Input className="h-11" maxLength={150}
+              aria-label={completion?.kind==="delivery"?"Nome de quem recebeu":"Nome de quem retirou"}
+              value={finishReceiver} onChange={e=>setFinishReceiver(e.target.value)}
+              placeholder={completion?.kind==="delivery"?"Se souber, informe o recebedor":"Informe o nome do retirador"}/>
+          </label>
+          <p className="rounded-md bg-sky-600/10 p-3 text-xs font-medium text-foreground">
+            Registro da ação: <strong>Expedição — {employee?.name??"Funcionário autenticado"}</strong>.
+            {completion?.kind==="delivery"
+              ?" A finalização será aplicada a todas as notas deste grupo."
+              :" A pessoa que retirou será registrada separadamente do funcionário da Expedição."}
+          </p>
+        </div>
+        {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" disabled={busy}
+            onClick={()=>{setCompletion(null);setError("");}}>Cancelar</Button>
+          <Button type="button" disabled={busy||!canTransfer||
+            (completion?.kind==="delivery"?!finishDriver:!finishReceiver.trim())}
+            onClick={()=>{void confirmCompletion();}}>
+            <CheckCheck className="h-4 w-4"/>
+            {busy?"Confirmando…":completion?.kind==="delivery"?"Confirmar entrega":"Confirmar retirada"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>}
     {!readOnly && <Dialog open={!!groupingSelected} onOpenChange={open=>{
       if(!open&&!busy){setGroupingSelected(null);setGroupingTargetId("");setError("");}
     }}>

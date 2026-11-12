@@ -6,6 +6,7 @@ import { expeditionLocalDay } from './expedition-history';
 import { applyDeliveryGroupAction, deliveryGroups, isConsumerDelivery, deliveryActionSchema, manualDeliverySchema, type Delivery } from './deliveries';
 import { assignedDriverForVehicle, canSeeInMyDeliveries, deliveryCompanyIdentity, vehicleForDelivery } from './delivery-dispatch';
 import { individualGroupingChanges } from './delivery-grouping';
+import { expeditionFinishDeliverySchema, finishExpeditionDeliveryGroup } from './expedition-completion';
 
 type Row = { id: string; created_at: string; position: number; payload: unknown };
 const toDelivery = (r: Row): Delivery => ({ ...(r.payload as Omit<Delivery, 'id' | 'position' | 'createdAt'>), id: r.id, position: r.position, createdAt: r.created_at });
@@ -110,6 +111,32 @@ export const updateDelivery = createServerFn({ method: 'POST' }).inputValidator(
   if (saved !== true) throw new Error('A atualização das entregas não foi confirmada pelo Supabase. Atualize e tente novamente.');
   return { ok: true };
 });
+/** A baixa feita pela Expedição tem permissão própria e auditoria distinta
+ * do entregador. Conclui atomicamente todas as notas do grupo atual. */
+export const finishDeliveryFromExpedition = createServerFn({ method: 'POST' })
+  .inputValidator(expeditionFinishDeliverySchema)
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission, findExpeditionDriverEmployee } = await import('./employees.functions');
+    const actor = await requireOperatorPermission('expedicao');
+    const { db, rows, list } = await loadAll();
+    // Resolvido no servidor: ninguém pode forjar o funcionário autenticado.
+    const driverEmployee = await findExpeditionDriverEmployee(data.driver);
+    const next = finishExpeditionDeliveryGroup(list, data, actor, new Date(), driverEmployee?.id);
+    const changes = next.filter((row, i) => row !== list[i]).map(row => ({
+      id: row.id, position: row.position, payload: payloadOf(row),
+    }));
+    if (!changes.length) throw new Error('Nenhuma entrega pendente foi encontrada.');
+    const { data: saved, error } = await db.rpc('commit_logistics_changes', {
+      kind: 'deliveries',
+      expected: rows.map(row => ({ id: row.id, payload: row.payload })) as never,
+      changes,
+    });
+    if (error) throw logisticsCommitError('finalizar a entrega pela Expedição', error);
+    if (saved !== true)
+      throw new Error('A entrega foi alterada por outro operador. Atualize a Expedição e tente novamente.');
+    return { ok: true, count: changes.length, driver: data.driver, completedBy: actor.name };
+  });
+
 /** A Expedição define o turno dos pedidos ainda não iniciados. Em coletas,
  * também pode ajustar a data. O gestor consulta mas não modifica. */
 export const setExpeditionSchedule = createServerFn({ method: 'POST' })
