@@ -1,5 +1,7 @@
 "use strict";
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const DEFAULT_API_URL = "https://biglogno.estoquenovaodessa.workers.dev/api/whatsapp-stock-print";
 
@@ -60,62 +62,212 @@ function idPedidoDaMensagem(serializedMessageId) {
     hex.slice(16,20), hex.slice(20,32)].join("-");
 }
 
-/** Envia apenas empresa/código/descrição; a quantidade recebida do grupo
- * NUNCA é enviada e a etiqueta fica com campo de quantidade vazio. */
-async function solicitarEtiquetasDoBot({messageId,company,items}, opts={}) {
-  const token = opts.token === undefined ? process.env.BIGLOG_BOT_PRINT_TOKEN : opts.token;
-  if (!token) {
-    return {ok:false,skipped:true,reason:"Token de integração ainda não configurado."};
-  }
-  if (!/^[a-f0-9]{64}$/i.test(token))
-    throw new Error("BIGLOG_BOT_PRINT_TOKEN deve ter 64 caracteres hexadecimais.");
-  const filtered = items.filter(item=>String(item.code??"").trim() && String(item.description??"").trim());
-  if (!filtered.length) return {ok:false,skipped:true,reason:"Nenhum item encontrado no estoque."};
-  if (filtered.length>500)throw new Error("Uma mensagem pode solicitar no máximo 500 etiquetas.");
+/** Fila local duravel para pedidos que nao chegam ao BigLog por instabilidade
+ * da internet. Nao grava token, sessao WhatsApp ou quantidade das mercadorias. */
+const OUTBOX_NAME = ".argox-pendentes";
+const inFlight = new Set();
+let reenvioAtivo = false;
+let reenvioEmExecucao = false;
+const avisosRecentes = new Map();
+const RETRY_MS = 30000;
 
-  const endpoint=opts.url ?? process.env.BIGLOG_BOT_PRINT_URL ?? DEFAULT_API_URL;
-  if (!endpoint.startsWith("https://"))
+function pastaPendentes(opts = {}) {
+  return opts.outboxDir || path.join(process.cwd(), OUTBOX_NAME);
+}
+
+function gravarPendente(payload, opts = {}) {
+  if (opts.persist === false) return null;
+  const dir = pastaPendentes(opts);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, payload.requestId + ".json");
+  if (fs.existsSync(file)) return file;
+  const tmp = path.join(dir, payload.requestId + "." + process.pid + "." +
+    crypto.randomBytes(4).toString("hex") + ".tmp");
+  try {
+    fs.writeFileSync(tmp, JSON.stringify({ version: 1, payload }), { encoding: "utf8", flag: "wx" });
+    fs.renameSync(tmp, file);
+  } finally {
+    try { fs.unlinkSync(tmp); } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return file;
+}
+
+function textoErro(error) {
+  const code = error?.cause?.code || error?.code;
+  const base = String(error?.message || error);
+  return code && !base.includes(code) ? base + " (" + code + ")" : base;
+}
+
+function validarToken(token) {
+  if (!/^[a-f0-9]{64}$/i.test(token || ""))
+    throw new Error("BIGLOG_BOT_PRINT_TOKEN ausente ou invalido.");
+}
+
+function obterTransporte(opts = {}) {
+  const token = opts.token === undefined ? process.env.BIGLOG_BOT_PRINT_TOKEN : opts.token;
+  validarToken(token);
+  const endpoint = opts.url ?? process.env.BIGLOG_BOT_PRINT_URL ?? DEFAULT_API_URL;
+  if (typeof endpoint !== "string" || !endpoint.startsWith("https://"))
     throw new Error("O endereço de impressão deve usar HTTPS.");
-  const payload={
-    requestId:idPedidoDaMensagem(messageId),
-    company:String(company??"").trim().slice(0,100)||"Não informada",
-    items:filtered.map(item=>({
-      code:String(item.code).trim().slice(0,60),
-      description:String(item.description).trim().slice(0,360),
-    })),
-  };
-  const fetcher=opts.fetch ?? globalThis.fetch;
+  const fetcher = opts.fetch ?? globalThis.fetch;
   if (typeof fetcher !== "function")
     throw new Error("É necessário Node.js 18+ (com suporte a fetch).");
+  return { token, endpoint, fetcher };
+}
+
+async function enviarHTTP(payload, transporte) {
   let lastError;
-  // Retry seguro: o requestId continua o mesmo e o servidor ignora duplicatas.
-  for(let attempt=0; attempt<2;attempt++){
-    try{
-      const response=await fetcher(endpoint,{
-        method:"POST",
-        headers:{"content-type":"application/json","accept":"application/json",
-          "authorization":"Bearer "+token},
-        body:JSON.stringify(payload),
-        signal:typeof AbortSignal!=="undefined"&&typeof AbortSignal.timeout==="function"
-          ?AbortSignal.timeout(15000):undefined,
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await transporte.fetcher(transporte.endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json", "accept": "application/json",
+          authorization: "Bearer " + transporte.token
+        },
+        body: JSON.stringify(payload),
+        signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+          ? AbortSignal.timeout(15000) : undefined
       });
-      if(!response.ok){
-        const info=await response.json().catch(()=>({}));
-        const message=info?.error||("HTTP "+response.status);
-        if(response.status<500)throw new Error("BigLog recusou a solicitação: "+message);
-        throw new Error("Serviço de impressão indisponível: "+message);
+      if (!response.ok) {
+        const info = await response.json().catch(() => ({}));
+        const message = info?.error || ("HTTP " + response.status);
+        const error = new Error(response.status < 500
+          ? "BigLog recusou a solicitação: " + message
+          : "Serviço de impressão indisponível: " + message);
+        error.permanent = response.status >= 400 && response.status < 500;
+        throw error;
       }
-      const receipt=await response.json();
-      if(!receipt?.ok)throw new Error("BigLog não confirmou o enfileiramento.");
-      return {ok:true,skipped:false,requestId:payload.requestId,
-        labels:receipt.labels,batches:receipt.batches};
-    }catch(error){
-      lastError=error;
-      if(attempt===0){
-        await new Promise(resolve=>setTimeout(resolve,800));
-      }
+      const receipt = await response.json();
+      if (!receipt?.ok) throw new Error("BigLog não confirmou o enfileiramento.");
+      return receipt;
+    } catch (error) {
+      lastError = error;
+      if (error.permanent) break; // Ex.: token errado. Preserva pedido localmente.
+      if (attempt < 2)
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 800 : 2000));
     }
   }
   throw lastError;
 }
-module.exports={identificarMensagemWhatsApp,idPedidoDaMensagem,solicitarEtiquetasDoBot,DEFAULT_API_URL};
+
+async function entregarPendente(payload, opts = {}) {
+  if (inFlight.has(payload.requestId))
+    return { ok: false, pending: true, requestId: payload.requestId,
+      reason: "Este pedido ja esta em envio." };
+  inFlight.add(payload.requestId);
+  try {
+    const receipt = await enviarHTTP(payload, obterTransporte(opts));
+    if (opts.persist !== false) {
+      const file = path.join(pastaPendentes(opts), payload.requestId + ".json");
+      try { fs.unlinkSync(file); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    return { ok: true, pending: false, requestId: payload.requestId,
+      labels: receipt.labels, batches: receipt.batches };
+  } finally {
+    inFlight.delete(payload.requestId);
+  }
+}
+
+/** Envia apenas empresa/codigo/descricao; quantidade fica em branco.
+ * Grava ANTES da requisicao. Falha de rede nao perde o pedido: o processo
+ * tenta novamente a cada 30 segundos e apos reiniciar o bot. */
+async function solicitarEtiquetasDoBot({ messageId, company, items }, opts = {}) {
+  const token = opts.token === undefined ? process.env.BIGLOG_BOT_PRINT_TOKEN : opts.token;
+  if (!token) {
+    return { ok: false, skipped: true, reason: "Token de integração ainda não configurado." };
+  }
+  validarToken(token);
+  const filtered = items.filter(item =>
+    String(item.code ?? "").trim() && String(item.description ?? "").trim());
+  if (!filtered.length)
+    return { ok: false, skipped: true, reason: "Nenhum item encontrado no estoque." };
+  if (filtered.length > 500)
+    throw new Error("Uma mensagem pode solicitar no máximo 500 etiquetas.");
+
+  const payload = {
+    requestId: idPedidoDaMensagem(messageId),
+    company: String(company ?? "").trim().slice(0, 100) || "Não informada",
+    items: filtered.map(item => ({
+      code: String(item.code).trim().slice(0, 60),
+      description: String(item.description).trim().slice(0, 360)
+    }))
+  };
+  gravarPendente(payload, opts); // Durabilidade antes do envio.
+  try {
+    return await entregarPendente(payload, opts);
+  } catch (error) {
+    if (opts.persist === false) throw error;
+    return { ok: false, pending: true, requestId: payload.requestId,
+      labels: filtered.length, reason: textoErro(error) };
+  }
+}
+
+async function processarPedidosPendentes(opts = {}) {
+  if (reenvioEmExecucao) return 0;
+  reenvioEmExecucao = true;
+  let enviados = 0;
+  try {
+    const dir = pastaPendentes(opts);
+    if (!fs.existsSync(dir)) return 0;
+    const files = fs.readdirSync(dir).filter(name =>
+      /^[0-9a-f-]{36}\.json$/i.test(name)).sort().slice(0, 20);
+    if (!files.length) return 0;
+    const transporte = obterTransporte(opts);
+    for (const name of files) {
+      let payload;
+      try {
+        const registro = JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"));
+        payload = registro.payload;
+        if (registro.version !== 1 || !payload ||
+            name !== payload.requestId + ".json" || !Array.isArray(payload.items))
+          throw new Error("Arquivo pendente invalido");
+      } catch (error) {
+        console.error("[Argox] Pedido pendente local corrompido:", name, textoErro(error));
+        continue;
+      }
+      try {
+        const result = await entregarPendente(payload, {
+          ...opts, token: transporte.token, url: transporte.endpoint, fetch: transporte.fetcher
+        });
+        if (result.ok) {
+          enviados++;
+          avisosRecentes.delete(name);
+          console.log("[Argox] Pedido salvo enviado ao BigLog: " +
+            result.labels + " etiqueta(s), " + result.batches + " lote(s).");
+        }
+      } catch (error) {
+        const detail = textoErro(error);
+        const aviso = avisosRecentes.get(name);
+        if (!aviso || aviso.detail !== detail || Date.now() - aviso.at > 300000) {
+          console.warn("[Argox] Pedido continua salvo para reenvio:", detail);
+          avisosRecentes.set(name, { detail, at: Date.now() });
+        }
+      }
+    }
+  } finally {
+    reenvioEmExecucao = false;
+  }
+  return enviados;
+}
+
+function iniciarReenvioAutomatico() {
+  if (reenvioAtivo) return;
+  reenvioAtivo = true;
+  const executar = () => {
+    void processarPedidosPendentes().catch(error =>
+      console.error("[Argox] Erro ao verificar pedidos pendentes:", textoErro(error)));
+  };
+  const inicial = setTimeout(executar, 2000);
+  if (typeof inicial.unref === "function") inicial.unref();
+  const timer = setInterval(executar, RETRY_MS);
+  if (typeof timer.unref === "function") timer.unref();
+}
+
+module.exports = {
+  identificarMensagemWhatsApp, idPedidoDaMensagem, solicitarEtiquetasDoBot,
+  processarPedidosPendentes, iniciarReenvioAutomatico, DEFAULT_API_URL
+};
