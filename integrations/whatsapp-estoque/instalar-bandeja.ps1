@@ -45,7 +45,7 @@ if (Test-Path -LiteralPath $antigo) {
         Remove-Item -LiteralPath $antigo -Force
         Write-Host "Atalho antigo do bot substituido."
     } else {
-        Write-Warning "Atalho antigo com nome semelhante, mas destino diferente: " + $antigo
+        Write-Warning ("Atalho antigo com nome semelhante, mas destino diferente: " + $antigo)
     }
 }
 
@@ -66,6 +66,18 @@ Get-ChildItem -LiteralPath $startup -Filter "*.lnk" -File | Where-Object {
         $outro = $shell.CreateShortcut($_.FullName)
         $alvo = [string]$outro.TargetPath + " " + [string]$outro.Arguments
         if ($alvo -match "bot-estoque|iniciar-bot[.]ps1") {
+            $possiveisDuplicatas += $_.Name
+        }
+    } catch {}
+}
+
+# Atalhos antigos .bat/.cmd/.vbs tambem podem iniciar outra instancia.
+Get-ChildItem -LiteralPath $startup -File | Where-Object {
+    $_.Extension -in @(".bat", ".cmd", ".vbs")
+} | ForEach-Object {
+    try {
+        $texto = Get-Content -LiteralPath $_.FullName -Raw -ErrorAction Stop
+        if ($texto -match "bot-estoque|iniciar-bot[.]ps1") {
             $possiveisDuplicatas += $_.Name
         }
     } catch {}

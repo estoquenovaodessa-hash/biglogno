@@ -8,3 +8,7 @@ node_modules/
 
 # Pedidos aguardando reenvio automatico (sem tokens)
 .argox-pendentes/
+
+# Bandeja Windows: logs podem conter dados operacionais do WhatsApp
+logs-bot/
+iniciar-bandeja.vbs
