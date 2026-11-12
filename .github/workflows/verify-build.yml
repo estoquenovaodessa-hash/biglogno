@@ -71,5 +71,9 @@ jobs:
         run: bun test src/lib/deliveries.test.js src/lib/delivery-dispatch.test.js src/lib/delivery-grouping.test.js src/lib/expedition-schedule.test.js
       - name: Testar impressão S.B.O remota 60x30mm por lotes
         run: bun test src/lib/sbo-print.test.js
+      - name: Testar PDFs WhatsApp 60x30 e separacao por lotes
+        run: bun test src/lib/whatsapp-stock-label.test.ts
+      - name: Testar cliente do bot sem conectar ao WhatsApp nem imprimir
+        run: node --test integrations/whatsapp-estoque/print-client.test.js
       - name: Executar build de producao
         run: npm run build
