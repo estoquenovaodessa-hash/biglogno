@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { finishPickup, finishPickupSchema, manualPickupSchema, type Pickup } from './pickups';
 import { logisticsCommitError } from './logistics-commit-error';
+import { expeditionFinishPickupSchema, finishExpeditionPickup } from './expedition-completion';
 
 export const listPickups = createServerFn({ method: 'GET' }).handler(async () => {
   const { requireAccess } = await import('./access.server'); const role = await requireAccess();
@@ -45,6 +46,32 @@ export const completePickup = createServerFn({ method: 'POST' }).inputValidator(
   if (saved !== true) throw new Error('A retirada não foi confirmada pelo Supabase. Atualize e tente novamente.');
   return { ok: true };
 });
+
+/** Permite ao responsável da Expedição concluir uma retira da Conferência,
+ * identificando quem retirou e quem confirmou, com concorrência atômica. */
+export const finishPickupFromExpedition = createServerFn({ method: 'POST' })
+  .inputValidator(expeditionFinishPickupSchema)
+  .handler(async ({ data }) => {
+    const { requireOperatorPermission } = await import('./employees.functions');
+    const actor = await requireOperatorPermission('expedicao');
+    const { logisticsClient } = await import('./logistics.server');
+    const db = await logisticsClient();
+    const { data: row, error } = await db.from('pickups')
+      .select('id,created_at,payload').eq('id', data.id).maybeSingle();
+    if (error || !row) throw new Error('Retira não encontrada. Atualize a Expedição.');
+    const current = { ...(row.payload as unknown as Pickup), id: row.id, createdAt: row.created_at };
+    const next = finishExpeditionPickup(current, data.receiver, actor, new Date());
+    const { id: _id, createdAt: _createdAt, ...payload } = next;
+    const { data: saved, error: saveError } = await db.rpc('commit_logistics_changes', {
+      kind: 'pickups',
+      expected: [{ id: row.id, payload: row.payload }],
+      changes: [{ id: row.id, payload }],
+    });
+    if (saveError) throw logisticsCommitError('confirmar a retirada pela Expedição', saveError);
+    if (saved !== true)
+      throw new Error('A Retira foi alterada por outro operador. Atualize a Expedição e tente novamente.');
+    return { ok: true, receiver: next.receiver, completedBy: actor.name };
+  });
 
 /** Expedição recebe apenas as retiras originadas da Conferência, inclusive já retiradas. */
 export const listExpeditionPickups = createServerFn({ method: 'GET' }).handler(async () => {
