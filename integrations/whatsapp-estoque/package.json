@@ -1,0 +1,6 @@
+{
+  "name": "bot-estoque-integracao",
+  "private": true,
+  "type": "commonjs",
+  "description": "Compatibilidade CommonJS do bot WhatsApp original. Não substitua o package.json da instalação existente."
+}
