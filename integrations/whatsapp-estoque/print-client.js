@@ -3,6 +3,48 @@ const crypto = require("node:crypto");
 
 const DEFAULT_API_URL = "https://biglogno.estoquenovaodessa.workers.dev/api/whatsapp-stock-print";
 
+/**
+ * Identifica a mensagem independentemente do formato da versao do
+ * whatsapp-web.js: o ID pode vir como _serialized, id.id ou rawData.id.
+ * Se a versao nao fornecer nenhum ID, combina grupo, autor, timestamp
+ * e texto. A chave e um hash estavel (nao expomos dados do WhatsApp).
+ *
+ * Nunca usar UUID aleatorio aqui: isso permitiria reimpressao do mesmo
+ * pedido em uma reconexao do bot.
+ */
+function identificarMensagemWhatsApp(msg) {
+  const original = msg?.id;
+  const rawId = msg?.rawData?.id ?? msg?._data?.id;
+  const choose = [
+    typeof original === "string" ? original : null,
+    original?._serialized,
+    original?.id,
+    original?.key?.id,
+    typeof rawId === "string" ? rawId : null,
+    rawId?._serialized,
+    rawId?.id,
+  ].find(value => typeof value === "string" && value.trim().length > 0);
+
+  const group = String(msg?.from ?? msg?.rawData?.from ?? "").trim();
+  if (choose) {
+    // Incluir grupo impede colisao quando a biblioteca retorna apenas o ID.
+    return "whatsapp-id:" + group + ":" + choose.trim();
+  }
+
+  const timestamp = Number(msg?.timestamp ?? msg?.rawData?.t ?? msg?._data?.t);
+  const sender = String(msg?.author ?? msg?.rawData?.author ?? msg?._data?.author ?? "").trim();
+  const body = String(msg?.body ?? msg?.rawData?.body ?? "").trim();
+  if (!group || !Number.isSafeInteger(timestamp) || timestamp <= 0 || !body) {
+    throw new Error(
+      "Mensagem do WhatsApp sem ID e sem dados suficientes para criar chave estavel; impressao ignorada."
+    );
+  }
+  const digest = crypto.createHash("sha256")
+    .update(JSON.stringify(["fallback-msg-v1", group, sender, timestamp, body]), "utf8")
+    .digest("hex");
+  return "whatsapp-fallback:" + digest;
+}
+
 /** Mesmo WhatsApp msg.id => mesmo UUID. Reentregas e reconexões NÃO
  * recriam os jobs graças à unicidade do requestId no Supabase. */
 function idPedidoDaMensagem(serializedMessageId) {
@@ -76,4 +118,4 @@ async function solicitarEtiquetasDoBot({messageId,company,items}, opts={}) {
   }
   throw lastError;
 }
-module.exports={idPedidoDaMensagem,solicitarEtiquetasDoBot,DEFAULT_API_URL};
+module.exports={identificarMensagemWhatsApp,idPedidoDaMensagem,solicitarEtiquetasDoBot,DEFAULT_API_URL};
