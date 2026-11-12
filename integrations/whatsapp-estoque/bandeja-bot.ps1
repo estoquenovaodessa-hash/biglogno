@@ -173,9 +173,20 @@ function Atualizar-Status {
         Mostrar-Notificacao "Bot Estoque Online" "WhatsApp conectado. Bot funcionando na bandeja."
     }
     $argox = @($linhas | Where-Object { $_ -match '\[Argox\]' })
-    if ($argox.Count -gt 0) { $script:ultimoAviso = [string]$argox[-1] }
     $err = @(Ultimas-Linhas $script:erros 40 | Where-Object { $_ -match '\[Argox\]' })
-    if ($err.Count -gt 0) { $script:ultimoAviso = [string]$err[-1] }
+    # Os canais stdout/stderr sao arquivos diferentes: a linha de erro
+    # anterior nao deve esconder a confirmacao mais recente de enfileiramento.
+    $modSaida = if (Test-Path -LiteralPath $script:saida) {
+        (Get-Item -LiteralPath $script:saida).LastWriteTimeUtc
+    } else { [datetime]::MinValue }
+    $modErro = if (Test-Path -LiteralPath $script:erros) {
+        (Get-Item -LiteralPath $script:erros).LastWriteTimeUtc
+    } else { [datetime]::MinValue }
+    if ($err.Count -gt 0 -and ($argox.Count -eq 0 -or $modErro -gt $modSaida)) {
+        $script:ultimoAviso = [string]$err[-1]
+    } elseif ($argox.Count -gt 0) {
+        $script:ultimoAviso = [string]$argox[-1]
+    }
 
     if ($null -ne $script:processo) {
         try {
