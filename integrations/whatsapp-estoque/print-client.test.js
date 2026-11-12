@@ -1,9 +1,37 @@
 "use strict";
 const { test }=require("node:test");
 const assert=require("node:assert/strict");
-const {idPedidoDaMensagem,solicitarEtiquetasDoBot}=require("./print-client");
+const {identificarMensagemWhatsApp,idPedidoDaMensagem,solicitarEtiquetasDoBot}=require("./print-client");
 
 const token="a".repeat(64);
+test("aceita ID WhatsApp serializado e ID curto de versões diferentes",()=>{
+  const a={from:"grupo@g.us",id:{_serialized:"true_grupo@g.us_AB12",id:"AB12"},timestamp:1794490000,body:"12456 - 6\nPENTAX"};
+  const b={from:"grupo@g.us",id:{id:"AB12"},timestamp:1794490000,body:a.body};
+  const x=identificarMensagemWhatsApp(a);
+  const y=identificarMensagemWhatsApp(b);
+  assert.match(x,/AB12/);
+  assert.match(y,/AB12/);
+  assert.equal(y,identificarMensagemWhatsApp(b));
+  assert.notEqual(y,identificarMensagemWhatsApp({...b,id:{id:"AB13"}}));
+});
+test("aceita ID da estrutura rawData quando msg.id nao vier",()=>{
+  const a={from:"grupo@g.us",rawData:{id:{_serialized:"true_grupo@g.us_X123"}},timestamp:1794490000,body:"Mensagem"};
+  assert.match(identificarMensagemWhatsApp(a),/X123/);
+  assert.equal(identificarMensagemWhatsApp(a),identificarMensagemWhatsApp(a));
+});
+test("sem ID utiliza dados estaveis da mensagem; reconexao nao duplica jobs",()=>{
+  const msg={from:"grupo@g.us",author:"usuario@c.us",timestamp:1794490000,body:"12456 - 6\nPENTAX"};
+  const a=identificarMensagemWhatsApp(msg);
+  const b=identificarMensagemWhatsApp({...msg});
+  assert.equal(a,b);
+  assert.equal(idPedidoDaMensagem(a),idPedidoDaMensagem(b));
+  assert.notEqual(a,identificarMensagemWhatsApp({...msg,timestamp:1794490001}));
+  assert.notEqual(a,identificarMensagemWhatsApp({...msg,author:"outro@c.us"}));
+});
+test("na falta de identificacao e timestamp recusa impressao para nao criar reimpressao aleatoria",()=>{
+  assert.throws(()=>identificarMensagemWhatsApp({from:"grupo@g.us",body:"pedido"}),/sem ID/);
+});
+
 test("mesma mensagem do WhatsApp sempre produz mesmo UUID para evitar duplicidade",()=>{
   const id=idPedidoDaMensagem("true_12036@g.us_AAA");
   assert.match(id,/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);

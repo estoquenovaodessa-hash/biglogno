@@ -5,7 +5,7 @@ const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const csv = require('csv-parser');
 const iconv = require('iconv-lite');
-const { solicitarEtiquetasDoBot } = require('./print-client');
+const { solicitarEtiquetasDoBot, identificarMensagemWhatsApp } = require('./print-client');
 
 // Inicializa o cliente com persistência de sessão (inalterado).
 const client = new Client({
@@ -44,6 +44,16 @@ client.on('message', async (msg) => {
     });
 
     if (itensParaBuscar.length === 0) return;
+
+    // Captura a identidade antes de responder a mensagem.
+    // Algumas versoes da biblioteca entregam id.id em vez de id._serialized.
+    // O identificador e usado somente para prevenir etiquetas duplicadas.
+    let identificadorImpressao = null;
+    try {
+        identificadorImpressao = identificarMensagemWhatsApp(msg);
+    } catch (erro) {
+        console.error('[Argox] Sem identificacao segura da mensagem:', erro.message);
+    }
 
     let dadosEstoque = [];
     fs.createReadStream('estoque.csv')
@@ -94,10 +104,10 @@ client.on('message', async (msg) => {
                 console.error('[WhatsApp] Não foi possível enviar a resposta:', error.message);
             }
 
-            if (!etiquetas.length) return;
+            if (!etiquetas.length || !identificadorImpressao) return;
             try {
                 const result = await solicitarEtiquetasDoBot({
-                    messageId: msg.id?._serialized,
+                    messageId: identificadorImpressao,
                     company: nomeEmpresa,
                     items: etiquetas
                 });
