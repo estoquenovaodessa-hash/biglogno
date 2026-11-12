@@ -91,10 +91,21 @@ node --test print-client.test.js
 
 Requer Node 18+ para o cliente HTTP embutido. `whatsapp-web.js`, `qrcode-terminal`, `csv-parser` e `iconv-lite` continuam com as versões já instaladas.
 
+## Pedidos pendentes quando a internet cair
+
+- O bot salva **antes do envio** cada pedido de impressão na pasta `.argox-pendentes`, dentro da instalação do bot. O arquivo guarda apenas ID estável, empresa, códigos e descrições; **não** guarda token, sessão WhatsApp ou quantidade.
+- Se o BigLog ficar temporariamente inacessível (erro `fetch failed`, `ECONNRESET`, tempo esgotado ou HTTP 503), o bot continua respondendo no grupo. A impressão fica **pendente**, sem se perder.
+- O bot faz até **3 tentativas imediatas** e, enquanto estiver aberto, verifica os pedidos pendentes aproximadamente a cada **30 segundos**. Quando reiniciar, retoma a fila local.
+- O terminal informa `[Argox] Pedido salvo para reenvio automático` e, após conseguir enviar, `[Argox] Pedido salvo enviado ao BigLog`.
+- A API mantém idempotência por `requestId` fixo: reenvio não imprime uma segunda cópia do mesmo pedido, mesmo que a resposta HTTP tenha se perdido.
+- **Não exclua a pasta `.argox-pendentes`** enquanto houver arquivos nela, a menos que deseje descartar esses pedidos.
+- Antes de repetir manualmente um comando, confira se há pedidos pendentes, pois uma nova mensagem no WhatsApp corresponde a um novo pedido de impressão.
+- Reiniciar o bot não faz o pedido original que falhou antes desta atualização reaparecer. Se o pedido antigo não chegou à fila, faça um novo teste após a atualização.
+
 ## Observabilidade / falhas
 
 - Se a chave não estiver configurada, o bot **continua respondendo**, mas emite `[Argox] Solicitação não enviada: Token ...` no terminal.
-- Se o BigLog falhar, o bot continua respondendo; a falha aparece no terminal, sem reescrever a mensagem do grupo.
+- Se o BigLog falhar, o bot continua respondendo; a solicitação fica salva para reenvio automático, sem reescrever a mensagem do grupo.
 - O retorno da API confirma **enfileiramento**, não a saída física. A confirmação do agente significa envio ao spooler do Windows.
 - Para evitar duplicação, a mesma mensagem tem requestId estável. Se você enviar **uma nova mensagem** com o mesmo código, será um novo pedido e poderá imprimir novamente.
 - Evite reimprimir uma mensagem enquanto não conferir a impressora.

@@ -5,7 +5,7 @@ const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const csv = require('csv-parser');
 const iconv = require('iconv-lite');
-const { solicitarEtiquetasDoBot, identificarMensagemWhatsApp } = require('./print-client');
+const { solicitarEtiquetasDoBot, identificarMensagemWhatsApp, iniciarReenvioAutomatico } = require('./print-client');
 
 // Inicializa o cliente com persistência de sessão (inalterado).
 const client = new Client({
@@ -20,6 +20,7 @@ client.on('qr', (qr) => {
 
 client.on('ready', () => {
     console.log('Bot de Estoque Online e operando!');
+    iniciarReenvioAutomatico();
 });
 
 // Mesmo ID do grupo da instalação original; não modifica grupos ou comandos.
@@ -113,6 +114,9 @@ client.on('message', async (msg) => {
                 });
                 if (result.skipped) {
                     console.warn('[Argox] Solicitação não enviada:', result.reason);
+                } else if (result.pending) {
+                    console.warn('[Argox] Pedido salvo para reenvio automático (' + result.labels +
+                        ' etiqueta(s)): ' + result.reason);
                 } else {
                     console.log('[Argox] ' + result.labels +
                         ' etiqueta(s) solicitadas na fila do BigLog; ' +

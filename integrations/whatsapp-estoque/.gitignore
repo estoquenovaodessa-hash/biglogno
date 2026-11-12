@@ -5,3 +5,6 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_cache/
 *.log
+
+# Pedidos aguardando reenvio automatico (sem tokens)
+.argox-pendentes/
