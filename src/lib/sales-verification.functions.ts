@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { historicalKey, parseHistoricalSales } from "./sales-import";
 import { canManageSales, sellerCountKey, sellerSalesSchema, canonicalCode, clientSchema, documentPrefix, lastVerificationFields, verificationSchema, verificationDestination, verificationEditKind, verificationClientDisplayName, verifierSchema, type SalesClient, type Verifier, type VerificationRecord } from "./sales-verification";
+import { EXPEDITION_AUTHORSHIP_PREFIX, changeExpeditionAuthorshipSchema, expeditionAuthorshipSchema, isExpeditionAuthorshipEligible, type ExpeditionAuthorshipMap } from "./sales-authorship";
 
 export const readSalesVerification = createServerFn({ method: "GET" }).handler(async () => {
   const { requireAccess } = await import("./access.server");
@@ -23,12 +24,29 @@ export const readSalesVerification = createServerFn({ method: "GET" }).handler(a
     }
   }
   const sellerCounts: Record<string, number> = {};
+  const authorships: ExpeditionAuthorshipMap = {};
   if (role === "gestor") {
     const { data: counts, error: countsError } = await supabaseAdmin.from("app_state").select("key,value").like("key", "sales-seller-count:%");
     if (countsError) throw new Error("Não foi possível carregar as vendas por vendedor.");
     for (const row of counts ?? []) sellerCounts[row.key] = Number(row.value);
+    // A autoria é apenas um vínculo consultivo. Não modifica os registros
+    // originais e não participa de KPIs, relatórios nem da operação logística.
+    const validIds = new Set(records.filter(isExpeditionAuthorshipEligible).map(row => row.id));
+    for (let offset = 0; ; offset += 1000) {
+      const { data: links, error: linksError } = await supabaseAdmin.from("app_state")
+        .select("key,value").like("key", EXPEDITION_AUTHORSHIP_PREFIX + "%")
+        .order("key").range(offset, offset + 999);
+      if (linksError) throw new Error("Não foi possível carregar as autorias consultivas.");
+      for (const link of links ?? []) {
+        const id = link.key.slice(EXPEDITION_AUTHORSHIP_PREFIX.length);
+        if (!validIds.has(id)) continue; // Original excluído: nunca contabilizar.
+        const parsed = expeditionAuthorshipSchema.safeParse(link.value);
+        if (parsed.success) authorships[id] = parsed.data;
+      }
+      if (!links || links.length < 1000) break;
+    }
   }
-  return { clients: z.array(clientSchema).parse(values["sales-clients"] ?? []), verifiers: z.array(verifierSchema).parse(values["sales-verifiers"] ?? []), records, ...lastVerificationFields(lastRecord), periodCounts: (values["sales-period-counts"] ?? {}) as Record<string, number>, sellerCounts };
+  return { clients: z.array(clientSchema).parse(values["sales-clients"] ?? []), verifiers: z.array(verifierSchema).parse(values["sales-verifiers"] ?? []), records, ...lastVerificationFields(lastRecord), periodCounts: (values["sales-period-counts"] ?? {}) as Record<string, number>, sellerCounts, authorships };
 });
 
 export const replaceSalesClients = createServerFn({ method: "POST" }).inputValidator(z.array(clientSchema).min(1).max(100000)).handler(async ({ data }) => {
@@ -289,6 +307,40 @@ export const deleteSalesVerification = createServerFn({ method: "POST" }).inputV
     deliveriesDeleted: result?.deliveriesDeleted ?? 0,
   };
 });
+
+/** Crédito comercial apenas consultivo. Cada conferência da Expedição
+ * tem no máximo um vendedor atribuído; alterar a escolha substitui o vínculo
+ * anterior e nunca insere outra linha em sales_verification_records. */
+export const changeExpeditionAuthorship = createServerFn({ method: "POST" })
+  .inputValidator(changeExpeditionAuthorshipSchema)
+  .handler(async ({ data }) => {
+    const { requireAccess } = await import("./access.server");
+    if (await requireAccess() !== "gestor")
+      throw new Error("Somente o gestor pode atribuir autoria comercial.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: original, error: originalError } = await supabaseAdmin
+      .from("sales_verification_records")
+      .select("id,payload").eq("id", data.recordId).maybeSingle();
+    if (originalError || !original)
+      throw new Error("Conferência não localizada. Atualize os registros.");
+    const record = { ...(original.payload as unknown as VerificationRecord), id: original.id };
+    if (!isExpeditionAuthorshipEligible(record))
+      throw new Error("A autoria comercial é exclusiva das conferências registradas pela Expedição.");
+    const key = EXPEDITION_AUTHORSHIP_PREFIX + original.id;
+    if (data.seller === null) {
+      const { error } = await supabaseAdmin.from("app_state").delete().eq("key", key);
+      if (error) throw new Error("Não foi possível remover a autoria consultiva.");
+      return { ok: true, seller: null };
+    }
+    const value = expeditionAuthorshipSchema.parse({
+      seller: data.seller, assignedAt: new Date().toISOString(), assignedBy: "gestor",
+    });
+    const { error } = await supabaseAdmin.from("app_state").upsert({
+      key, value, updated_at: value.assignedAt,
+    }, { onConflict: "key" });
+    if (error) throw new Error("Não foi possível salvar a autoria consultiva.");
+    return { ok: true, seller: data.seller };
+  });
 
 export const saveSellerSalesCount = createServerFn({ method: "POST" }).inputValidator(sellerSalesSchema).handler(async ({ data }) => {
   const { requireAccess } = await import("./access.server");

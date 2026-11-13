@@ -71,6 +71,8 @@ jobs:
         run: bun test src/lib/deliveries.test.js src/lib/delivery-dispatch.test.js src/lib/delivery-grouping.test.js src/lib/expedition-schedule.test.js
       - name: Testar impressão S.B.O remota 60x30mm por lotes
         run: bun test src/lib/sbo-print.test.js
+      - name: Testar autoria consultiva sem aumentar totais de conferencia
+        run: bun test src/lib/sales-authorship.test.js
       - name: Testar finalizacao de entregas e Retiras pela Expedicao com auditoria
         run: bun test src/lib/expedition-completion.test.js
       - name: Testar cache persistente de KM, atualizacao de enderecos e rotas completas
