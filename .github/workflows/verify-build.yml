@@ -73,6 +73,8 @@ jobs:
         run: bun test src/lib/sbo-print.test.js
       - name: Testar finalizacao de entregas e Retiras pela Expedicao com auditoria
         run: bun test src/lib/expedition-completion.test.js
+      - name: Testar clique do aviso KM e enderecos nao localizados
+        run: bun test src/lib/km-unresolved-addresses.test.js
       - name: Testar PDFs WhatsApp 60x30 e separacao por lotes
         run: bun test src/lib/whatsapp-stock-label.test.ts
       - name: Testar cliente do bot sem conectar ao WhatsApp nem imprimir

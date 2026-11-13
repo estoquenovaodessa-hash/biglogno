@@ -75,6 +75,10 @@ export function estimatedKmTrips(
 export interface EstimatedKmResult {
   meters: number | null;
   reason?: string;
+  /** Índices exatos das paradas sem cadastro ou não localizadas no geocodificador. */
+  problemStopIndices?: number[];
+  /** Falhas de serviço de ruas não devem ser confundidas com endereço incorreto. */
+  failureKind?: "origin" | "missing_address" | "geocode" | "routing";
   /** Em metros, exatamente uma perna por par de endereços consecutivos. */
   legs?: number[];
 }

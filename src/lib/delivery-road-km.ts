@@ -103,16 +103,28 @@ export async function calculateEstimatedTripKm(
   stops: RouteStop[], signal: AbortSignal,
 ): Promise<EstimatedKmResult> {
   if (!stops.length || stops[0]?.kind !== "origin")
-    return { meters: null, reason: "Origem BIGNOTTO FERRAMENTAS não cadastrada." };
-  if (stops.length < 2) return { meters: null, reason: "Nenhuma parada confirmada." };
-  if (stops.some(stop => !stop.address))
-    return { meters: null, reason: "Há entregas sem endereço cadastrado." };
+    return { meters: null, failureKind: "origin", reason: "Origem BIGNOTTO FERRAMENTAS não cadastrada." };
+  if (stops.length < 2)
+    return { meters: null, failureKind: "routing", reason: "Nenhuma parada confirmada." };
+  const withoutAddress = stops.flatMap((stop, index) => !stop.address ? [index] : []);
+  if (withoutAddress.length)
+    return { meters: null, failureKind: "missing_address",
+      problemStopIndices: withoutAddress, reason: "Há entregas sem endereço cadastrado." };
   try {
     const points: Point[] = [];
-    for (const stop of stops) {
+    for (const [index, stop] of stops.entries()) {
       if (signal.aborted) throw new DOMException("Operação cancelada.", "AbortError");
-      const point = await geocode(stop.address!, signal);
-      if (!point) return { meters: null, reason: "Endereço não localizado: " + stop.company };
+      let point: Point | null;
+      try {
+        point = await geocode(stop.address!, signal);
+      } catch (error) {
+        if (signal.aborted) throw error;
+        // Indisponibilidade do geocodificador não prova endereço inválido.
+        throw new Error("Serviço de geocodificação indisponível: " +
+          (error instanceof Error ? error.message : "tente novamente."));
+      }
+      if (!point) return { meters: null, failureKind: "geocode",
+        problemStopIndices: [index], reason: "Endereço não localizado: " + stop.company };
       points.push(point);
     }
     const lengths: number[] = [];
@@ -126,6 +138,7 @@ export async function calculateEstimatedTripKm(
     return result.meters === null ? result : { ...result, legs: lengths };
   } catch (error) {
     if (signal.aborted) throw error;
-    return { meters: null, reason: error instanceof Error ? error.message : "Falha ao calcular percurso pelas ruas." };
+    return { meters: null, failureKind: "routing",
+      reason: error instanceof Error ? error.message : "Falha ao calcular percurso pelas ruas." };
   }
 }

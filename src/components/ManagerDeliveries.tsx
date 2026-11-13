@@ -323,6 +323,15 @@ export function ManagerDeliveries({ deliveries, isLoading, isError, isFetching, 
         storeOrigin={findBignottoOrigin(addressQuery.data ?? [])}
         originError={addressQuery.isError}
         onTotalsChange={setKmSummary}
+        onSaveAddress={async (address: DeliveryClientAddress) => {
+          await saveAddresses({ data: [address] });
+          await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+        }}
+        onConfirmLocation={async (clientCode: string, point: ConfirmedPoint) => {
+          await confirmLocation({ data: { clientCode, latitude: point.latitude, longitude: point.longitude } });
+          await queryClient.invalidateQueries({ queryKey: ["delivery-addresses"] });
+        }}
+        onConfirmCollectionLocation={saveConfirmedCollection}
       />
     </div>
 
