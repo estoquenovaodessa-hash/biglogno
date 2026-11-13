@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Gauge, RefreshCw, Route, TriangleAlert } from "lucide-react";
+import { CalendarDays, ChevronRight, Gauge, RefreshCw, Route, TriangleAlert } from "lucide-react";
 import type { Delivery } from "@/lib/deliveries";
 import type { Employee } from "@/lib/employees";
 import type { DeliveryClientAddress } from "@/lib/delivery-addresses";
@@ -9,6 +9,9 @@ import {
   type EstimatedKmResult, type KmPeriod,
 } from "@/lib/delivery-estimated-km";
 import { calculateEstimatedTripKm } from "@/lib/delivery-road-km";
+import { unresolvedKmAddresses } from "@/lib/km-unresolved-addresses";
+import { KmUnresolvedAddressesDialog } from "./KmUnresolvedAddressesDialog";
+import type { ConfirmedPoint } from "@/lib/google-maps-location";
 import { Button } from "@/components/ui/button";
 
 const shortDate = (day: string) => day.split("-").reverse().join("/");
@@ -19,6 +22,7 @@ const isRecorded = (outcome?: EstimatedKmResult) => typeof outcome?.meters === "
  * Não apresenta distância parcial como se fosse total. */
 export function DeliveryKilometersPanel({
   drivers, selectedDriverId, deliveries, addresses, storeOrigin, originError, onTotalsChange,
+  onSaveAddress, onConfirmLocation, onConfirmCollectionLocation,
 }: {
   drivers: Employee[];
   selectedDriverId: string;
@@ -27,7 +31,11 @@ export function DeliveryKilometersPanel({
   storeOrigin?: DeliveryClientAddress;
   originError?: boolean;
   onTotalsChange?: (summary: { meters: number | null; ready: number; total: number }) => void;
+  onSaveAddress: (address: DeliveryClientAddress) => Promise<void>;
+  onConfirmLocation: (clientCode: string, point: ConfirmedPoint) => Promise<void>;
+  onConfirmCollectionLocation: (collectionId: string, address: string, point: ConfirmedPoint) => Promise<void>;
 }) {
+  const [issuesOpen, setIssuesOpen] = useState(false);
   const [period, setPeriod] = useState<KmPeriod>("day");
   const [referenceDate, setReferenceDate] = useState(currentSaoPauloDate);
   const [recheck, setRecheck] = useState(0);
@@ -69,6 +77,7 @@ export function DeliveryKilometersPanel({
   const processed = selectedTrips.filter(trip => Object.prototype.hasOwnProperty.call(calculated, trip.key)).length;
   const ready = selectedTrips.filter(trip => isRecorded(calculated[trip.key]));
   const missing = selectedTrips.filter(trip => calculated[trip.key] && !isRecorded(calculated[trip.key]));
+  const { issues, routeFailures } = unresolvedKmAddresses(missing, calculated);
   const sum = ready.reduce((total, trip) => total + (calculated[trip.key]?.meters ?? 0), 0);
   const pending = selectedTrips.length - processed;
   // Mostra o mesmo total calculado no KPI superior sem criar quilometragem fictícia.
@@ -148,13 +157,24 @@ export function DeliveryKilometersPanel({
     {originError && <p role="alert" className="mt-3 text-sm text-destructive">
       Não foi possível consultar a origem no cadastro.
     </p>}
-    {!storeOrigin && selectedTrips.length > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
-      <TriangleAlert className="mr-1 inline h-4 w-4" />
-      O cliente de código 1 (BIGNOTTO FERRAMENTAS) não possui endereço válido na base de endereços importada. Importe ou corrija o endereço do código 1 para calcular a partida dos turnos.
-    </p>}
-    {missing.length > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-      {missing.length} rota(s) não puderam ser calculadas integralmente. O total acima inclui apenas as rotas completas; não contabiliza como zero os trechos desconhecidos.
-    </p>}
+    {!storeOrigin && selectedTrips.length > 0 && <button type="button" onClick={() => setIssuesOpen(true)}
+      className="mt-3 flex w-full items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-left text-sm text-amber-800 transition-colors hover:bg-amber-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 dark:text-amber-300"
+      aria-label="Abrir cadastro da origem Bignotto não localizada">
+      <span><TriangleAlert className="mr-1 inline h-4 w-4" />
+        O cliente de código 1 (BIGNOTTO FERRAMENTAS) não possui endereço válido na base de endereços.
+        <strong className="ml-1 underline">Clique para cadastrar ou corrigir.</strong>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0"/>
+    </button>}
+    {missing.length > 0 && <button type="button" onClick={() => setIssuesOpen(true)}
+      className="mt-3 flex w-full items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-800 transition-colors hover:bg-amber-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 dark:text-amber-300"
+      aria-label={"Abrir detalhes de " + missing.length + " rotas não calculadas e corrigir endereços"}>
+      <span><TriangleAlert className="mr-1 inline h-4 w-4" />
+        {missing.length} rota(s) não puderam ser calculadas integralmente. O total acima inclui apenas as rotas completas; não contabiliza como zero os trechos desconhecidos.
+        <strong className="ml-1 underline">Clique para ver as entregas afetadas e corrigir endereços.</strong>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0"/>
+    </button>}
 
     <div className="mt-3 max-h-[400px] overflow-auto rounded-lg border border-[#21456b]">
       <table className="w-full text-left text-sm">
@@ -239,5 +259,10 @@ export function DeliveryKilometersPanel({
       A distância é estimada pelas vias disponíveis e pode variar com o roteamento atual. Rotas sem endereço ou sem resposta
       do serviço aparecem como não calculadas. O sistema não solicita localização nem monitora o celular do entregador.
     </p>
+    <KmUnresolvedAddressesDialog open={issuesOpen} onOpenChange={setIssuesOpen}
+      issues={issues} routeFailures={routeFailures}
+      onSaveAddress={onSaveAddress}
+      onConfirmLocation={onConfirmLocation}
+      onConfirmCollectionLocation={onConfirmCollectionLocation}/>
   </section>;
 }
