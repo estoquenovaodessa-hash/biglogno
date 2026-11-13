@@ -48,6 +48,17 @@ async function geocode(address: DeliveryClientAddress, signal: AbortSignal): Pro
   await previous;
   try {
     if (signal.aborted) throw new DOMException("Operação cancelada.", "AbortError");
+    // Dois turnos podem pedir a mesma loja/cliente quase simultaneamente.
+    // Depois de aguardar a fila, confira o cache de novo: o primeiro turno
+    // pode ter resolvido este ponto. Evita repetir a consulta Nominatim.
+    const updated = safeRead(cacheKey);
+    if (updated) {
+      try {
+        const previousEntry = JSON.parse(updated) as GeocodeEntry;
+        if (Date.now() - previousEntry.at < (previousEntry.point ? GEO_MAX_AGE : 7 * 86400000))
+          return isPoint(previousEntry.point) ? previousEntry.point : null;
+      } catch { /* cache inconsistente; tenta a consulta normal */ }
+    }
     const wait = Math.max(0, 1300 - (Date.now() - lastLookup));
     if (wait) await new Promise(resolve => setTimeout(resolve, wait));
     if (signal.aborted) throw new DOMException("Operação cancelada.", "AbortError");
