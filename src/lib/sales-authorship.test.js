@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   EXPEDITION_AUTHORSHIP_PREFIX, changeExpeditionAuthorshipSchema,
   creditedExpeditionRecords, expeditionAuthorshipSchema,
-  isExpeditionAuthorshipEligible, sellerPerformanceWithAuthorship,
+  isExpeditionAuthorshipEligible, sellerPerformanceWithAuthorship, withSavedExpeditionAuthorship,
 } from "./sales-authorship";
 import { salesMetrics } from "./sales-verification";
 
@@ -83,5 +83,29 @@ describe("autoria consultiva de conferências da Expedição", () => {
     expect(sellerPerformanceWithAuthorship(rows, map, "Carlos").value).toBe(55);
     expect(sellerPerformanceWithAuthorship(rows, map, "Helton").count).toBe(1);
     expect(sellerPerformanceWithAuthorship(rows, map, "EXPEDIÇÃO").count).toBe(3);
+  });
+});
+
+describe("atualização imediata do cache após salvar autoria", () => {
+  test("trocar vendedor atualiza apenas o vínculo confirmado, sem consultar nem duplicar conferências", () => {
+    const original = { abc: credit("Carlos"), xyz: credit("Helton") };
+    const changed = withSavedExpeditionAuthorship(original, "abc", credit("José"));
+    expect(changed.abc.seller).toBe("José");
+    expect(changed.xyz.seller).toBe("Helton");
+    expect(original.abc.seller).toBe("Carlos");
+    const rows = [expedition("abc"), expedition("xyz")];
+    expect(sellerPerformanceWithAuthorship(rows, original, "Carlos").count).toBe(1);
+    expect(sellerPerformanceWithAuthorship(rows, changed, "Carlos").count).toBe(0);
+    expect(sellerPerformanceWithAuthorship(rows, changed, "José").count).toBe(1);
+    expect(salesMetrics(rows).count).toBe(2);
+  });
+  test("remover crédito mantém todos os demais vínculos e o original da Expedição", () => {
+    const original = { abc: credit("Carlos"), xyz: credit("Helton") };
+    const removed = withSavedExpeditionAuthorship(original, "abc", null);
+    expect(removed.abc).toBeUndefined();
+    expect(removed.xyz.seller).toBe("Helton");
+    expect(original.abc.seller).toBe("Carlos");
+    expect(sellerPerformanceWithAuthorship([expedition("abc")], removed, "Carlos").count).toBe(0);
+    expect(salesMetrics([expedition("abc")]).count).toBe(1);
   });
 });

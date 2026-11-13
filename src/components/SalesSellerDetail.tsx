@@ -14,6 +14,7 @@ const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curr
 
 export function SalesSellerDetail({
   seller, period, periodLabel, records, authorships, savedCount,
+  authorshipOpen, authorshipNotice,
   onClose, onSaved, onDelete, onAuthorship,
 }: {
   seller: string;
@@ -21,6 +22,9 @@ export function SalesSellerDetail({
   periodLabel: string;
   records: VerificationRecord[];
   authorships: ExpeditionAuthorshipMap;
+  /** Enquanto a janela de autoria está acima desta, não fechar o detalhe. */
+  authorshipOpen: boolean;
+  authorshipNotice: string;
   savedCount: number;
   onClose: () => void;
   onSaved: () => Promise<unknown>;
@@ -103,8 +107,10 @@ export function SalesSellerDetail({
     </Button>,
   ]);
 
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent className="sales-manager max-h-[90dvh] w-[calc(100%-2rem)] max-w-6xl overflow-y-auto border-t-4 border-t-brand-gold bg-card shadow-brand">
+  return <Dialog open onOpenChange={open => { if (!open && !authorshipOpen) onClose(); }}>
+    <DialogContent onInteractOutside={event => { if (authorshipOpen) event.preventDefault(); }}
+      onEscapeKeyDown={event => { if (authorshipOpen) event.preventDefault(); }}
+      className="sales-manager max-h-[90dvh] w-[calc(100%-2rem)] max-w-6xl overflow-y-auto border-t-4 border-t-brand-gold bg-card shadow-brand">
       <DialogHeader>
         <DialogTitle className="text-2xl">Desempenho de {seller}</DialogTitle>
         <DialogDescription>{periodLabel}</DialogDescription>
@@ -142,6 +148,10 @@ export function SalesSellerDetail({
       </form>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
       {notice && <p role="status" className="text-success">{notice}</p>}
+      {authorshipNotice && <p role="status"
+        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+        {authorshipNotice}
+      </p>}
       <section>
         <h2 className="mb-2 text-xl font-bold">Maiores motivos de erro</h2>
         <div className="h-60 w-full min-w-0" role="img"
