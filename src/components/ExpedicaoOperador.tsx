@@ -18,6 +18,7 @@ import {canTransferExpedition} from "@/lib/employees.functions";
 import {useActiveEmployee} from "./EmployeeGate";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from "@/components/ui/select";
 import {Dialog,DialogContent,DialogHeader,DialogTitle} from "@/components/ui/dialog";
 import {
   DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,DropdownMenuSeparator,
@@ -555,16 +556,26 @@ export function ExpedicaoOperador({ readOnly = false }: { readOnly?: boolean } =
                 </p>
               : <p className="mt-1 text-xs text-muted-foreground">Nota: {completion?.document}</p>}
           </div>
-          {completion?.kind==="delivery" && <label className="block space-y-1.5 font-semibold">
-            Quem realizou a entrega? *
-            <select className="exp-input h-11 w-full rounded-md border px-3 text-sm"
-              aria-label="Quem realizou a entrega" value={finishDriver}
-              onChange={e=>setFinishDriver(e.target.value as ""|"Marcelo"|"Luciano")}>
-              <option value="">Selecione o entregador</option>
-              <option value="Marcelo">Marcelo</option>
-              <option value="Luciano">Luciano</option>
-            </select>
-          </label>}
+          {completion?.kind==="delivery" && <div className="space-y-1.5 font-semibold">
+            <label htmlFor="expedition-finish-driver">Quem realizou a entrega? *</label>
+            <Select value={finishDriver}
+              onValueChange={value=>setFinishDriver(value as "Marcelo"|"Luciano")}>
+              <SelectTrigger id="expedition-finish-driver" aria-label="Quem realizou a entrega"
+                className="h-11 w-full border-sky-700/60 bg-[#07182b] px-3 text-sm text-white shadow-none focus:ring-sky-400 data-[placeholder]:text-sky-200/80">
+                <SelectValue placeholder="Selecione o entregador"/>
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100] border-sky-700/60 bg-[#0a2543] text-white shadow-xl">
+                <SelectItem value="Marcelo"
+                  className="cursor-pointer text-white focus:bg-sky-700 focus:text-white">
+                  Marcelo
+                </SelectItem>
+                <SelectItem value="Luciano"
+                  className="cursor-pointer text-white focus:bg-sky-700 focus:text-white">
+                  Luciano
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>}
           <label className="block space-y-1.5 font-semibold">
             {completion?.kind==="delivery"?"Nome de quem recebeu (opcional)":"Nome de quem retirou *"}
             <Input className="h-11" maxLength={150}
