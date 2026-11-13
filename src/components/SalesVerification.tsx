@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { canonicalCode, errorComment, parseClients, salesMetrics, verifierSchema, type Verifier, type VerificationRecord } from "@/lib/sales-verification";
 import { readSalesVerification, replaceSalesClients, saveSalesVerifiers, saveSalesPeriodCount, deleteSalesVerification, changeExpeditionAuthorship } from "@/lib/sales-verification.functions";
 import { SELLERS } from "@/lib/sales-verification";
-import { isExpeditionAuthorshipEligible, sellerPerformanceWithAuthorship } from "@/lib/sales-authorship";
+import { isExpeditionAuthorshipEligible, sellerPerformanceWithAuthorship, withSavedExpeditionAuthorship } from "@/lib/sales-authorship";
 import { SalesVerificationForm } from "./SalesVerificationForm";
 import { MiniSboLabels } from "./MiniSboLabels";
 import { Retira } from "./Retira";
@@ -40,7 +40,6 @@ function conferenceArea(record: VerificationRecord): string {
 export function SalesVerification({ role }: { role: AccessRole }) {
   const queryClient = useQueryClient();
   const read = useServerFn(readSalesVerification), importClients = useServerFn(replaceSalesClients), saveVerifiers = useServerFn(saveSalesVerifiers), saveCount = useServerFn(saveSalesPeriodCount), deleteRecord = useServerFn(deleteSalesVerification), changeAuthorship = useServerFn(changeExpeditionAuthorship);
-  const query = useQuery({ queryKey: ["sales-verification", role], queryFn: () => read(), refetchInterval: 30000 });
   const [tab, setTab] = useState("Painel"), [search, setSearch] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
   const [period, setPeriod] = useState("all");
   // Quantidade de vendas (número inteiro), não valor financeiro.
@@ -58,6 +57,14 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const [authorBusy, setAuthorBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // A consulta completa inclui todo o histórico. Não rodá-la em segundo plano
+  // enquanto o gestor atribui várias autorias no modal: cada alteração
+  // atualiza apenas o vínculo no cache do React Query após salvar no servidor.
+  const query = useQuery({
+    queryKey: ["sales-verification", role],
+    queryFn: () => read(),
+    refetchInterval: selectedSeller || pendingAuthorship ? false : 30000,
+  });
   const data = query.data;
   if (!data) return <div className="py-8">{query.isError ? <><p role="alert" className="text-destructive">Não foi possível carregar a conferência.</p><Button variant="outline" onClick={() => query.refetch()}>Tentar novamente</Button></> : <p role="status">Carregando conferência…</p>}</div>;
   if (role === "operador") return (
@@ -144,17 +151,29 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const periodLabel = conferencePeriodLabel(period);
   function openAuthorship(record: VerificationRecord) {
     if (!isExpeditionAuthorshipEligible(record)) return;
-    setSelectedSeller(null); // evita dois modais sobrepostos.
+    // Preservar a janela de desempenho da Expedição: é comum atribuir
+    // autoria a várias notas na mesma sequência.
     setPendingAuthorship(record);
     setAuthorSeller(data.authorships[record.id]?.seller ?? "");
     setAuthorError("");
+    setNotice("");
   }
   async function saveAuthorship(seller: typeof SELLERS[number] | null) {
     if (!pendingAuthorship || authorBusy) return;
     setAuthorBusy(true); setAuthorError(""); setError("");
     try {
-      await changeAuthorship({ data: { recordId: pendingAuthorship.id, seller } });
-      await query.refetch();
+      const saved = await changeAuthorship({ data: { recordId: pendingAuthorship.id, seller } });
+      // A API já validou e persistiu o vínculo. Não buscar novamente milhares
+      // de conferências: só esta autoria mudou.
+      await queryClient.cancelQueries({ queryKey: ["sales-verification", role] });
+      queryClient.setQueryData<typeof data>(["sales-verification", role], current =>
+        current ? {
+          ...current,
+          authorships: withSavedExpeditionAuthorship(
+            current.authorships, pendingAuthorship.id, saved.authorship,
+          ),
+        } : current,
+      );
       setPendingAuthorship(null);
       setNotice(seller
         ? "Autoria de " + pendingAuthorship.document + " atribuída a " + seller +
@@ -340,6 +359,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     {analyzing && <SalesWeeklyAnalysis records={data.records} onClose={() => setAnalyzing(false)} />}
     {selectedSeller && <SalesSellerDetail key={`${periodKey}:${selectedSeller}`} seller={selectedSeller} period={periodKey} periodLabel={periodLabel}
       records={sellerScopeRecords} authorships={data.authorships}
+      authorshipOpen={!!pendingAuthorship} authorshipNotice={notice}
       savedCount={data.sellerCounts[sellerCountKey(periodKey, selectedSeller)] ?? 0}
       onClose={() => setSelectedSeller(null)} onSaved={() => query.refetch()}
       onDelete={r => { setError(""); setPendingDelete(r); }}

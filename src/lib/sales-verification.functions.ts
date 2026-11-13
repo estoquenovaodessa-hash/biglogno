@@ -330,7 +330,7 @@ export const changeExpeditionAuthorship = createServerFn({ method: "POST" })
     if (data.seller === null) {
       const { error } = await supabaseAdmin.from("app_state").delete().eq("key", key);
       if (error) throw new Error("Não foi possível remover a autoria consultiva.");
-      return { ok: true, seller: null };
+      return { ok: true, seller: null, authorship: null };
     }
     const value = expeditionAuthorshipSchema.parse({
       seller: data.seller, assignedAt: new Date().toISOString(), assignedBy: "gestor",
@@ -339,7 +339,7 @@ export const changeExpeditionAuthorship = createServerFn({ method: "POST" })
       key, value, updated_at: value.assignedAt,
     }, { onConflict: "key" });
     if (error) throw new Error("Não foi possível salvar a autoria consultiva.");
-    return { ok: true, seller: data.seller };
+    return { ok: true, seller: data.seller, authorship: value };
   });
 
 export const saveSellerSalesCount = createServerFn({ method: "POST" }).inputValidator(sellerSalesSchema).handler(async ({ data }) => {

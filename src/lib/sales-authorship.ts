@@ -61,3 +61,16 @@ export function sellerPerformanceWithAuthorship(
     creditedRecords: credits,
   };
 }
+
+/** Aplica a confirmação já persistida pelo servidor apenas ao cache visual
+ * da Conferência. Evita buscar novamente todo o histórico após cada autoria. */
+export function withSavedExpeditionAuthorship(
+  current: ExpeditionAuthorshipMap,
+  recordId: string,
+  saved: ExpeditionAuthorship | null,
+): ExpeditionAuthorshipMap {
+  const next = { ...current };
+  if (saved) next[recordId] = saved;
+  else delete next[recordId];
+  return next;
+}
