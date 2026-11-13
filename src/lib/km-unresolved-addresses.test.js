@@ -25,7 +25,7 @@ const trip = (key, stops) => ({
 describe("aviso de KM abre apenas endereços identificados como problema", () => {
   test("geocodificação falhou num cliente: listar a nota exata e deduplicar o mesmo código entre turnos", () => {
     const trips = [trip("r1", [origin, destination("111", "0027", addr)]),
-      trip("r2", [origin, destination("222", "27", addr)])];
+      { ...trip("r2", [origin, destination("222", "27", addr)]), shift: "tarde" }];
     const out = {
       r1: { meters: null, reason: "Endereço não localizado: Cliente 111",
         failureKind: "geocode", problemStopIndices: [1] },
