@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronRight, Gauge, RefreshCw, Route, TriangleAlert } from "lucide-react";
 import type { Delivery } from "@/lib/deliveries";
 import type { Employee } from "@/lib/employees";
@@ -9,6 +9,7 @@ import {
   type EstimatedKmResult, type KmPeriod,
 } from "@/lib/delivery-estimated-km";
 import { calculateEstimatedTripKm } from "@/lib/delivery-road-km";
+import { readCachedTripKm, saveCachedTripKm } from "@/lib/km-trip-cache";
 import { unresolvedKmAddresses } from "@/lib/km-unresolved-addresses";
 import { KmUnresolvedAddressesDialog } from "./KmUnresolvedAddressesDialog";
 import type { ConfirmedPoint } from "@/lib/google-maps-location";
@@ -40,6 +41,7 @@ export function DeliveryKilometersPanel({
   const [referenceDate, setReferenceDate] = useState(currentSaoPauloDate);
   const [recheck, setRecheck] = useState(0);
   const [calculated, setCalculated] = useState<Record<string, EstimatedKmResult>>({});
+  const lastManualRecheck = useRef(0);
   const bounds = kmPeriodBounds(referenceDate, period);
   const trips = useMemo(
     () => estimatedKmTrips(deliveries, drivers, addresses, storeOrigin, referenceDate, period),
@@ -55,22 +57,41 @@ export function DeliveryKilometersPanel({
 
   useEffect(() => {
     const controller = new AbortController();
-    setCalculated({});
-    void (async () => {
-      for (const trip of selectedTrips) {
-        if (controller.signal.aborted) return;
+    // O usuário pediu recálculo manual. Mudanças de filtro/período não exigem
+    // descartar os resultados válidos persistidos na visita anterior.
+    const forceRecheck = recheck !== lastManualRecheck.current;
+    lastManualRecheck.current = recheck;
+    const cached: Record<string, EstimatedKmResult> = {};
+    const toCalculate = selectedTrips.filter(trip => {
+      const result = forceRecheck ? undefined : readCachedTripKm(trip);
+      if (!result) return true;
+      cached[trip.key] = result;
+      return false;
+    });
+    // Mostra imediatamente os KM já conhecidos em vez de reiniciar todas
+    // as barras com "Calculando..." em cada acesso à página.
+    setCalculated(cached);
+
+    // Dois turnos simultâneos aceleram consultas de estrada sem inundar
+    // OSRM. A geocodificação mantém a fila e limite existentes.
+    let next = 0;
+    async function work() {
+      while (!controller.signal.aborted) {
+        const trip = toCalculate[next++];
+        if (!trip) return;
         let outcome: EstimatedKmResult;
         try {
           outcome = await calculateEstimatedTripKm(trip.stops, controller.signal);
         } catch {
           if (controller.signal.aborted) return;
-          outcome = { meters: null, reason: "Serviço de rotas indisponível." };
+          outcome = { meters: null, failureKind: "routing", reason: "Serviço de rotas indisponível." };
         }
-        if (!controller.signal.aborted) {
-          setCalculated(current => ({ ...current, [trip.key]: outcome }));
-        }
+        if (controller.signal.aborted) return;
+        saveCachedTripKm(trip, outcome);
+        setCalculated(current => ({ ...current, [trip.key]: outcome }));
       }
-    })();
+    }
+    void Promise.all(Array.from({ length: Math.min(2, toCalculate.length) }, () => work()));
     return () => controller.abort();
   }, [snapshot, recheck]);
 
@@ -101,7 +122,7 @@ export function DeliveryKilometersPanel({
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="flex items-center gap-2 text-lg font-extrabold text-white"><Gauge className="h-5 w-5 text-[#54beff]" /> KM por entregador</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Distâncias calculadas pela rota das entregas e coletas finalizadas, pelas ruas. Sem rastreamento GPS.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Distâncias calculadas pela rota das entregas e coletas finalizadas, pelas ruas. Sem rastreamento GPS. Resultados completos são reutilizados até a rota mudar; o botão de atualização permite recalcular.</p>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <div className="flex rounded-lg border border-[#2a5079] p-1" role="group" aria-label="Período da quilometragem">
