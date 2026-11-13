@@ -4,9 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { ClipboardCheck, Users, UserRoundCheck, RefreshCw, Upload, Plus, Pencil, Trash2, FileDown, Save, ChevronRight, ChartNoAxesCombined, Package, CheckCircle2, AlertTriangle, Target, CircleDollarSign, Search, RotateCcw, ListChecks, CalendarDays, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { canonicalCode, errorComment, parseClients, salesMetrics, verifierSchema, type Verifier, type VerificationRecord } from "@/lib/sales-verification";
-import { readSalesVerification, replaceSalesClients, saveSalesVerifiers, saveSalesPeriodCount, deleteSalesVerification } from "@/lib/sales-verification.functions";
+import { readSalesVerification, replaceSalesClients, saveSalesVerifiers, saveSalesPeriodCount, deleteSalesVerification, changeExpeditionAuthorship } from "@/lib/sales-verification.functions";
+import { SELLERS } from "@/lib/sales-verification";
+import { isExpeditionAuthorshipEligible, sellerPerformanceWithAuthorship } from "@/lib/sales-authorship";
 import { SalesVerificationForm } from "./SalesVerificationForm";
 import { MiniSboLabels } from "./MiniSboLabels";
 import { Retira } from "./Retira";
@@ -36,7 +39,7 @@ function conferenceArea(record: VerificationRecord): string {
 
 export function SalesVerification({ role }: { role: AccessRole }) {
   const queryClient = useQueryClient();
-  const read = useServerFn(readSalesVerification), importClients = useServerFn(replaceSalesClients), saveVerifiers = useServerFn(saveSalesVerifiers), saveCount = useServerFn(saveSalesPeriodCount), deleteRecord = useServerFn(deleteSalesVerification);
+  const read = useServerFn(readSalesVerification), importClients = useServerFn(replaceSalesClients), saveVerifiers = useServerFn(saveSalesVerifiers), saveCount = useServerFn(saveSalesPeriodCount), deleteRecord = useServerFn(deleteSalesVerification), changeAuthorship = useServerFn(changeExpeditionAuthorship);
   const query = useQuery({ queryKey: ["sales-verification", role], queryFn: () => read(), refetchInterval: 30000 });
   const [tab, setTab] = useState("Painel"), [search, setSearch] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
   const [period, setPeriod] = useState("all");
@@ -49,6 +52,10 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const [recordSearch, setRecordSearch] = useState("");
   const [pendingClients, setPendingClients] = useState<ReturnType<typeof parseClients> | null>(null);
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null), [pendingDelete, setPendingDelete] = useState<VerificationRecord | null>(null), [recordLimit, setRecordLimit] = useState(200);
+  const [pendingAuthorship, setPendingAuthorship] = useState<VerificationRecord | null>(null);
+  const [authorSeller, setAuthorSeller] = useState("");
+  const [authorError, setAuthorError] = useState("");
+  const [authorBusy, setAuthorBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const data = query.data;
@@ -77,17 +84,24 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const savedSalesCount = Number(data.periodCounts[periodKey] ?? 0);
   const salesCount = Number(sales ?? savedSalesCount);
   const salesInputValid = sales !== "" && Number.isSafeInteger(salesCount) && salesCount >= 0 && salesCount <= 100000000;
-  const selectedRecords = periodRecords.filter(r =>
-    (sellerFilter === "all" || r.seller === sellerFilter) &&
+  // Os KPIs e demais relatórios usam somente conferências REAIS.
+  const sellerScopeRecords = periodRecords.filter(r =>
     (verifierFilter === "all" || `${canonicalCode(r.verifierCode)}|${r.verifierName}` === verifierFilter) &&
     (clientFilter === "all" || canonicalCode(r.clientCode) === clientFilter) &&
     (statusFilter === "all" || r.correct === (statusFilter === "correct"))
+  );
+  const selectedRecords = sellerScopeRecords.filter(r =>
+    sellerFilter === "all" || r.seller === sellerFilter
   );
   const records = selectedRecords;
   const metrics = salesMetrics(records);
   const periodMetrics = salesMetrics(periodRecords);
   const clients = data.clients.filter(c => `${c.code} ${c.name}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
-  const availableSellers = [...new Set(periodRecords.map(r => r.seller))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const attributedSellers = periodRecords
+    .filter(isExpeditionAuthorshipEligible)
+    .flatMap(r => data.authorships[r.id] ? [data.authorships[r.id].seller] : []);
+  const availableSellers = [...new Set([...periodRecords.map(r => r.seller), ...attributedSellers])]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
   const availableVerifiers = [...new Map(periodRecords.map(r => [`${canonicalCode(r.verifierCode)}|${r.verifierName}`, { code: canonicalCode(r.verifierCode), name: r.verifierName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const availableClients = [...new Map(periodRecords.map(r => [canonicalCode(r.clientCode), { code: canonicalCode(r.clientCode), name: r.clientName }])).values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const verificationGroups = new Map<string, { name: string; area: string; records: VerificationRecord[] }>();
@@ -110,7 +124,15 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     hasTime: group.records.some(r => r.durationSeconds !== null),
     ...salesMetrics(group.records),
   })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR") || a.area.localeCompare(b.area, "pt-BR"));
-  const groupedSellers = [...new Set(records.map(r => r.seller))].map(s => ({ name: s, ...salesMetrics(records.filter(r => r.seller === s)) })).sort((a, b) => b.count - a.count);
+  // Somente a coluna "Conferências" de Desempenho por vendedor recebe
+  // créditos consultivos. Não altera itens, acertos, erros, valor ou %.
+  const groupedSellers = [...new Set([
+    ...sellerScopeRecords.map(r => r.seller),
+    ...sellerScopeRecords.filter(isExpeditionAuthorshipEligible).flatMap(r =>
+      data.authorships[r.id] ? [data.authorships[r.id].seller] : []),
+  ])].filter(s => sellerFilter === "all" || s === sellerFilter)
+    .map(s => ({ name: s, ...sellerPerformanceWithAuthorship(sellerScopeRecords, data.authorships, s) }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"));
   const searchedRecords = records.filter(r => {
     const q = recordSearch.toLocaleLowerCase("pt-BR").trim();
     return !q || [r.document, r.clientName, r.clientCode, r.verifierName, r.verifierCode, r.seller].some(v => String(v ?? "").toLocaleLowerCase("pt-BR").includes(q));
@@ -120,7 +142,41 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     setSellerFilter("all"); setVerifierFilter("all"); setClientFilter("all"); setStatusFilter("all"); setRecordSearch(""); setRecordLimit(200);
   }
   const periodLabel = conferencePeriodLabel(period);
+  function openAuthorship(record: VerificationRecord) {
+    if (!isExpeditionAuthorshipEligible(record)) return;
+    setSelectedSeller(null); // evita dois modais sobrepostos.
+    setPendingAuthorship(record);
+    setAuthorSeller(data.authorships[record.id]?.seller ?? "");
+    setAuthorError("");
+  }
+  async function saveAuthorship(seller: typeof SELLERS[number] | null) {
+    if (!pendingAuthorship || authorBusy) return;
+    setAuthorBusy(true); setAuthorError(""); setError("");
+    try {
+      await changeAuthorship({ data: { recordId: pendingAuthorship.id, seller } });
+      await query.refetch();
+      setPendingAuthorship(null);
+      setNotice(seller
+        ? "Autoria de " + pendingAuthorship.document + " atribuída a " + seller +
+          ". Apenas o número de conferências do vendedor foi acrescido."
+        : "Crédito consultivo removido de " + pendingAuthorship.document +
+          ". A conferência original não foi alterada.");
+    } catch (cause) {
+      setAuthorError(cause instanceof Error ? cause.message : "Não foi possível registrar a autoria.");
+    } finally {
+      setAuthorBusy(false);
+    }
+  }
   const deletionButton = (r: VerificationRecord) => <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Excluir conferência ${r.document}`} title="Excluir conferência" onClick={() => { setError(""); setPendingDelete(r); }}><Trash2 className="h-4 w-4" /></Button>;
+  const recordActions = (r: VerificationRecord) => <div className="flex items-center gap-1">
+    {isExpeditionAuthorshipEligible(r) && <Button variant="outline" size="sm"
+      className="h-8 gap-1 text-xs font-bold" title="Indicar o vendedor que solicitou esta conferência da Expedição"
+      aria-label={"Autoria da conferência " + r.document}
+      onClick={() => openAuthorship(r)}>
+      <UserRoundCheck className="h-3.5 w-3.5" />Autoria
+    </Button>}
+    {deletionButton(r)}
+  </div>;
   function exportReport() { createSalesReport(periodRecords, periodLabel, savedSalesCount).save("bignotto-relatorio-conferencia.pdf"); }
   async function persistSalesCount() {
     if (!salesInputValid) { setError("Informe a quantidade inteira de vendas no período."); return; }
@@ -249,7 +305,12 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         <section className="min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-start gap-2"><Users className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h3 className="text-lg font-bold tracking-tight">Desempenho por vendedor</h3><p className="text-xs text-muted-foreground">Conferências e acuracidade por vendedor.</p></div></div>
           <div className="[&_table]:text-sm [&_th]:text-xs [&_td]:text-sm">
-            <DataTable headers={["Vendedor", "Conferências", "Qtd. itens", "Certas", "Erros", "% acerto", "Valor conferido"]} rows={groupedSellers.map(v => [<Button variant="ghost" className="h-auto justify-start gap-2 whitespace-normal px-0 text-sm font-bold text-primary" aria-label={`Ver conferências de ${v.name}`} onClick={() => setSelectedSeller(v.name)}>{v.name}<ChevronRight className="h-4 w-4 shrink-0" /></Button>, number(v.count), number(v.items), number(v.correct), number(v.errors), <Percent value={v.accuracy} />, money(v.value)])} />
+            <DataTable headers={["Vendedor", "Conferências", "Qtd. itens", "Certas", "Erros", "% acerto", "Valor conferido"]} rows={groupedSellers.map(v => [<Button variant="ghost" className="h-auto justify-start gap-2 whitespace-normal px-0 text-sm font-bold text-primary" aria-label={`Ver conferências de ${v.name}`} onClick={() => setSelectedSeller(v.name)}>{v.name}<ChevronRight className="h-4 w-4 shrink-0" /></Button>,
+              <div className="space-y-0.5"><span className="font-extrabold tabular-nums">{number(v.count)}</span>
+                {v.authorshipCount > 0 && <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-300">
+                  +{v.authorshipCount} autoria{v.authorshipCount === 1 ? "" : "s"} da Expedição
+                </p>}</div>,
+              number(v.items), number(v.correct), number(v.errors), <Percent value={v.accuracy} />, money(v.value)])} />
           </div>
         </section>
       </div>
@@ -265,7 +326,10 @@ export function SalesVerification({ role }: { role: AccessRole }) {
             <Input aria-label="Buscar nos registros de conferência" placeholder="Buscar documento, cliente ou conferente…" value={recordSearch} onChange={e => { setRecordSearch(e.target.value); setRecordLimit(200); }} className="pl-9" />
           </label>
         </div>
-        <DataTable headers={["Data", "Documento", "Cliente", "Conferente", "Qtd. itens", "Situação", "Vendedor", "Valor", "Ações"]} rows={searchedRecords.slice(0, recordLimit).map(r => [new Date(r.createdAt).toLocaleString("pt-BR"), r.document, r.clientName, r.verifierName, number(r.items), <span className={r.correct ? "inline-flex rounded-md bg-success/10 px-2 py-1 text-xs font-bold text-success" : "inline-flex rounded-md bg-destructive/10 px-2 py-1 text-xs font-bold text-destructive"}>{r.correct ? "Certo" : "Errado"}</span>, r.seller, money(r.value), deletionButton(r)])} />
+        <DataTable headers={["Data", "Documento", "Cliente", "Conferente", "Qtd. itens", "Situação", "Vendedor", "Valor", "Ações"]} rows={searchedRecords.slice(0, recordLimit).map(r => [new Date(r.createdAt).toLocaleString("pt-BR"), r.document, r.clientName, r.verifierName, number(r.items), <span className={r.correct ? "inline-flex rounded-md bg-success/10 px-2 py-1 text-xs font-bold text-success" : "inline-flex rounded-md bg-destructive/10 px-2 py-1 text-xs font-bold text-destructive"}>{r.correct ? "Certo" : "Errado"}</span>, <span key={r.id} className="space-y-0.5">
+          <span className="block">{r.seller}</span>
+          {data.authorships[r.id] && <span className="block text-[11px] font-semibold text-amber-600 dark:text-amber-300">Autoria consultiva: {data.authorships[r.id].seller}</span>}
+        </span>, money(r.value), recordActions(r)])} />
         {searchedRecords.length > recordLimit && <div className="mt-4 flex justify-center"><Button variant="outline" onClick={() => setRecordLimit(n => n + 200)}>Carregar mais registros</Button></div>}
       </section>
     </>}
@@ -274,7 +338,65 @@ export function SalesVerification({ role }: { role: AccessRole }) {
         setError(""); try { if (file.size > 30 * 1024 * 1024) throw new Error("Arquivo acima de 30 MB."); const bytes = await file.arrayBuffer(); let text = new TextDecoder("utf-8").decode(bytes); if (text.includes("\uFFFD")) text = new TextDecoder("windows-1252").decode(bytes); setPendingClients(parseClients(text)); } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível ler o CSV."); }
       }} /></div><DataTable headers={["Código", "Nome do cliente"]} rows={clients.slice(0, 500).map(c => [c.code, c.name])} />{clients.length > 500 && <p className="mt-3 text-sm text-muted-foreground">Exibindo 500 de {number(clients.length)} clientes. Refine a busca.</p>}</section>}
     {analyzing && <SalesWeeklyAnalysis records={data.records} onClose={() => setAnalyzing(false)} />}
-    {selectedSeller && <SalesSellerDetail key={`${periodKey}:${selectedSeller}`} seller={selectedSeller} period={periodKey} periodLabel={periodLabel} records={records} savedCount={data.sellerCounts[sellerCountKey(periodKey, selectedSeller)] ?? 0} onClose={() => setSelectedSeller(null)} onSaved={() => query.refetch()} onDelete={r => { setError(""); setPendingDelete(r); }} />}
+    {selectedSeller && <SalesSellerDetail key={`${periodKey}:${selectedSeller}`} seller={selectedSeller} period={periodKey} periodLabel={periodLabel}
+      records={sellerScopeRecords} authorships={data.authorships}
+      savedCount={data.sellerCounts[sellerCountKey(periodKey, selectedSeller)] ?? 0}
+      onClose={() => setSelectedSeller(null)} onSaved={() => query.refetch()}
+      onDelete={r => { setError(""); setPendingDelete(r); }}
+      onAuthorship={openAuthorship} />}
+    <Dialog open={!!pendingAuthorship} onOpenChange={open => {
+      if (!open && !authorBusy) { setPendingAuthorship(null); setAuthorError(""); }
+    }}>
+      <DialogContent className="sales-manager max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserRoundCheck className="h-5 w-5" /> Autoria comercial
+          </DialogTitle>
+          <DialogDescription>
+            Crédito consultivo para o vendedor que solicitou o pedido à Expedição.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+            <p className="font-bold">{pendingAuthorship?.clientName}</p>
+            <p className="text-muted-foreground">Nota {pendingAuthorship?.document} · Conferência original da Expedição</p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="sales-authorship-seller" className="text-sm font-semibold">Vendedor solicitante *</label>
+            <Select value={authorSeller} onValueChange={setAuthorSeller}>
+              <SelectTrigger id="sales-authorship-seller" className="h-11 w-full border-sky-700/60 bg-[#07182b] text-white data-[placeholder]:text-sky-200/80"
+                aria-label="Selecionar vendedor solicitante">
+                <SelectValue placeholder="Selecione o vendedor"/>
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100] border-sky-700/60 bg-[#0a2543] text-white">
+                {SELLERS.map(name => <SelectItem key={name} value={name}
+                  className="cursor-pointer text-white focus:bg-sky-700 focus:text-white">{name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="rounded-md border border-amber-400/35 bg-amber-500/10 p-3 text-xs font-medium text-amber-700 dark:text-amber-300">
+            A conferência continuará na Expedição. Somente a coluna <strong>Conferências</strong>
+            no desempenho do vendedor escolhido aumentará em 1. Não altera os cards gerais,
+            a quantidade real de conferências, itens, acertos, erros, valores ou percentuais.
+            No detalhe aparecerá <strong>Autoria — duplicado da Expedição</strong>.
+          </p>
+          {data.authorships[pendingAuthorship?.id ?? ""] && <p className="text-xs text-muted-foreground">
+            Autoria atual: <strong>{data.authorships[pendingAuthorship?.id ?? ""].seller}</strong>
+          </p>}
+          {authorError && <p role="alert" className="text-sm text-destructive">{authorError}</p>}
+        </div>
+        <DialogFooter className="flex-wrap gap-2">
+          {data.authorships[pendingAuthorship?.id ?? ""] && <Button type="button" variant="destructive" disabled={authorBusy}
+            onClick={() => { void saveAuthorship(null); }}>Remover autoria</Button>}
+          <Button type="button" variant="outline" disabled={authorBusy}
+            onClick={() => { setPendingAuthorship(null); setAuthorError(""); }}>Cancelar</Button>
+          <Button type="button" disabled={authorBusy || !SELLERS.includes(authorSeller as typeof SELLERS[number])}
+            onClick={() => { void saveAuthorship(authorSeller as typeof SELLERS[number]); }}>
+            {authorBusy ? "Salvando..." : "Salvar autoria"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(pendingDelete)} onOpenChange={open => { if (!open && !busy) { setPendingDelete(null); setError(""); } }}><DialogContent><DialogHeader><DialogTitle>Excluir registro de conferência?</DialogTitle></DialogHeader><p>Documento <strong>{pendingDelete?.document}</strong> · {pendingDelete?.seller}. A exclusão é definitiva e atualizará os indicadores e relatórios. <strong>O pedido vinculado em Retira ou Entregas também será apagado, mesmo se já estiver finalizado.</strong> Pedidos cadastrados manualmente não serão afetados.</p>{error && <p role="alert" className="text-destructive">{error}</p>}<DialogFooter><Button variant="outline" disabled={busy} onClick={() => { setPendingDelete(null); setError(""); }}>Cancelar</Button><Button variant="destructive" disabled={busy} onClick={async () => { if (!pendingDelete) return; setBusy(true); setError(""); try { const result = await deleteRecord({ data: { id: pendingDelete.id } }); setPendingDelete(null); setNotice(result.pickupsDeleted + result.deliveriesDeleted > 0 ? "Conferência excluída e pedido vinculado em Retira/Entregas removido." : "Conferência excluída. Não havia pedido vinculado em Retira/Entregas."); await Promise.allSettled([query.refetch(), queryClient.invalidateQueries({ queryKey: ["pickups"] }), queryClient.invalidateQueries({ queryKey: ["deliveries"] })]); } catch (err) { setError(err instanceof Error ? err.message : "Não foi possível excluir."); } finally { setBusy(false); } }}><Trash2 />Excluir registro</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={Boolean(pendingClients)} onOpenChange={open => { if (!open) setPendingClients(null); }}><DialogContent><DialogHeader><DialogTitle>Importar base de clientes</DialogTitle></DialogHeader><p>{number(pendingClients?.length ?? 0)} clientes encontrados. A nova importação substituirá a base atual; os registros de conferência serão preservados.</p><DialogFooter><Button variant="outline" onClick={() => setPendingClients(null)}>Cancelar</Button><Button disabled={busy} onClick={async () => { if (!pendingClients) return; setBusy(true); try { const result = await importClients({ data: pendingClients }); await query.refetch(); setPendingClients(null); setNotice(`${number(result.count)} clientes importados.`); } catch { setError("Não foi possível importar os clientes."); setPendingClients(null); } finally { setBusy(false); } }}><Upload />Confirmar importação</Button></DialogFooter></DialogContent></Dialog>
 
