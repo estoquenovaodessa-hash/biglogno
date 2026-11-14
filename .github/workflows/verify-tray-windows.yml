@@ -1,0 +1,48 @@
+name: Verificar scripts da bandeja Windows
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/whatsapp-estoque/bandeja-bot.ps1'
+      - 'integrations/whatsapp-estoque/instalar-bandeja.ps1'
+      - '.github/workflows/verify-tray-windows.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'integrations/whatsapp-estoque/bandeja-bot.ps1'
+      - 'integrations/whatsapp-estoque/instalar-bandeja.ps1'
+      - '.github/workflows/verify-tray-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  parser-powershell-51:
+    name: Parsear scripts no Windows PowerShell 5.1
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+      - name: Analisar sintaxe com Windows PowerShell
+        shell: powershell
+        run: |
+          $arquivos = @(
+            "integrations/whatsapp-estoque/bandeja-bot.ps1",
+            "integrations/whatsapp-estoque/instalar-bandeja.ps1",
+            "integrations/whatsapp-estoque/iniciar-bot.ps1"
+          )
+          foreach ($arquivo in $arquivos) {
+            $tokens = $null
+            $erros = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $arquivo).Path,
+              [ref]$tokens,
+              [ref]$erros
+            ) | Out-Null
+            if ($erros.Count -gt 0) {
+              $erros | Format-List | Out-String | Write-Error
+              exit 1
+            }
+            Write-Host "Sintaxe valida: $arquivo"
+          }

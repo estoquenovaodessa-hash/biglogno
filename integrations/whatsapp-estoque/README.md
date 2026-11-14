@@ -112,6 +112,52 @@ Requer Node 18+ para o cliente HTTP embutido. `whatsapp-web.js`, `qrcode-termina
 - O endpoint HTTPS aceita somente token exclusivo do bot; o navegador e o grupo não recebem esse token.
 - O limite do endpoint é de 500 códigos por mensagem, particionados em lotes seguros.
 
+## Iniciar automaticamente, com icone proximo ao relogio (Windows)
+
+O controlador usa Windows PowerShell 5.1 + WinForms, sem aplicativo externo.
+Ele controla o bot ja existente pelo arquivo iniciar-bot.ps1 e preserva chave
+DPAPI, indice de estoque, sessao do WhatsApp, respostas e impressao.
+
+1. Copie da pasta integrations/whatsapp-estoque do GitHub os arquivos
+   bandeja-bot.ps1 e instalar-bandeja.ps1 para C:\Users\usuario\Desktop\bot-estoque
+   junto aos arquivos atuais.
+2. Encerre primeiro a janela do bot que foi iniciado manualmente (Ctrl+C).
+   Nao execute duas instancias com a mesma pasta .wwebjs_auth.
+3. No PowerShell, abra a pasta e rode:
+
+       cd "C:\Users\usuario\Desktop\bot-estoque"
+       powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\instalar-bandeja.ps1"
+
+4. Se concluiu, inicie o icone sem abrir janela PowerShell:
+
+       wscript.exe ".\iniciar-bandeja.vbs"
+
+5. Verifique a seta ^ proxima ao relogio. Clique com botao direito
+   no icone para Ver status, Abrir logs, Reiniciar bot ou Encerrar bot.
+   O duplo clique no icone mostra o status.
+6. Reinicie o Windows, entre na mesma conta, confirme que o icone aparece,
+   e teste o grupo WhatsApp e a impressao da Argox.
+
+**Importante:** nao copie o controlador como substituto do iniciar-bot.ps1.
+O instalador cria um atalho na pasta de Inicializacao do usuario e substitui
+o antigo "Bot Estoque WhatsApp.lnk" se ele apontava ao mesmo bot.
+Se houver outro atalho .bat/.cmd ou outra tarefa agendada iniciando
+node index.js, remova/desabilite apenas a inicializacao duplicada.
+O controlador NAO encerra processos externos automaticamente.
+
+**Logs:** os arquivos ficam em logs-bot (stdout = .out.log, erros = .err.log).
+O controlador tenta reiniciar se o proprio processo terminar por erro.
+Se a sessao do WhatsApp expirar e precisar de QR Code, use "Encerrar bot"
+na bandeja, execute iniciar-bot.ps1 manualmente para escanear o QR e
+depois inicie novamente com wscript.exe iniciar-bandeja.vbs.
+O icone representa o processo ativo e o sinal "Online" recebido
+na inicializacao; nao e uma verificacao externa de conectividade em tempo real.
+
+**Como desinstalar:** na bandeja, use Encerrar bot. Pressione Win+R,
+digite shell:startup e remova o atalho "Bot Estoque - Bandeja".
+Nao apague .bot-print-token.dpapi nem .wwebjs_auth.
+
+
 ## Arquivos desta integração
 
 - `index.js` — bot original com passo extra de impressão; formato de comando preservado.
@@ -119,6 +165,9 @@ Requer Node 18+ para o cliente HTTP embutido. `whatsapp-web.js`, `qrcode-termina
 - `print-client.test.js` — testes do envio sem chamar WhatsApp nem imprimir.
 - `configurar-token.ps1` — grava token em formato protegido no Windows.
 - `iniciar-bot.ps1` — inicia o bot com o token protegido na variável de ambiente.
-- `.gitignore` — ignora sessão, dependências e segredos locais.
+- `bandeja-bot.ps1` — controlador com icone, status, logs, reinicio e encerramento.
+- `instalar-bandeja.ps1` — cria inicializacao automatica no login do Windows.
+- `iniciar-bandeja.vbs` — gerado pelo instalador para iniciar sem janela de console.
+- `.gitignore` — ignora sessao, dependencias, logs e segredos locais.
 
 **Não copiar** para o computador: o endpoint `src/routes/api/whatsapp-stock-print.ts` e o gerador `src/lib/whatsapp-stock-label.ts` pertencem exclusivamente ao BigLog no Cloudflare e são publicados pelo GitHub.
