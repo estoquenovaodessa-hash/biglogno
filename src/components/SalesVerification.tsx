@@ -42,6 +42,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   const read = useServerFn(readSalesVerification), importClients = useServerFn(replaceSalesClients), saveVerifiers = useServerFn(saveSalesVerifiers), saveCount = useServerFn(saveSalesPeriodCount), deleteRecord = useServerFn(deleteSalesVerification), changeAuthorship = useServerFn(changeExpeditionAuthorship);
   const [tab, setTab] = useState("Painel"), [search, setSearch] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false);
   const [period, setPeriod] = useState("all");
+  const [customDate, setCustomDate] = useState(() => conferencePeriodKey("today", new Date()));
   // Quantidade de vendas (número inteiro), não valor financeiro.
   const [sales, setSales] = useState<string | null>(null);
   const [sellerFilter, setSellerFilter] = useState("all");
@@ -85,7 +86,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
     </div>
   );
   // O período escolhido é a base dos relatórios e da quantidade total de vendas.
-  const periodKey = conferencePeriodKey(period, new Date());
+  const periodKey = conferencePeriodKey(period === "custom" ? customDate : period, new Date());
   const periodRecords = data.records.filter(r => conferencePeriodContains(r.createdAt, periodKey));
   const monthOptions = conferenceMonthOptions(new Date());
   const savedSalesCount = Number(data.periodCounts[periodKey] ?? 0);
@@ -148,7 +149,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
   function resetFilters() {
     setSellerFilter("all"); setVerifierFilter("all"); setClientFilter("all"); setStatusFilter("all"); setRecordSearch(""); setRecordLimit(200);
   }
-  const periodLabel = conferencePeriodLabel(period);
+  const periodLabel = conferencePeriodLabel(period === "custom" ? customDate : period);
   function openAuthorship(record: VerificationRecord) {
     if (!isExpeditionAuthorshipEligible(record)) return;
     // Preservar a janela de desempenho da Expedição: é comum atribuir
@@ -261,6 +262,7 @@ export function SalesVerification({ role }: { role: AccessRole }) {
               <option value="yesterday">Ontem</option><option value="dayBeforeYesterday">Anteontem</option>
               <option value={monthOptions.current}>Mês atual</option>
               <option value={monthOptions.previous}>Mês anterior</option>
+              <option value="custom">Personalizado</option>
             </select>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">Vendedor
@@ -284,6 +286,11 @@ export function SalesVerification({ role }: { role: AccessRole }) {
             </select>
           </label>
         </div>
+        {period === "custom" && <div className="border-t border-border/70 px-3 py-3 sm:px-4">
+          <label htmlFor="sales-custom-date" className="mb-1 block text-xs font-semibold text-muted-foreground">Data da conferência</label>
+          <Input id="sales-custom-date" type="date" aria-label="Data personalizada da conferência" className="h-9 w-full max-w-xs bg-background text-sm" value={customDate}
+            onChange={e => { if (!e.target.value) return; setCustomDate(e.target.value); setSales(null); resetFilters(); setSelectedSeller(null); }} />
+        </div>}
         <div className="flex flex-col gap-2 border-t border-border/70 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <div className="flex min-w-0 items-center gap-2">
             <ListChecks className="h-4 w-4 shrink-0 text-primary" />
