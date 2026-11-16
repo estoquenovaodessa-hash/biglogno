@@ -20,6 +20,11 @@ export function conferencePeriodLabel(period: string): string {
   if (period === "today") return "Hoje";
   if (period === "yesterday") return "Ontem";
   if (period === "dayBeforeYesterday") return "Anteontem";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+    return new Date(`${period}T12:00:00Z`).toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric",
+    });
+  }
   return new Date(period + "-02T12:00:00Z").toLocaleDateString("pt-BR", {
     timeZone: "America/Sao_Paulo", month: "long", year: "numeric",
   });
