@@ -28,11 +28,21 @@ describe("Conferência gestor — Ontem e Anteontem", () => {
     expect(conferencePeriodContains("", "2026-10-30")).toBe(false);
     expect(conferencePeriodKey("dayBeforeYesterday", now)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
+  test("filtro personalizado seleciona um único dia civil de Brasília e mantém chave de vendas", () => {
+    const now = new Date("2026-11-16T12:00:00Z");
+    expect(conferencePeriodKey("2026-10-14", now)).toBe("2026-10-14");
+    expect(conferencePeriodContains("2026-10-14T02:59:59Z", "2026-10-14")).toBe(false);
+    expect(conferencePeriodContains("2026-10-14T03:00:00Z", "2026-10-14")).toBe(true);
+    expect(conferencePeriodContains("2026-10-15T02:59:59Z", "2026-10-14")).toBe(true);
+    expect(conferencePeriodContains("2026-10-15T03:00:00Z", "2026-10-14")).toBe(false);
+    expect(conferencePeriodContains("2026-10-15T12:00:00Z", "2026-10-14")).toBe(false);
+  });
   test("rótulos para relatório e interface permanecem legíveis", () => {
     expect(conferencePeriodLabel("yesterday")).toBe("Ontem");
     expect(conferencePeriodLabel("dayBeforeYesterday")).toBe("Anteontem");
     expect(conferencePeriodLabel("today")).toBe("Hoje");
     expect(conferencePeriodLabel("all")).toBe("Todo o período");
     expect(conferencePeriodLabel("2026-10")).toBe("outubro de 2026");
+    expect(conferencePeriodLabel("2026-10-14")).toBe("14/10/2026");
   });
 });
