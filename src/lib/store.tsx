@@ -21,6 +21,8 @@ import {
 import { analyze, dailyKey, entraNoRoteiro } from "./analysis";
 import { parseAddress } from "./address";
 import { nowParts, extractDateFromFilename } from "./format";
+import { aplicarAjusteEstoqueJson } from "./zona-segura-robo-json";
+import type { AjusteRoboRelatorio } from "./zona-segura-robo-json";
 import type {
   EnderecoBase,
   RawMovimento,
@@ -77,6 +79,7 @@ interface StoreValue {
   adicionarConferidos: (
     entradas: { codigo: string; observacao?: string; motivo?: MotivoAcuracidade }[],
   ) => { adicionados: number; atualizados: number; ignorados: number };
+  importarAjustesRobo: (relatorio: AjusteRoboRelatorio) => { adicionados: number; atualizados: number; ignorados: number };
   setConferencia: (item: AnalyzedItem, status: StatusConferencia, motivo: import("./types").MotivoAcuracidade, obs: string) => void;
   barcodesBase: BarcodesBase;
   contagemAtual: ContagemAtual | null;
@@ -515,6 +518,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [zonaSegura, items, enderecoBase, meta, conferencia],
   );
 
+  const importarAjustesRobo = useCallback((relatorio: AjusteRoboRelatorio) => {
+    const parts = nowParts();
+    const resultado = aplicarAjusteEstoqueJson(
+      relatorio, zonaSegura, conferencia, enderecoBase, items,
+      { iso: parts.iso, hora: parts.hora },
+    );
+    if (resultado.adicionados + resultado.atualizados > 0) {
+      setZonaSegura(resultado.zonaSegura);
+      storage.setZonaSegura(resultado.zonaSegura);
+      setConf(resultado.conferencia);
+      storage.setConferencia(resultado.conferencia);
+    }
+    return {
+      adicionados: resultado.adicionados,
+      atualizados: resultado.atualizados,
+      ignorados: resultado.ignorados,
+    };
+  }, [zonaSegura, conferencia, enderecoBase, items]);
+
   const setConferencia = useCallback(
     (item: AnalyzedItem, status: StatusConferencia, motivo: import("./types").MotivoAcuracidade, obs: string) => {
       const parts = nowParts();
@@ -837,6 +859,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     clearCurrent,
     clearZonaSegura,
     adicionarConferidos,
+    importarAjustesRobo,
     setConferencia,
     barcodesBase,
     contagemAtual,

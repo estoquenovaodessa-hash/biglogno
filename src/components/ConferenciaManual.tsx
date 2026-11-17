@@ -3,11 +3,14 @@ import Papa from "papaparse";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Upload, Plus, CheckCircle2, Check, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { readFileSmart, parseBRNumber } from "@/lib/csv";
 import { cn } from "@/lib/utils";
+import { parseAjusteEstoqueJson } from "@/lib/zona-segura-robo-json";
+import type { AjusteRoboRelatorio } from "@/lib/zona-segura-robo-json";
 
 type Motivo = "Correto" | "Divergente";
 
@@ -94,12 +97,15 @@ function MotivoToggle({
 }
 
 export function ConferenciaManual() {
-  const { adicionarConferidos } = useStore();
+  const { adicionarConferidos, importarAjustesRobo } = useStore();
   const [codigo, setCodigo] = useState("");
   const [obs, setObs] = useState("");
   const [motivo, setMotivo] = useState<Motivo>("Correto");
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const jsonFileRef = useRef<HTMLInputElement>(null);
+  const [jsonColado, setJsonColado] = useState("");
+  const [relatorioRobo, setRelatorioRobo] = useState<AjusteRoboRelatorio | null>(null);
 
   const addUm = () => {
     const c = padCodigo(codigo.trim());
@@ -146,6 +152,43 @@ export function ConferenciaManual() {
   };
 
 
+  const carregarJson = (texto: string) => {
+    try {
+      const relatorio = parseAjusteEstoqueJson(texto);
+      setRelatorioRobo(relatorio);
+      toast.success(`Relatório JSON validado: ${relatorio.registros.length} itens. Revise e confirme.`);
+    } catch (error) {
+      setRelatorioRobo(null);
+      toast.error(error instanceof Error ? error.message : "Não foi possível validar o JSON.");
+    }
+  };
+
+  const onJsonFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRelatorioRobo(null);
+    try {
+      if (file.size > 2_000_000) throw new Error("O arquivo JSON deve ter no máximo 2 MB.");
+      const texto = await file.text();
+      setJsonColado("");
+      carregarJson(texto);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível ler o arquivo JSON.");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const confirmarJson = () => {
+    if (!relatorioRobo) return;
+    const resultado = importarAjustesRobo(relatorioRobo);
+    toast.success(
+      `Relatório do robô: ${resultado.adicionados} novos, ${resultado.atualizados} atualizados, ${resultado.ignorados} ignorados.`,
+    );
+    setRelatorioRobo(null);
+    setJsonColado("");
+  };
+
   const setMotivoAll = (m: Motivo) =>
     setPendentes((prev) => prev.map((p) => ({ ...p, motivo: m })));
 
@@ -175,9 +218,8 @@ export function ConferenciaManual() {
             <h2 className="font-semibold">Incluir itens conferidos</h2>
             <p className="text-sm text-muted-foreground">
               Marque itens já conferidos diretamente na Zona Segura. Cada item recebe um
-              motivo (Correto / Divergente) que alimenta o índice de acuracidade. Em listas
-              e CSV, todos entram como <strong>Correto</strong> — basta alterar os que forem
-              Divergente antes de confirmar.
+              motivo (Correto / Divergente) que alimenta o índice de acuracidade. Importe
+              um CSV de contagem ou um JSON do robô, revise os dados e confirme a inclusão.
             </p>
           </div>
         </div>
@@ -224,6 +266,92 @@ export function ConferenciaManual() {
         </div>
       </Card>
 
+
+      <Card className="space-y-3 p-4">
+        <h3 className="text-sm font-semibold">Importar ajustes do robô (JSON)</h3>
+        <p className="text-xs text-muted-foreground">
+          Aceita o relatório com <code>versao: 1</code>, <code>rotina: "ajuste_estoque"</code>,
+          <code> data</code>, <code>total_registros</code> e <code>registros</code>.
+          Preserva os códigos com zeros à esquerda, o status Correto/Divergente,
+          os três saldos e se houve ajuste. A data de inclusão será a data do relatório.
+          <strong> Esta importação registra os resultados na Zona Segura, não executa ajustes no ERP.</strong>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <input ref={jsonFileRef} type="file" accept=".json,application/json"
+            onChange={onJsonFile} className="hidden" />
+          <Button variant="outline" onClick={() => jsonFileRef.current?.click()}>
+            <Upload className="mr-1 h-4 w-4" /> Selecionar JSON
+          </Button>
+          <Button variant="outline" disabled={!jsonColado.trim()} onClick={() => carregarJson(jsonColado)}>
+            Validar JSON colado
+          </Button>
+        </div>
+        <Textarea aria-label="Colar JSON do robô" rows={4}
+          value={jsonColado}
+          onChange={(e) => {
+            setJsonColado(e.target.value);
+            setRelatorioRobo(null);
+          }}
+          placeholder={'Cole aqui o conteúdo JSON gerado pelo robô, ou selecione um arquivo .json acima.'}
+          className="font-mono text-xs"
+        />
+      </Card>
+
+      {relatorioRobo && (
+        <Card className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold">
+                Revisar JSON · {relatorioRobo.registros.length} registros · {relatorioRobo.data}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {relatorioRobo.registros.filter(r => r.status === "correto").length} corretos ·{" "}
+                {relatorioRobo.registros.filter(r => r.status === "divergente").length} divergentes ·{" "}
+                {relatorioRobo.registros.filter(r => r.ajusteRealizado).length} ajustes realizados
+              </p>
+            </div>
+          </div>
+          <div className="mobile-table-wrap max-h-80 overflow-auto rounded-lg border border-border">
+            <table className="mobile-table w-full text-sm">
+              <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                <tr>
+                  {["Código", "Saldo anterior", "Solicitado", "Saldo atual", "Status", "Ajuste"].map(h => (
+                    <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {relatorioRobo.registros.slice(0, 100).map(r => (
+                  <tr key={r.codigo} className="border-t border-border">
+                    <td data-label="Código" className="px-2 py-1.5 font-mono">{r.codigo}</td>
+                    <td data-label="Saldo anterior" className="px-2 py-1.5">{r.saldoAnterior}</td>
+                    <td data-label="Solicitado" className="px-2 py-1.5">{r.saldoSolicitado}</td>
+                    <td data-label="Saldo atual" className="px-2 py-1.5">{r.saldoAtual}</td>
+                    <td data-label="Status" className="px-2 py-1.5">
+                      {r.status === "correto" ? "Correto" : "Divergente"}
+                    </td>
+                    <td data-label="Ajuste" className="px-2 py-1.5">
+                      {r.ajusteRealizado ? "Realizado" : "Não realizado"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {relatorioRobo.registros.length > 100 && (
+            <p className="text-xs text-muted-foreground">
+              Exibindo os primeiros 100 registros de {relatorioRobo.registros.length}; todos serão importados.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={confirmarJson}>
+              <CheckCircle2 className="mr-1 h-4 w-4" />
+              Confirmar {relatorioRobo.registros.length} itens do JSON
+            </Button>
+            <Button variant="outline" onClick={() => setRelatorioRobo(null)}>Cancelar</Button>
+          </div>
+        </Card>
+      )}
 
       {pendentes.length > 0 && (
         <Card className="space-y-3 p-4">

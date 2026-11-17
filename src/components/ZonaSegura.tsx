@@ -91,12 +91,15 @@ function ZonaSeguraRegistro() {
       "Data Correção","Hora","Código","Descrição","Endereço","Bloco","Rua","Curva",
       "Categoria","Tipo Erro","Estoque","Qtd Movimentada","Ação","Status","Observação",
       "Correções","Reincidências","Última Reincidência",
+      "Robô: Saldo anterior","Robô: Saldo solicitado","Robô: Saldo atual","Robô: Ajuste realizado",
     ];
     const rows = filtered.map((z) => [
       z.dataCorrecao, z.horaCorrecao, z.codigo, z.descricao, z.endereco, z.bloco, z.rua,
       z.curvaOperacional, z.categoriaOriginal, z.tipoErro, z.estoqueNaCorrecao,
       z.quantidadeMovimentadaNaCorrecao, z.acaoRealizada, z.status, z.observacao,
       z.quantidadeCorrecoes, z.quantidadeReincidencias, z.ultimaReincidencia ?? "",
+      z.ajusteEstoqueRobo?.saldoAnterior ?? "", z.ajusteEstoqueRobo?.saldoSolicitado ?? "",
+      z.ajusteEstoqueRobo?.saldoAtual ?? "", z.ajusteEstoqueRobo ? (z.ajusteEstoqueRobo.ajusteRealizado ? "Sim" : "Não") : "",
     ]);
     downloadCSV("zona-segura.csv", [header, ...rows]);
   };
@@ -147,7 +150,7 @@ function ZonaSeguraRegistro() {
         <table className="mobile-table w-full text-sm">
           <thead className="bg-muted/60 text-muted-foreground">
             <tr>
-              {["Data","Hora","Código","Descrição","Endereço","Curva","Categoria","Tipo Erro","Estq","Mov","Status","Obs","Corr.","Reinc."].map((h) => (
+              {["Data","Hora","Código","Descrição","Endereço","Curva","Categoria","Tipo Erro","Estq","Mov","Status","Obs","Anterior robô","Solicitado","Atual robô","Ajuste robô","Corr.","Reinc."].map((h) => (
                 <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
               ))}
             </tr>
@@ -167,12 +170,16 @@ function ZonaSeguraRegistro() {
                 <td data-label="Movimentação" className="px-2 py-1.5 text-right">{fmtInt(z.quantidadeMovimentadaNaCorrecao)}</td>
                 <td data-label="Status" className="px-2 py-1.5">{z.status}</td>
                 <td data-label="Observação" className="px-2 py-1.5 max-w-[160px] truncate">{z.observacao}</td>
+                <td data-label="Saldo anterior robô" className="px-2 py-1.5 text-right">{z.ajusteEstoqueRobo?.saldoAnterior ?? "—"}</td>
+                <td data-label="Saldo solicitado robô" className="px-2 py-1.5 text-right">{z.ajusteEstoqueRobo?.saldoSolicitado ?? "—"}</td>
+                <td data-label="Saldo atual robô" className="px-2 py-1.5 text-right">{z.ajusteEstoqueRobo?.saldoAtual ?? "—"}</td>
+                <td data-label="Ajuste realizado pelo robô" className="px-2 py-1.5">{z.ajusteEstoqueRobo ? (z.ajusteEstoqueRobo.ajusteRealizado ? "Sim" : "Não") : "—"}</td>
                 <td data-label="Correções" className="px-2 py-1.5 text-right">{z.quantidadeCorrecoes}</td>
                 <td data-label="Reincidências" className="px-2 py-1.5 text-right">{z.quantidadeReincidencias}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={14} className="px-2 py-8 text-center text-muted-foreground">Nenhum item na Zona Segura.</td></tr>
+              <tr><td colSpan={18} className="px-2 py-8 text-center text-muted-foreground">Nenhum item na Zona Segura.</td></tr>
             )}
           </tbody>
         </table>

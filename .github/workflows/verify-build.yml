@@ -83,5 +83,7 @@ jobs:
         run: bun test src/lib/whatsapp-stock-label.test.ts
       - name: Testar cliente do bot sem conectar ao WhatsApp nem imprimir
         run: node --test integrations/whatsapp-estoque/print-client.test.js
+      - name: Testar importação JSON do robô na Zona Segura
+        run: bun test src/lib/zona-segura-robo-json.test.ts
       - name: Executar build de producao
         run: npm run build
