@@ -6,7 +6,7 @@ export const WHATSAPP_LABELS_PER_PDF = 40;
 export const WHATSAPP_MAX_REQUEST_LABELS = 500;
 export const WHATSAPP_MAX_PDF_BASE64 = 550000;
 
-export type WhatsAppStockItem = { code: string; description: string };
+export type WhatsAppStockItem = { code: string; description: string; address?: string; quantity?: string };
 export type WhatsAppStockLabel = WhatsAppStockItem & { company: string };
 export type WhatsAppStockPrintPart = { pdfBase64: string; labelCount: number };
 
@@ -28,9 +28,9 @@ function fitLine(pdf: jsPDF, text: string, x: number, y: number, maxWidth: numbe
 function drawDescription(pdf: jsPDF, raw: string) {
   const text = raw.replace(/\s+/g, " ").trim();
   pdf.setFont("helvetica", "bold");
-  let size = 8.0;
+  let size = 7.0;
   let lines: string[] = [];
-  while (size >= 5.8) {
+  while (size >= 5.4) {
     pdf.setFontSize(size);
     lines = pdf.splitTextToSize(text, 55.2) as string[];
     if (lines.length <= 2) break;
@@ -38,13 +38,13 @@ function drawDescription(pdf: jsPDF, raw: string) {
   }
   const first = lines[0] ?? text;
   const second = lines.length > 1 ? lines.slice(1).join(" ") : "";
-  fitLine(pdf, first, 2.3, 25.4, 55.2, size, 5.5);
-  if (second) fitLine(pdf, second, 2.3, 28.0, 55.2, size, 5.5);
+  fitLine(pdf, first, 2.3, 26.65, 55.2, size, 5.1);
+  if (second) fitLine(pdf, second, 2.3, 28.65, 55.2, size, 5.1);
 }
 
-/** Uma página por código solicitado. Quantidade SEMPRE em branco:
- * o número recebido do WhatsApp nunca é colocado na etiqueta.
- * O cabeçalho conserva a marca Bignotto Ferramentas.
+/** Uma página por código solicitado. A etiqueta contém destino, código,
+ * quantidade solicitada e endereço do CSV. Campo SEPARADO permanece
+ * vazio para marcação manual após a separação.
  */
 export function createWhatsAppStockLabelsPdf(labels: WhatsAppStockLabel[]): jsPDF {
   if (!labels.length || labels.length > WHATSAPP_MAX_REQUEST_LABELS)
@@ -57,7 +57,7 @@ export function createWhatsAppStockLabelsPdf(labels: WhatsAppStockLabel[]): jsPD
   });
   pdf.setProperties({
     title: "Solicitação WhatsApp - Etiquetas de Estoque",
-    subject: "Argox 60 x 30 mm; quantidade em branco",
+    subject: "Argox 60 x 30 mm; quantidade, endereço e confirmação de separação",
     author: "Bignotto Ferramentas",
   });
   for (let index = 0; index < labels.length; index++) {
@@ -66,25 +66,37 @@ export function createWhatsAppStockLabelsPdf(labels: WhatsAppStockLabel[]): jsPD
     pdf.setTextColor(0); pdf.setDrawColor(0); pdf.setLineWidth(0.17);
     pdf.roundedRect(0.5, 0.5, 59, 29, 1.3, 1.3, "S");
     pdf.setFont("helvetica", "bold");
-    fitLine(pdf, "BIGNOTTO FERRAMENTAS", 2.3, 4.3, 55.2, 10.8, 8.8);
-    pdf.line(1.8, 5.65, 58.2, 5.65);
+    fitLine(pdf, "BIGNOTTO FERRAMENTAS", 2.3, 3.9, 55.2, 10.2, 8.5);
+    pdf.line(1.8, 4.8, 58.2, 4.8);
 
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(5.6);
-    pdf.text("EMPRESA / DESTINO", 2.3, 8.0);
+    pdf.setFontSize(5.4);
+    pdf.text("EMPRESA / DESTINO", 2.3, 6.65);
     pdf.setFont("helvetica", "bold");
-    fitLine(pdf, row.company.toUpperCase().trim(), 2.3, 13.0, 55.2, 14.8, 8.1);
-    pdf.line(1.8, 14.1, 58.2, 14.1);
+    fitLine(pdf, row.company.toUpperCase().trim(), 2.3, 9.65, 55.2, 11.5, 7.3);
+    pdf.line(1.8, 10.55, 58.2, 10.55);
 
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(5.8);
-    pdf.text("CÓDIGO", 2.3, 16.35);
-    pdf.text("QUANTIDADE", 37.4, 16.35);
-    fitLine(pdf, row.code.trim(), 2.3, 21.25, 33.0, 16.1, 10.5);
-    pdf.setLineWidth(0.2);
-    pdf.line(37.5, 21.1, 57.4, 21.1);
-    pdf.line(1.8, 22.0, 58.2, 22.0);
+    pdf.setFontSize(5.4);
+    pdf.text("CÓDIGO", 2.3, 12.35);
+    fitLine(pdf, "QTD. SOLICITADA", 28.0, 12.35, 16.5, 5.4, 4.5);
+    fitLine(pdf, "SEPARADO", 47.0, 12.35, 10.2, 5.4, 4.9);
+    fitLine(pdf, row.code.trim(), 2.3, 17.1, 24.4, 14.5, 9.2);
+    fitLine(pdf, row.quantity?.trim() || "-", 28.0, 17.1, 16.5, 14.0, 8.5);
+    // Quadrado de marcação à mão, sem marca pré-impressa.
+    pdf.rect(50.1, 13.55, 4.5, 4.1, "S");
+    pdf.line(1.8, 18.35, 58.2, 18.35);
 
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5.5);
+    pdf.text("ENDEREÇO", 2.3, 19.95);
+    pdf.setFont("helvetica", "bold");
+    fitLine(pdf, row.address?.trim() || "NÃO INFORMADO", 2.3, 22.65, 55.2, 9.4, 6.0);
+    pdf.line(1.8, 23.4, 58.2, 23.4);
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5.1);
+    pdf.text("DESCRIÇÃO", 2.3, 24.7);
     drawDescription(pdf, row.description);
   }
   return pdf;
