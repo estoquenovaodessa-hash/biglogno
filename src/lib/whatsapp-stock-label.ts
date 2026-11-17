@@ -6,11 +6,21 @@ export const WHATSAPP_LABELS_PER_PDF = 40;
 export const WHATSAPP_MAX_REQUEST_LABELS = 500;
 export const WHATSAPP_MAX_PDF_BASE64 = 550000;
 
-export type WhatsAppStockItem = { code: string; description: string };
+export type WhatsAppStockItem = {
+  code: string;
+  description: string;
+  /** Opcional para aceitar pedidos pendentes criados pela versão anterior do bot. */
+  requestedQuantity?: string;
+  address?: string;
+};
 export type WhatsAppStockLabel = WhatsAppStockItem & { company: string };
 export type WhatsAppStockPrintPart = { pdfBase64: string; labelCount: number };
 
-function fitLine(pdf: jsPDF, text: string, x: number, y: number, maxWidth: number, start: number, minimum: number) {
+function fitLine(
+  pdf: jsPDF, raw: string, x: number, y: number,
+  maxWidth: number, start: number, minimum: number,
+) {
+  const text = raw.replace(/\s+/g, " ").trim() || "N/D";
   let size = start;
   pdf.setFontSize(size);
   while (size > minimum && pdf.getTextWidth(text) > maxWidth) {
@@ -19,7 +29,8 @@ function fitLine(pdf: jsPDF, text: string, x: number, y: number, maxWidth: numbe
   }
   let printed = text;
   if (pdf.getTextWidth(printed) > maxWidth) {
-    while (printed.length > 1 && pdf.getTextWidth(printed + "...") > maxWidth) printed = printed.slice(0, -1);
+    while (printed.length > 0 && pdf.getTextWidth(printed + "...") > maxWidth)
+      printed = printed.slice(0, -1);
     printed += "...";
   }
   pdf.text(printed, x, y);
@@ -28,23 +39,24 @@ function fitLine(pdf: jsPDF, text: string, x: number, y: number, maxWidth: numbe
 function drawDescription(pdf: jsPDF, raw: string) {
   const text = raw.replace(/\s+/g, " ").trim();
   pdf.setFont("helvetica", "bold");
-  let size = 8.0;
+  let size = 7.0;
   let lines: string[] = [];
-  while (size >= 5.8) {
+  while (size >= 5.5) {
     pdf.setFontSize(size);
-    lines = pdf.splitTextToSize(text, 55.2) as string[];
+    lines = pdf.splitTextToSize(text, 54.8) as string[];
     if (lines.length <= 2) break;
-    size -= 0.4;
+    size -= 0.3;
   }
   const first = lines[0] ?? text;
   const second = lines.length > 1 ? lines.slice(1).join(" ") : "";
-  fitLine(pdf, first, 2.3, 25.4, 55.2, size, 5.5);
-  if (second) fitLine(pdf, second, 2.3, 28.0, 55.2, size, 5.5);
+  fitLine(pdf, first, 2.3, 19.8, 54.8, Math.max(size, 5.5), 5.2);
+  if (second) fitLine(pdf, second, 2.3, 22.0, 54.8, Math.max(size, 5.5), 5.2);
 }
 
-/** Uma página por código solicitado. Quantidade SEMPRE em branco:
- * o número recebido do WhatsApp nunca é colocado na etiqueta.
- * O cabeçalho conserva a marca Bignotto Ferramentas.
+/**
+ * Uma etiqueta Argox 60 × 30 mm por código encontrado.
+ * A quantidade SOLICITADA vem do WhatsApp; a quantidade SEPARADA
+ * permanece em branco para o operador preencher à mão.
  */
 export function createWhatsAppStockLabelsPdf(labels: WhatsAppStockLabel[]): jsPDF {
   if (!labels.length || labels.length > WHATSAPP_MAX_REQUEST_LABELS)
@@ -53,39 +65,61 @@ export function createWhatsAppStockLabelsPdf(labels: WhatsAppStockLabel[]): jsPD
     throw new Error("Etiqueta sem código, descrição ou empresa.");
 
   const pdf = new jsPDF({
-    orientation: "landscape", unit: "mm", format: [60, 30], compress: true,
+    orientation: "landscape", unit: "mm",
+    format: [WHATSAPP_LABEL_WIDTH_MM, WHATSAPP_LABEL_HEIGHT_MM], compress: true,
   });
   pdf.setProperties({
     title: "Solicitação WhatsApp - Etiquetas de Estoque",
-    subject: "Argox 60 x 30 mm; quantidade em branco",
+    subject: "Argox 60 x 30 mm; quantidade solicitada e campo para quantidade separada",
     author: "Bignotto Ferramentas",
   });
+
   for (let index = 0; index < labels.length; index++) {
-    if (index) pdf.addPage([60, 30], "landscape");
+    if (index) pdf.addPage([WHATSAPP_LABEL_WIDTH_MM, WHATSAPP_LABEL_HEIGHT_MM], "landscape");
     const row = labels[index];
-    pdf.setTextColor(0); pdf.setDrawColor(0); pdf.setLineWidth(0.17);
+    const requestedQuantity = row.requestedQuantity?.trim() || "N/D";
+    const address = row.address?.trim() || "N/D";
+
+    pdf.setTextColor(0);
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.17);
     pdf.roundedRect(0.5, 0.5, 59, 29, 1.3, 1.3, "S");
+
     pdf.setFont("helvetica", "bold");
-    fitLine(pdf, "BIGNOTTO FERRAMENTAS", 2.3, 4.3, 55.2, 10.8, 8.8);
-    pdf.line(1.8, 5.65, 58.2, 5.65);
+    fitLine(pdf, "BIGNOTTO FERRAMENTAS", 2.3, 3.9, 55.2, 9.6, 8.5);
+    pdf.line(1.8, 5.0, 58.2, 5.0);
 
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(5.6);
-    pdf.text("EMPRESA / DESTINO", 2.3, 8.0);
+    pdf.setFontSize(5.4);
+    pdf.text("DESTINO", 2.3, 7.4);
     pdf.setFont("helvetica", "bold");
-    fitLine(pdf, row.company.toUpperCase().trim(), 2.3, 13.0, 55.2, 14.8, 8.1);
-    pdf.line(1.8, 14.1, 58.2, 14.1);
+    fitLine(pdf, row.company.toUpperCase(), 13.0, 7.7, 44.5, 9.2, 5.8);
+    pdf.line(1.8, 9.1, 58.2, 9.1);
 
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5.2);
+    pdf.text("CÓDIGO", 2.3, 11.1);
+    pdf.text("QTD. SOLICITADA", 39.2, 11.1);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(5.8);
-    pdf.text("CÓDIGO", 2.3, 16.35);
-    pdf.text("QUANTIDADE", 37.4, 16.35);
-    fitLine(pdf, row.code.trim(), 2.3, 21.25, 33.0, 16.1, 10.5);
-    pdf.setLineWidth(0.2);
-    pdf.line(37.5, 21.1, 57.4, 21.1);
-    pdf.line(1.8, 22.0, 58.2, 22.0);
+    fitLine(pdf, row.code.trim(), 2.3, 15.0, 35.0, 12.6, 8.5);
+    fitLine(pdf, requestedQuantity, 39.2, 15.0, 18.0, 12.0, 8.0);
+    pdf.line(1.8, 15.8, 58.2, 15.8);
 
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5.2);
+    pdf.text("DESCRIÇÃO", 2.3, 17.45);
     drawDescription(pdf, row.description);
+    pdf.line(1.8, 23.25, 58.2, 23.25);
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5.2);
+    pdf.text("ENDEREÇO", 2.3, 25.1);
+    pdf.text("QTD. SEPARADA", 39.2, 25.1);
+    pdf.setFont("helvetica", "bold");
+    fitLine(pdf, address.toUpperCase(), 2.3, 28.0, 35.0, 8.2, 5.8);
+    // Caixa de preenchimento manual: propositalmente SEM valor.
+    pdf.setLineWidth(0.2);
+    pdf.rect(39.2, 25.6, 18.2, 3.2, "S");
   }
   return pdf;
 }
