@@ -54,7 +54,8 @@ export function parseAjusteEstoqueJson(text: string): AjusteRoboRelatorio {
     throw new Error("A data do relatório deve ser válida no formato AAAA-MM-DD.");
   if (!Array.isArray(doc.registros) || doc.registros.length === 0 || doc.registros.length > 5000)
     throw new Error("O JSON deve conter entre 1 e 5.000 registros.");
-  if (!Number.isInteger(doc.total_registros) || doc.total_registros !== doc.registros.length)
+  if (typeof doc.total_registros !== "number" || !Number.isInteger(doc.total_registros) ||
+      doc.total_registros !== doc.registros.length)
     throw new Error("total_registros não corresponde à quantidade em registros.");
 
   const codigos = new Set<string>();
