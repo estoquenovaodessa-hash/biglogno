@@ -86,11 +86,13 @@ client.on('message', async (msg) => {
                     resposta += "📦 " + produto[colDesc] + "\n";
                     resposta += "📍 Endereço: *" + produto[colEnd] + "*\n";
 
-                    // Um código encontrado = uma etiqueta. NÃO envia quantidade:
-                    // a etiqueta terá campo vazio para preenchimento à mão.
+                    // Um código encontrado = uma etiqueta. A quantidade solicitada
+                    // vai impressa; a quantidade SEPARADA fica para preencher à mão.
                     etiquetas.push({
                         code: itemPedido.codigo,
-                        description: produto[colDesc] || ""
+                        description: produto[colDesc] || "",
+                        requestedQuantity: String(itemPedido.qtd || "").trim(),
+                        address: String(produto[colEnd] || "").trim()
                     });
                 } else {
                     resposta += "❌ *" + itemPedido.codigo + "* - Não encontrado\n";
