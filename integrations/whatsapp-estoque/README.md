@@ -15,8 +15,10 @@
 - Resposta ao WhatsApp: mesma mensagem com código, quantidade, descrição, endereço.
 - Após responder, um código encontrado no `estoque.csv` gera uma etiqueta física de 60 × 30 mm.
 - Produto não encontrado: segue a resposta de erro, sem etiqueta.
-- **Quantidade na etiqueta: propositalmente em branco**, mesmo se a mensagem pedir 6 unidades.
-- Na etiqueta aparecem EMPRESA (ex.: PENTAX), CÓDIGO, DESCRIÇÃO e BIGNOTTO FERRAMENTAS.
+- **QTD. SOLICITADA**: mostra a quantidade do pedido no WhatsApp (ex.: 6).
+- **QTD. SEPARADA**: campo retangular em branco para o separador escrever a quantidade efetivamente separada.
+- **ENDEREÇO**: mostra o endereço do produto conforme o `estoque.csv`; pedidos antigos sem esse dado mostram `N/D`.
+- Na etiqueta aparecem BIGNOTTO FERRAMENTAS, DESTINO (ex.: PENTAX), CÓDIGO, QTD. SOLICITADA, DESCRIÇÃO, ENDEREÇO e QTD. SEPARADA.
 - Impressão: a mesma fila Supabase do S.B.O; o BigLogno Print que já roda no Windows imprime na Argox.
 - Não é necessário instalar pacotes npm novos nem alterar o formato do `estoque.csv`.
 - Reentrega da mesma mensagem pelo WhatsApp não duplica os jobs de impressão.
@@ -80,7 +82,7 @@ Confira que o Windows, a Argox e o BigLogno Print estão ativos. Envie ao grupo 
 PENTAX
 ```
 
-O bot continuará respondendo com **6** no WhatsApp, mas a etiqueta terá a área **QUANTIDADE em branco**. Confira a impressão física antes de repetir o comando.
+O bot continuará respondendo com **6** no WhatsApp. A etiqueta mostrará **QTD. SOLICITADA: 6**, o endereço cadastrado e um campo **QTD. SEPARADA** vazio. Confira a impressão física antes de repetir o comando.
 
 ### 6. Testes locais opcionais
 
