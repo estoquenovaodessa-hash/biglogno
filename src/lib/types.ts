@@ -161,6 +161,16 @@ export interface ZonaSeguraRecord {
   ultimaDataReferencia?: string | null; // última data de planilha que gerou reincidência
   linha?: string;
   grupo?: string;
+  /** Último relatório do robô de ajuste de estoque aplicado a este item. */
+  ajusteEstoqueRobo?: {
+    data: string;
+    saldoAnterior: number;
+    saldoSolicitado: number;
+    saldoAtual: number;
+    status: "correto" | "divergente";
+    ajusteRealizado: boolean;
+    assinatura: string;
+  };
 }
 
 
