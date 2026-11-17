@@ -79,7 +79,7 @@ jobs:
         run: bun test src/lib/km-trip-cache.test.js
       - name: Testar clique do aviso KM e enderecos nao localizados
         run: bun test src/lib/km-unresolved-addresses.test.js
-      - name: Testar PDFs WhatsApp 60x30 e separacao por lotes
+      - name: Testar etiquetas WhatsApp com quantidade solicitada, endereço e campo separado
         run: bun test src/lib/whatsapp-stock-label.test.ts
       - name: Testar cliente do bot sem conectar ao WhatsApp nem imprimir
         run: node --test integrations/whatsapp-estoque/print-client.test.js

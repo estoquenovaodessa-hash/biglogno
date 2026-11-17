@@ -172,7 +172,7 @@ async function entregarPendente(payload, opts = {}) {
   }
 }
 
-/** Envia apenas empresa/codigo/descricao; quantidade fica em branco.
+/** Envia empresa/código/descrição, quantidade pedida e endereço.
  * Grava ANTES da requisicao. Falha de rede nao perde o pedido: o processo
  * tenta novamente a cada 30 segundos e apos reiniciar o bot. */
 async function solicitarEtiquetasDoBot({ messageId, company, items }, opts = {}) {
@@ -193,7 +193,9 @@ async function solicitarEtiquetasDoBot({ messageId, company, items }, opts = {})
     company: String(company ?? "").trim().slice(0, 100) || "Não informada",
     items: filtered.map(item => ({
       code: String(item.code).trim().slice(0, 60),
-      description: String(item.description).trim().slice(0, 360)
+      description: String(item.description).trim().slice(0, 360),
+      ...(item.requestedQuantity != null ? { requestedQuantity: String(item.requestedQuantity).trim().slice(0, 60) } : {}),
+      ...(item.address != null ? { address: String(item.address).trim().slice(0, 160) } : {})
     }))
   };
   gravarPendente(payload, opts); // Durabilidade antes do envio.

@@ -41,7 +41,7 @@ test("mesma mensagem do WhatsApp sempre produz mesmo UUID para evitar duplicidad
   assert.equal(id,idPedidoDaMensagem("true_12036@g.us_AAA"));
   assert.notEqual(id,idPedidoDaMensagem("true_12036@g.us_BBB"));
 });
-test("comando já interpretado mantém empresa e manda etiqueta sem quantidade",async()=>{
+test("comando mantém empresa e envia quantidade solicitada e endereço",async()=>{
   let request;
   const mockFetch=async(url,init)=>{
     request={url,init,payload:JSON.parse(init.body)};
@@ -49,12 +49,11 @@ test("comando já interpretado mantém empresa e manda etiqueta sem quantidade",
   };
   const result=await solicitarEtiquetasDoBot({
     messageId:"abc-test",company:"PENTAX",
-    items:[{code:"12456",description:"FITA VEDA ROSCA",quantity:6}],
+    items:[{code:"12456",description:"FITA VEDA ROSCA",requestedQuantity:"6",address:"A-01"}],
   },{token,fetch:mockFetch,persist:false});
   assert.equal(result.ok,true);
   assert.equal(request.payload.company,"PENTAX");
-  assert.deepEqual(request.payload.items,[{code:"12456",description:"FITA VEDA ROSCA"}]);
-  assert.equal("quantity" in request.payload.items[0],false);
+  assert.deepEqual(request.payload.items,[{code:"12456",description:"FITA VEDA ROSCA",requestedQuantity:"6",address:"A-01"}]);
   assert.equal(request.init.headers.authorization,"Bearer "+token);
   assert.equal(request.init.method,"POST");
   assert.match(request.url,/https:\/\//);
@@ -81,7 +80,7 @@ test("falha de rede salva pedido no disco e reenvia sem perder ou duplicar quant
     let attempts=0;
     const fail=async()=>{ attempts++; const e=new Error("fetch failed"); e.cause={code:"ECONNRESET"}; throw e; };
     const dados={messageId:"pedido-pendente-1",company:"PENTAX",
-      items:[{code:"12456",description:"FITA VEDA ROSCA",quantity:6}]};
+      items:[{code:"12456",description:"FITA VEDA ROSCA",requestedQuantity:"6",address:"A-01"}]};
     const result=await solicitarEtiquetasDoBot(dados,{token,fetch:fail,outboxDir:dir});
     assert.equal(result.pending,true);
     assert.equal(result.ok,false);
@@ -93,7 +92,7 @@ test("falha de rede salva pedido no disco e reenvia sem perder ou duplicar quant
     const raw=fs.readFileSync(path.join(dir,files[0]),"utf8");
     assert.ok(!raw.includes(token));
     const pending=JSON.parse(raw).payload;
-    assert.deepEqual(pending.items,[{code:"12456",description:"FITA VEDA ROSCA"}]);
+    assert.deepEqual(pending.items,[{code:"12456",description:"FITA VEDA ROSCA",requestedQuantity:"6",address:"A-01"}]);
     assert.equal(pending.requestId,result.requestId);
     let recoveredPayload;
     const success=async(_url,init)=>{

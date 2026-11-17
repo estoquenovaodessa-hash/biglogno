@@ -9,18 +9,24 @@ const label = (index: number) => ({
   company: "PENTAX",
   code: String(12456 + index),
   description: "FITA ISOLANTE PREMIUM 18 MM PARA FERRAMENTAS INDUSTRIAIS",
+  requestedQuantity: "6",
+  address: "RUA A / 03",
 });
 
 describe("Etiqueta automática WhatsApp → Argox 60 × 30 mm", () => {
-  test("gera PDF com código, descrição, empresa, marca e QUANTIDADE EM BRANCO", () => {
+  test("gera PDF com quantidade solicitada, endereço e campo separado vazio", () => {
     const pdf = createWhatsAppStockLabelsPdf([label(0)]);
     expect(pdf.getNumberOfPages()).toBe(1);
     expect(pdf.internal.pageSize.getWidth()).toBeCloseTo(60, 0);
     expect(pdf.internal.pageSize.getHeight()).toBeCloseTo(30, 0);
     const b64 = prepareWhatsAppStockLabelParts([label(0)])[0].pdfBase64;
     expect(Buffer.from(b64, "base64").subarray(0, 4).toString()).toBe("%PDF");
-    // O modelo nem sequer recebe quantidade. A área de quantidade é vazia.
-    expect("quantity" in label(0)).toBe(false);
+    // A quantidade solicitada é um dado da etiqueta. A separada fica para preencher.
+    expect(label(0).requestedQuantity).toBe("6");
+    expect(label(0).address).toBe("RUA A / 03");
+    const page = (pdf.internal.pages[1] ?? []).join(" ");
+    expect(page).toContain("QTD. SOLICITADA");
+    expect(page).toContain("QTD. SEPARADA");
   });
   test("cada código solicitado vira uma página, e 87 códigos são divididos 40/40/7", () => {
     const items = Array.from({length:87}, (_,i)=>label(i));
@@ -35,6 +41,10 @@ describe("Etiqueta automática WhatsApp → Argox 60 × 30 mm", () => {
       code:"0012456",description:"PRODUTO COM DESCRICAO MUITO EXTENSA ".repeat(14),
     }]);
     expect(parts).toHaveLength(1);
+  });
+  test("aceita itens antigos sem quantidade ou endereço, sem perder a impressão", () => {
+    const old = { company: "PENTAX", code: "12456", description: "FITA VEDA ROSCA" };
+    expect(createWhatsAppStockLabelsPdf([old]).getNumberOfPages()).toBe(1);
   });
   test("não cria etiqueta para itens sem código, descrição ou empresa", () => {
     expect(()=>createWhatsAppStockLabelsPdf([{...label(0),code:""}])).toThrow();
