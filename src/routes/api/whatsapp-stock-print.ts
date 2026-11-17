@@ -17,6 +17,8 @@ const requestSchema = z.object({
   items: z.array(z.object({
     code: z.string().trim().min(1).max(60),
     description: z.string().trim().min(1).max(360),
+    requestedQuantity: z.string().trim().max(60).optional(),
+    address: z.string().trim().max(160).optional(),
   })).min(1).max(500),
 }).strict();
 
