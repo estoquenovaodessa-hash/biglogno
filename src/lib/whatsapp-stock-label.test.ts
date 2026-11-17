@@ -24,8 +24,9 @@ describe("Etiqueta automática WhatsApp → Argox 60 × 30 mm", () => {
     // A quantidade solicitada é um dado da etiqueta. A separada fica para preencher.
     expect(label(0).requestedQuantity).toBe("6");
     expect(label(0).address).toBe("RUA A / 03");
-    expect(pdf.output()).toContain("QTD. SOLICITADA");
-    expect(pdf.output()).toContain("QTD. SEPARADA");
+    const page = (pdf.internal.pages[1] ?? []).join(" ");
+    expect(page).toContain("QTD. SOLICITADA");
+    expect(page).toContain("QTD. SEPARADA");
   });
   test("cada código solicitado vira uma página, e 87 códigos são divididos 40/40/7", () => {
     const items = Array.from({length:87}, (_,i)=>label(i));
