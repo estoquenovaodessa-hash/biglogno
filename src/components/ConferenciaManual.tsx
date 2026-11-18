@@ -156,7 +156,13 @@ export function ConferenciaManual() {
     try {
       const relatorio = parseAjusteEstoqueJson(texto);
       setRelatorioRobo(relatorio);
-      toast.success(`Relatório JSON validado: ${relatorio.registros.length} itens. Revise e confirme.`);
+      toast.success(
+        `Relatório JSON validado: ${relatorio.registros.length} códigos únicos` +
+        (relatorio.registrosSubstituidos > 0
+          ? ` (${relatorio.registrosSubstituidos} registros anteriores substituídos).`
+          : ".") +
+        " Revise e confirme.",
+      );
     } catch (error) {
       setRelatorioRobo(null);
       toast.error(error instanceof Error ? error.message : "Não foi possível validar o JSON.");
@@ -273,7 +279,8 @@ export function ConferenciaManual() {
           Aceita o relatório com <code>versao: 1</code>, <code>rotina: "ajuste_estoque"</code>,
           <code> data</code>, <code>total_registros</code> e <code>registros</code>.
           Preserva os códigos com zeros à esquerda, o status Correto/Divergente,
-          os três saldos e se houve ajuste. A data de inclusão será a data do relatório.
+          os três saldos e se houve ajuste. Se um código se repetir, vale a <strong>última ocorrência</strong> na ordem do JSON.
+          A data de inclusão será a data do relatório.
           <strong> Esta importação registra os resultados na Zona Segura, não executa ajustes no ERP.</strong>
         </p>
         <div className="flex flex-wrap gap-2">
@@ -302,13 +309,20 @@ export function ConferenciaManual() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold">
-                Revisar JSON · {relatorioRobo.registros.length} registros · {relatorioRobo.data}
+                Revisar JSON · {relatorioRobo.registros.length} códigos únicos · {relatorioRobo.data}
               </h3>
               <p className="text-xs text-muted-foreground">
                 {relatorioRobo.registros.filter(r => r.status === "correto").length} corretos ·{" "}
                 {relatorioRobo.registros.filter(r => r.status === "divergente").length} divergentes ·{" "}
                 {relatorioRobo.registros.filter(r => r.ajusteRealizado).length} ajustes realizados
               </p>
+              {relatorioRobo.registrosSubstituidos > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  {relatorioRobo.totalRegistrosOriginais} registros no arquivo ·{" "}
+                  {relatorioRobo.registrosSubstituidos} ocorrência(s) anterior(es) substituída(s).
+                  Foi considerada somente a última ocorrência de cada código.
+                </p>
+              )}
             </div>
           </div>
           <div className="mobile-table-wrap max-h-80 overflow-auto rounded-lg border border-border">
@@ -346,7 +360,7 @@ export function ConferenciaManual() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={confirmarJson}>
               <CheckCircle2 className="mr-1 h-4 w-4" />
-              Confirmar {relatorioRobo.registros.length} itens do JSON
+              Confirmar {relatorioRobo.registros.length} itens únicos do JSON
             </Button>
             <Button variant="outline" onClick={() => setRelatorioRobo(null)}>Cancelar</Button>
           </div>
