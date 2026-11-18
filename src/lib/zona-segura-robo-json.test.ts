@@ -38,12 +38,11 @@ describe("Importação JSON do robô na Zona Segura", () => {
     expect(rel.registros[0].codigo).toBe("00475");
     expect(rel.registros[0].saldoAtual).toBe(2.5);
   });
-  test("falha sem gravar nada se o arquivo tiver contagem incorreta, código duplicado ou dados malformados", () => {
+  test("falha sem gravar nada se o arquivo tiver contagem incorreta ou dados malformados", () => {
     const invalido = [
       { ...exemplo, total_registros: 3 },
       { ...exemplo, data: "2026-02-30" },
       { ...exemplo, rotina: "outra_rotina" },
-      { ...exemplo, registros: [exemplo.registros[0], {...exemplo.registros[0], codigo:"475"}] },
       { ...exemplo, registros: [{...exemplo.registros[0], saldo_anterior: "invalido"}], total_registros:1 },
       { ...exemplo, registros: [{...exemplo.registros[0], ajuste_realizado:"true"}], total_registros:1 },
       { ...exemplo, registros: [{...exemplo.registros[0], status:"alterado"}], total_registros:1 },
@@ -51,6 +50,67 @@ describe("Importação JSON do robô na Zona Segura", () => {
     ];
     for (const item of invalido) expect(() => parseAjusteEstoqueJson(JSON.stringify(item))).toThrow();
     expect(() => parseAjusteEstoqueJson("{incompleto")).toThrow();
+  });
+  test("mantém apenas a última ocorrência por código e respeita a ordem final do JSON", () => {
+    const json = {
+      ...exemplo,
+      total_registros: 5,
+      registros: [
+        { ...exemplo.registros[0], saldo_anterior: "-3", status: "divergente" },
+        exemplo.registros[1],
+        { ...exemplo.registros[0], codigo: "00475", saldo_anterior: "4", saldo_atual: "4", status: "correto", ajuste_realizado: false },
+        { ...exemplo.registros[1], codigo: "00710", saldo_atual: "8" },
+        { ...exemplo.registros[0], codigo: "475", saldo_anterior: "9", saldo_solicitado: "11", saldo_atual: "11", status: "divergente", ajuste_realizado: true },
+      ],
+    };
+    const rel = parseAjusteEstoqueJson(JSON.stringify(json));
+    expect(rel.totalRegistrosOriginais).toBe(5);
+    expect(rel.registrosSubstituidos).toBe(2);
+    expect(rel.registros.map(r => r.codigo)).toEqual(["00123", "00710", "00475"]);
+    expect(rel.registros.find(r => r.codigo === "00475")).toMatchObject({
+      saldoAnterior: 9, saldoSolicitado: 11, saldoAtual: 11,
+      status: "divergente", ajusteRealizado: true,
+    });
+
+    const gravado = aplicarAjusteEstoqueJson(rel, [], {}, base, [], agora);
+    expect(gravado.adicionados).toBe(3);
+    expect(gravado.zonaSegura).toHaveLength(3);
+    expect(gravado.zonaSegura.find(r => r.codigo === "00475")?.estoqueNaCorrecao).toBe(11);
+    expect(gravado.zonaSegura.find(r => r.codigo === "00475")?.quantidadeCorrecoes).toBe(1);
+
+    const repetido = aplicarAjusteEstoqueJson(rel, gravado.zonaSegura, gravado.conferencia, base, [], agora);
+    expect(repetido.ignorados).toBe(3);
+    expect(repetido.zonaSegura.find(r => r.codigo === "00475")?.quantidadeCorrecoes).toBe(1);
+  });
+  test("valida total_registros pelo array original, não pelo número de códigos únicos", () => {
+    const json = { ...exemplo, registros: [exemplo.registros[0], exemplo.registros[1], exemplo.registros[0]] };
+    expect(() => parseAjusteEstoqueJson(JSON.stringify(json))).toThrow("total_registros");
+    const valido = parseAjusteEstoqueJson(JSON.stringify({...json, total_registros: 3}));
+    expect(valido.registros).toHaveLength(2);
+    expect(valido.registrosSubstituidos).toBe(1);
+  });
+  test("registros anteriores substituídos não bloqueiam a importação por saldos antigos inválidos", () => {
+    const json = {
+      ...exemplo, total_registros: 2,
+      registros: [
+        { ...exemplo.registros[0], saldo_anterior: "erro", status: "desatualizado" },
+        { ...exemplo.registros[0], saldo_anterior: "10", saldo_atual: "7" },
+      ],
+    };
+    const rel = parseAjusteEstoqueJson(JSON.stringify(json));
+    expect(rel.registros).toHaveLength(1);
+    expect(rel.registros[0].saldoAnterior).toBe(10);
+    expect(rel.registros[0].saldoAtual).toBe(7);
+  });
+  test("a última ocorrência precisa ter saldos e status válidos", () => {
+    const json = {
+      ...exemplo, total_registros: 2,
+      registros: [
+        exemplo.registros[0],
+        { ...exemplo.registros[0], saldo_atual: "inválido" },
+      ],
+    };
+    expect(() => parseAjusteEstoqueJson(JSON.stringify(json))).toThrow("saldo_atual");
   });
   test("grava resultados e metadados, mas não altera a base de endereços ou o ERP", () => {
     const rel = parseAjusteEstoqueJson(JSON.stringify(exemplo));

@@ -16,6 +16,10 @@ export type AjusteRoboRelatorio = {
   versao: 1;
   rotina: "ajuste_estoque";
   data: string;
+  /** Quantidade informada em total_registros (antes da consolidação). */
+  totalRegistrosOriginais: number;
+  /** Ocorrências anteriores descartadas quando o código aparece novamente. */
+  registrosSubstituidos: number;
   registros: AjusteRoboRegistro[];
 };
 
@@ -58,30 +62,47 @@ export function parseAjusteEstoqueJson(text: string): AjusteRoboRelatorio {
       doc.total_registros !== doc.registros.length)
     throw new Error("total_registros não corresponde à quantidade em registros.");
 
-  const codigos = new Set<string>();
-  const registros: AjusteRoboRegistro[] = doc.registros.map((value: unknown, index: number) => {
+  // A ordem do JSON é a fonte de verdade: para cada código, só a
+  // última ocorrência é considerada. total_registros continua a ser
+  // conferido contra o tamanho ORIGINAL do array.
+  const ultimaPosicao = new Map<string, number>();
+  const codigos = doc.registros.map((value: unknown, index: number): string => {
     const linha = index + 1;
     if (!objeto(value)) throw new Error("Registro " + linha + ": objeto inválido.");
     if (typeof value.codigo !== "string" || !/^\d{1,12}$/.test(value.codigo.trim()))
       throw new Error("Registro " + linha + ": código deve ser texto contendo apenas dígitos.");
     const codigo = value.codigo.trim().padStart(5, "0");
-    if (codigos.has(codigo))
-      throw new Error("Código " + codigo + " duplicado no relatório.");
-    codigos.add(codigo);
-    if (value.status !== "correto" && value.status !== "divergente")
-      throw new Error("Registro " + linha + ": status deve ser correto ou divergente.");
-    if (typeof value.ajuste_realizado !== "boolean")
-      throw new Error("Registro " + linha + ": ajuste_realizado deve ser true ou false.");
-    return {
-      codigo,
-      saldoAnterior: numero(value.saldo_anterior, "saldo_anterior", linha),
-      saldoSolicitado: numero(value.saldo_solicitado, "saldo_solicitado", linha),
-      saldoAtual: numero(value.saldo_atual, "saldo_atual", linha),
-      status: value.status,
-      ajusteRealizado: value.ajuste_realizado,
-    };
+    ultimaPosicao.set(codigo, index);
+    return codigo;
   });
-  return { versao: 1, rotina: "ajuste_estoque", data: doc.data, registros };
+
+  const registros: AjusteRoboRegistro[] = [];
+  doc.registros.forEach((value: unknown, index: number) => {
+    const codigo = codigos[index];
+    if (ultimaPosicao.get(codigo) !== index) return;
+    // Registros anteriores com o mesmo código não são aplicados nem
+    // precisam ter seus saldos/status válidos; prevalece a última linha.
+    const linha = index + 1;
+    const row = value as Record<string, unknown>;
+    if (row.status !== "correto" && row.status !== "divergente")
+      throw new Error("Registro " + linha + ": status deve ser correto ou divergente.");
+    if (typeof row.ajuste_realizado !== "boolean")
+      throw new Error("Registro " + linha + ": ajuste_realizado deve ser true ou false.");
+    registros.push({
+      codigo,
+      saldoAnterior: numero(row.saldo_anterior, "saldo_anterior", linha),
+      saldoSolicitado: numero(row.saldo_solicitado, "saldo_solicitado", linha),
+      saldoAtual: numero(row.saldo_atual, "saldo_atual", linha),
+      status: row.status,
+      ajusteRealizado: row.ajuste_realizado,
+    });
+  });
+  return {
+    versao: 1, rotina: "ajuste_estoque", data: doc.data,
+    totalRegistrosOriginais: doc.registros.length,
+    registrosSubstituidos: doc.registros.length - registros.length,
+    registros,
+  };
 }
 
 export type AjusteRoboResultado = {
