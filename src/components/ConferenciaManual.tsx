@@ -4,13 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Plus, CheckCircle2, Check, X, Trash2 } from "lucide-react";
+import { Upload, Plus, CheckCircle2, Check, X, Trash2, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { readFileSmart, parseBRNumber } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import { parseAjusteEstoqueJson } from "@/lib/zona-segura-robo-json";
 import type { AjusteRoboRelatorio } from "@/lib/zona-segura-robo-json";
+import { gerarPdfAjustesEstoque, nomePdfAjustesEstoque } from "@/lib/pdf-ajustes-estoque";
 
 type Motivo = "Correto" | "Divergente";
 
@@ -97,7 +98,7 @@ function MotivoToggle({
 }
 
 export function ConferenciaManual() {
-  const { adicionarConferidos, importarAjustesRobo } = useStore();
+  const { adicionarConferidos, importarAjustesRobo, enderecoBase, zonaSegura, items } = useStore();
   const [codigo, setCodigo] = useState("");
   const [obs, setObs] = useState("");
   const [motivo, setMotivo] = useState<Motivo>("Correto");
@@ -187,12 +188,39 @@ export function ConferenciaManual() {
 
   const confirmarJson = () => {
     if (!relatorioRobo) return;
-    const resultado = importarAjustesRobo(relatorioRobo);
-    toast.success(
-      `Relatório do robô: ${resultado.adicionados} novos, ${resultado.atualizados} atualizados, ${resultado.ignorados} ignorados.`,
-    );
-    setRelatorioRobo(null);
-    setJsonColado("");
+    try {
+      // Preparar primeiro: se a geração falhar, não altera os registros.
+      const pdf = gerarPdfAjustesEstoque(relatorioRobo, { enderecoBase, zonaSegura, items });
+      const resultado = importarAjustesRobo(relatorioRobo);
+      let downloadSolicitado = false;
+      try {
+        // Executado dentro do clique do usuário: download automático após confirmar.
+        pdf.save(nomePdfAjustesEstoque(relatorioRobo));
+        downloadSolicitado = true;
+      } catch (erroDownload) {
+        console.error("[Zona Segura] Falha no download do PDF:", erroDownload);
+        toast.error("Itens registrados, mas o PDF não foi baixado. Use 'Baixar PDF do JSON' para tentar novamente.");
+        return; // Preserva a prévia para baixar sem importar novamente.
+      }
+      toast.success(
+        `JSON: ${resultado.adicionados} novos, ${resultado.atualizados} atualizados, ${resultado.ignorados} ignorados. ` +
+        (downloadSolicitado ? "Download automático do PDF solicitado." : ""),
+      );
+      setRelatorioRobo(null);
+      setJsonColado("");
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível gerar o relatório PDF.");
+    }
+  };
+
+  const baixarPdfJson = () => {
+    if (!relatorioRobo) return;
+    try {
+      gerarPdfAjustesEstoque(relatorioRobo, { enderecoBase, zonaSegura, items })
+        .save(nomePdfAjustesEstoque(relatorioRobo));
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível baixar o PDF.");
+    }
   };
 
   const setMotivoAll = (m: Motivo) =>
@@ -280,7 +308,7 @@ export function ConferenciaManual() {
           <code> data</code>, <code>total_registros</code> e <code>registros</code>.
           Preserva os códigos com zeros à esquerda, o status Correto/Divergente,
           os três saldos e se houve ajuste. Se um código se repetir, vale a <strong>última ocorrência</strong> na ordem do JSON.
-          A data de inclusão será a data do relatório.
+          A data de inclusão será a data do relatório. Ao confirmar, o PDF com <strong>todas as movimentações</strong> (inclusive códigos repetidos) será baixado automaticamente. Comando e horário constarão quando forem informados no JSON.
           <strong> Esta importação registra os resultados na Zona Segura, não executa ajustes no ERP.</strong>
         </p>
         <div className="flex flex-wrap gap-2">
@@ -361,6 +389,9 @@ export function ConferenciaManual() {
             <Button onClick={confirmarJson}>
               <CheckCircle2 className="mr-1 h-4 w-4" />
               Confirmar {relatorioRobo.registros.length} itens únicos do JSON
+            </Button>
+            <Button variant="outline" onClick={baixarPdfJson}>
+              <FileDown className="mr-1 h-4 w-4" /> Baixar PDF do JSON
             </Button>
             <Button variant="outline" onClick={() => setRelatorioRobo(null)}>Cancelar</Button>
           </div>
