@@ -85,5 +85,7 @@ jobs:
         run: node --test integrations/whatsapp-estoque/print-client.test.js
       - name: Testar importação JSON do robô na Zona Segura
         run: bun test src/lib/zona-segura-robo-json.test.ts
+      - name: Testar PDF de auditoria do robô e download automático
+        run: bun test src/lib/pdf-ajustes-estoque.test.ts
       - name: Executar build de producao
         run: npm run build
