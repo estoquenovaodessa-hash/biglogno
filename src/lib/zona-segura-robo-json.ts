@@ -12,6 +12,26 @@ export type AjusteRoboRegistro = {
   ajusteRealizado: boolean;
 };
 
+/** Cada operação da automação na ordem ORIGINAL do JSON.
+ * Diferentemente de registros, esta lista não elimina códigos repetidos.
+ * Valores textuais são preservados mesmo em entradas antigas substituídas.
+ */
+export type AjusteRoboMovimentacao = {
+  ordem: number;
+  codigo: string;
+  data: string;
+  hora: string;
+  comando: string;
+  descricao: string;
+  endereco: string;
+  saldoAnterior: string;
+  saldoSolicitado: string;
+  saldoAtual: string;
+  status: string;
+  ajusteRealizado: boolean | null;
+  ultimaOcorrencia: boolean;
+};
+
 export type AjusteRoboRelatorio = {
   versao: 1;
   rotina: "ajuste_estoque";
@@ -21,6 +41,8 @@ export type AjusteRoboRelatorio = {
   /** Ocorrências anteriores descartadas quando o código aparece novamente. */
   registrosSubstituidos: number;
   registros: AjusteRoboRegistro[];
+  /** Todas as operações do arquivo, inclusive códigos repetidos. */
+  movimentacoes: AjusteRoboMovimentacao[];
 };
 
 function objeto(value: unknown): value is Record<string, unknown> {
@@ -77,13 +99,33 @@ export function parseAjusteEstoqueJson(text: string): AjusteRoboRelatorio {
   });
 
   const registros: AjusteRoboRegistro[] = [];
+  const movimentacoes: AjusteRoboMovimentacao[] = [];
   doc.registros.forEach((value: unknown, index: number) => {
     const codigo = codigos[index];
-    if (ultimaPosicao.get(codigo) !== index) return;
-    // Registros anteriores com o mesmo código não são aplicados nem
-    // precisam ter seus saldos/status válidos; prevalece a última linha.
-    const linha = index + 1;
     const row = value as Record<string, unknown>;
+    const dadoTexto = (campo: unknown): string =>
+      typeof campo === "string" || typeof campo === "number" ? String(campo).trim() : "";
+    const tempo = dadoTexto(row.hora ?? row.horario ?? row.data_hora);
+    const hora = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(tempo)
+      ? tempo.slice(11, 19) : tempo;
+    movimentacoes.push({
+      ordem: index + 1, codigo,
+      data: dataValida(row.data) ? row.data : doc.data as string,
+      hora,
+      comando: dadoTexto(row.comando ?? row.comando_utilizado),
+      descricao: dadoTexto(row.descricao),
+      endereco: dadoTexto(row.endereco),
+      saldoAnterior: dadoTexto(row.saldo_anterior),
+      saldoSolicitado: dadoTexto(row.saldo_solicitado),
+      saldoAtual: dadoTexto(row.saldo_atual),
+      status: dadoTexto(row.status),
+      ajusteRealizado: typeof row.ajuste_realizado === "boolean" ? row.ajuste_realizado : null,
+      ultimaOcorrencia: ultimaPosicao.get(codigo) === index,
+    });
+    if (ultimaPosicao.get(codigo) !== index) return;
+    // Registros anteriores com o mesmo código não são aplicados na Zona Segura,
+    // mas permanecem em movimentacoes para o PDF de auditoria.
+    const linha = index + 1;
     if (row.status !== "correto" && row.status !== "divergente")
       throw new Error("Registro " + linha + ": status deve ser correto ou divergente.");
     if (typeof row.ajuste_realizado !== "boolean")
@@ -102,6 +144,7 @@ export function parseAjusteEstoqueJson(text: string): AjusteRoboRelatorio {
     totalRegistrosOriginais: doc.registros.length,
     registrosSubstituidos: doc.registros.length - registros.length,
     registros,
+    movimentacoes,
   };
 }
 
