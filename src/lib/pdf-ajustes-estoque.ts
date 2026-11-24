@@ -12,6 +12,26 @@ export type FonteDescricaoAjustes = {
 export const nomePdfAjustesEstoque = (relatorio: AjusteRoboRelatorio) =>
   "ajustes-estoque-autcom-" + relatorio.data + ".pdf";
 
+/** Variação efetiva do estoque, não a quantidade solicitada.
+ * Retorna N/D quando um dos saldos não pode ser convertido com segurança.
+ */
+export function formatarDiferencaAjuste(saldoAnterior: string, saldoAtual: string): string {
+  const interpretar = (valor: string): number | null => {
+    const texto = valor.trim();
+    if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(texto)) return null;
+    const numero = Number(texto.replace(",", "."));
+    return Number.isFinite(numero) ? numero : null;
+  };
+  const anterior = interpretar(saldoAnterior);
+  const atual = interpretar(saldoAtual);
+  if (anterior === null || atual === null) return "Não informado";
+  // Elimina ruído de ponto flutuante em quantidades fracionadas.
+  const diferenca = Number((atual - anterior).toFixed(6));
+  if (diferenca === 0) return "0";
+  const magnitude = Math.abs(diferenca).toLocaleString("pt-BR", { maximumFractionDigits: 6 });
+  return (diferenca > 0 ? "+" : "-") + magnitude;
+}
+
 export function linhasPdfAjustesEstoque(
   relatorio: AjusteRoboRelatorio,
   fonte: FonteDescricaoAjustes,
@@ -52,6 +72,7 @@ export function linhasPdfAjustesEstoque(
       texto(row.saldoAnterior),
       texto(row.saldoSolicitado),
       texto(row.saldoAtual),
+      formatarDiferencaAjuste(row.saldoAnterior, row.saldoAtual),
       status(row),
       row.ajusteRealizado === null ? "Não informado" : (row.ajusteRealizado ? "Sim" : "Não"),
     ];
@@ -110,13 +131,14 @@ export function gerarPdfAjustesEstoque(
     "Comando e hora aparecem como 'Não informado' quando o arquivo não fornece esses dados. Horário do relatório não é horário do ajuste.",
     10, 46,
   );
+  doc.text("Diferença = saldo atual - saldo anterior  |  + entrada  |  - saída  |  0 sem alteração.", 10, 50);
 
   const dados = linhasPdfAjustesEstoque(relatorio, fonte);
   autoTable(doc, {
-    startY: 51,
+    startY: 55,
     head: [[
       "#", "Data", "Hora", "Código", "Descrição", "Endereço",
-      "Comando", "Saldo anterior", "Solicitado", "Saldo atual", "Status", "Ajuste realizado",
+      "Comando", "Saldo anterior", "Solicitado", "Saldo atual", "Diferença", "Status", "Ajuste realizado",
     ]],
     body: dados,
     theme: "striped",
@@ -130,20 +152,26 @@ export function gerarPdfAjustesEstoque(
       1: { cellWidth: 20 },
       2: { cellWidth: 15 },
       3: { cellWidth: 18 },
-      4: { cellWidth: 62 },
-      5: { cellWidth: 22 },
-      6: { cellWidth: 30 },
-      7: { cellWidth: 19 },
-      8: { cellWidth: 18 },
-      9: { cellWidth: 19 },
-      10: { cellWidth: 22 },
-      11: { cellWidth: 24 },
+      4: { cellWidth: 55 },
+      5: { cellWidth: 21 },
+      6: { cellWidth: 27 },
+      7: { cellWidth: 18 },
+      8: { cellWidth: 17 },
+      9: { cellWidth: 18 },
+      10: { cellWidth: 18 },
+      11: { cellWidth: 21 },
+      12: { cellWidth: 21 },
     },
     didParseCell: (data) => {
       if (data.section !== "body") return;
-      if (data.column.index === 10 && String(data.cell.raw) === "Divergente")
+      if (data.column.index === 10) {
+        const diff = String(data.cell.raw);
+        if (diff.startsWith("+")) data.cell.styles.textColor = [25, 119, 75];
+        else if (diff.startsWith("-")) data.cell.styles.textColor = [184, 42, 42];
+      }
+      if (data.column.index === 11 && String(data.cell.raw) === "Divergente")
         data.cell.styles.textColor = [184, 42, 42];
-      if (data.column.index === 11 && String(data.cell.raw) === "Sim")
+      if (data.column.index === 12 && String(data.cell.raw) === "Sim")
         data.cell.styles.textColor = [25, 119, 75];
     },
   });
